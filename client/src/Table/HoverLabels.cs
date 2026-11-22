@@ -68,22 +68,41 @@ public partial class HoverLabels : Node3D
         _terrainPanel.Position = new Vector2(Math.Max(4, x), Math.Max(4, y));
     }
 
+    /// <summary>Where a unit's name label stands: over its models' centre, 1.2" above the tallest; null with none on the table.</summary>
+    Vector3? NameAt(Guid unit)
+    {
+        var nodes = _view.Pieces.OfType<PieceNode>().Where(n => n.UnitId == unit && !n.IsQueuedForDeletion()).ToList();
+        if (nodes.Count == 0) return null;
+        var centre = nodes.Aggregate(Vector3.Zero, (a, n) => a + n.GlobalPosition) / nodes.Count;
+        return new Vector3(centre.X, nodes.Max(n => n.Bounds.End.Y) + 1.2f, centre.Z);
+    }
+
+    /// <summary>A unit's name label of this many lines as Draw stands it, shown or not, in the table viewport's pixels (its bottom and height);
+    /// null with no model on the table or behind the camera. A fixed-size label is as tall as at one unit from a perspective camera.</summary>
+    public UnitLabel? NameBox(Guid unit, int lines)
+    {
+        var cam = _view.Camera;
+        if (NameAt(unit) is not { } at || cam.IsPositionBehind(at)) return null;
+        var font = _name.Font ?? ThemeDB.FallbackFont;
+        var perUnit = GetViewport().GetVisibleRect().Size.Y / 2 / MathF.Tan(Mathf.DegToRad(cam.Fov) / 2);
+        var line = (font.GetHeight(_name.FontSize) + _name.LineSpacing) * _name.PixelSize * perUnit;
+        return new UnitLabel(cam.UnprojectPosition(at).Y, lines * line + _name.OutlineSize * _name.PixelSize * perUnit);
+    }
+
     void Draw()
     {
         _name.Visible = false; _line.Mesh = null;
         DrawLock(); DrawTerrain();
         if (_hovered is not { } unit || _s.Projection is not { } p || _s.Game is not { } game) return;
         if (HoverView.Of(p, game, new Names(game, p), unit, MySelectedUnit(p, game), _s.MaxWounds, _input.HoveredModel) is not { } info) return;
+        if (NameAt(unit) is not { } at) return;
         var nodes = _view.Pieces.OfType<PieceNode>().Where(n => n.UnitId == unit && !n.IsQueuedForDeletion()).ToList();
-        if (nodes.Count == 0) return;
-        var top = nodes.Max(n => n.Bounds.End.Y);
-        var centre = nodes.Aggregate(Vector3.Zero, (a, n) => a + n.GlobalPosition) / nodes.Count;
         var eligible = _input.Eligible.Contains(unit) || nodes.Any(n => _input.Eligible.Contains(n.ModelId));
         _name.Text = (eligible ? $"{info.Name} · Click to target" : info.Distance is { } d ? $"{info.Name} · {d:0.0}\"" : info.Name)
             + (HoverView.WoundsLine(info.Wounds) is { } wounds ? $"\n{wounds}" : "")    // one label, so the wounds never overlap the name
             + (info.Model is { } model ? $"\nThis model: {model}" : "");                // the model under the pointer, when it is not like the rest
         _name.Modulate = Palette.Team(info.TeamOrdinal);
-        _name.Position = new Vector3(centre.X, top + 1.2f, centre.Z);
+        _name.Position = at;
         _name.Visible = true;
         if (info.From is { } from && info.To is { } to)
             _line.Mesh = LineMesh.Of([(WorldFrame.ToGodot(from) + Vector3.Up * 0.15f, WorldFrame.ToGodot(to) + Vector3.Up * 0.15f, Colors.White)]);

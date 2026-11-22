@@ -20,6 +20,9 @@
   import GameOverModal from './GameOverModal.svelte';
   import Banner from './Banner.svelte';
   import { WoundFloats, WoundNumbers } from './woundNumbers';
+  import UnitActions from './UnitActions.svelte';
+  import { unitActionsOf } from './unitActionsView';
+  import { hoverOf, woundsLine } from './hoverView';
   import HeaderBar from './HeaderBar.svelte';
   import InfoColumn from './InfoColumn.svelte';
   import Roster from './Roster.svelte';
@@ -201,6 +204,21 @@
   const marks = $derived.by(() => { void panel; return box?.marks; });
   const teams = $derived(snap === null ? [] : myTeams(snap));
   const actingTeam = $derived(snap?.projection != null ? acting(snap.projection, teams, snap.log) : null);
+  // The action buttons over the selected unit on my activation (UnitActionsNode): the box's options for it, gone once the answer is sent.
+  const unitActions = $derived.by(() => {
+    void panel;
+    const s = snap, b = box, p = snap?.projection;
+    if (s === null || b === null || p == null || s.game === null) return null;
+    const v = unitActionsOf(p, s.game, actingTeam, selection?.pieceId ?? null, isWatching(s), b.numbered);
+    return v !== null && b.answering(v.askId) ? v : null;
+  });
+  // Whether the unit's name label carries a wounds line under the name (hoverOverlay), for the room the buttons leave it.
+  const actionWoundLine = $derived.by(() => {
+    const s = snap, p = snap?.projection, v = unitActions;
+    if (s === null || p == null || s.game === null || v === null) return false;
+    const info = hoverOf(null, p, s.game, new Names(s.game, p), v.unitId, null, s.maxWounds);
+    return info !== null && woundsLine(info.wounds) !== null;
+  });
 
   // D2: the board's overlays (allowance rings, rulers, landing rings, violation labels) and the models in breach.
   const warned = $derived.by(() => { void version; return new Set(violations.marked.keys()); });
@@ -452,7 +470,11 @@
     {#if scene === null || snap === null}
       <Loading text={waitText(snap)} />
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} floating={woundFloats} />
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} floating={woundFloats}>
+        {#snippet above(project, scale, size)}
+          {#if unitActions !== null && box !== null}<UnitActions actions={unitActions} {box} {panel} {scene} woundLine={actionWoundLine} {project} {scale} {size} />{/if}
+        {/snippet}
+      </Board>
     {/if}
     {#if scene !== null && !$tools.finished}<Loading strip text={tableToolsText($tools)} done={$tools.done} total={$tools.total} />{/if}
     {#if terrainHover !== null}<TerrainHoverPanel hover={terrainHover} at={stagePointer} />{/if}

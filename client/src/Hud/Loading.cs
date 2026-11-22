@@ -17,7 +17,7 @@ public partial class LoadingPanel : PanelContainer
         MouseFilter = MouseFilterEnum.Ignore;
         BoxContainer box = Strip ? new HBoxContainer() : new VBoxContainer();
         box.MouseFilter = MouseFilterEnum.Ignore;
-        box.AddThemeConstantOverride("separation", Strip ? 12 : 10);
+        box.AddThemeConstantOverride("separation", Space.S);
         if (Strip)
         {
             _text.SizeFlagsHorizontal = SizeFlags.ExpandFill; _text.VerticalAlignment = VerticalAlignment.Center;
@@ -57,8 +57,8 @@ public partial class LoadingCurtain : Control
         MouseFilter = MouseFilterEnum.Stop;
         _back.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(_back);
         var centre = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore }; centre.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(centre);
-        var stack = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; stack.AddThemeConstantOverride("separation", 20); centre.AddChild(stack);
-        _head.AddThemeConstantOverride("separation", 10);
+        var stack = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; stack.AddThemeConstantOverride("separation", Space.L); centre.AddChild(stack);
+        _head.AddThemeConstantOverride("separation", Space.S);
         stack.AddChild(_head); stack.AddChild(_panel);
         _onTheme = Recolour; Ui.Changed += _onTheme; Recolour();
         // Under a Node (Main, for the shader warm-up) the anchors have no parent rect: the curtain follows the window's.
@@ -99,15 +99,15 @@ public partial class LoadingCurtain : Control
         _headKey = key;
         foreach (var c in _head.GetChildren()) { _head.RemoveChild(c); c.QueueFree(); }
         if (game is null) return;
-        var top = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center }; top.AddThemeConstantOverride("separation", 12); _head.AddChild(top);
+        var top = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center }; top.AddThemeConstantOverride("separation", Space.S); _head.AddChild(top);
         top.AddChild(new Label { Text = game.Name, ThemeTypeVariation = Variation.Display, MouseFilter = MouseFilterEnum.Ignore });
         var chip = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsVertical = SizeFlags.ShrinkCenter };
         var box = new StyleBoxFlat { BgColor = Ui.Accent with { A = 0.18f }, BorderColor = Ui.Accent }; box.SetBorderWidthAll(1); box.SetCornerRadiusAll(10);
-        box.ContentMarginLeft = box.ContentMarginRight = 10; box.ContentMarginTop = box.ContentMarginBottom = 2;
+        box.ContentMarginLeft = box.ContentMarginRight = Space.S; box.ContentMarginTop = box.ContentMarginBottom = Space.XS;
         chip.AddThemeStyleboxOverride("panel", box);
         chip.AddChild(new Label { Text = game.Status.ToUpperInvariant(), ThemeTypeVariation = Variation.Accent, MouseFilter = MouseFilterEnum.Ignore });
         top.AddChild(chip);
-        var bands = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center }; bands.AddThemeConstantOverride("separation", 10); _head.AddChild(bands);
+        var bands = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center }; bands.AddThemeConstantOverride("separation", Space.S); _head.AddChild(bands);
         foreach (var team in game.Teams)
         {
             var band = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore }; band.AddThemeStyleboxOverride("panel", Ui.TeamBand(team.Ordinal, compact: true));

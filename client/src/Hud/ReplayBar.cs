@@ -24,15 +24,15 @@ public partial class ReplayBar : PanelContainer
     {
         _s = session;
         MouseFilter = MouseFilterEnum.Stop;
-        var rows = new VBoxContainer(); rows.AddThemeConstantOverride("separation", 6); AddChild(rows);
-        var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", 8); rows.AddChild(title);
+        var rows = new VBoxContainer(); rows.AddThemeConstantOverride("separation", Space.XS); AddChild(rows);
+        var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", Space.S); rows.AddChild(title);
         title.AddChild(_titleIcon = HudBits.Icon("replay", Ui.Accent, 18));
         title.AddChild(_titleWord = new Label { Text = "REPLAY", ThemeTypeVariation = Variation.Display }); _titleWord.AddThemeColorOverride("font_color", Ui.Accent);
-        var buttons = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center }; buttons.AddThemeConstantOverride("separation", 2); rows.AddChild(buttons);
+        var buttons = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center }; buttons.AddThemeConstantOverride("separation", Space.XS); rows.AddChild(buttons);
         foreach (var b in ReplayBarView.Back) buttons.AddChild(Step(b));
         buttons.AddChild(_play = Btn("Play", "play", "Play the game forward one step at a time", TogglePlay));
         foreach (var b in ReplayBarView.Forward) buttons.AddChild(Step(b));
-        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", 8); rows.AddChild(line);
+        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", Space.S); rows.AddChild(line);
         var track = new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 30) }; line.AddChild(track);
         track.AddChild(_ticks = new RoundTicks()); _ticks.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         track.AddChild(_scrub = new HSlider { MinValue = 0, Step = 1, FocusMode = FocusModeEnum.None, TooltipText = "Drag to any point in the game" });

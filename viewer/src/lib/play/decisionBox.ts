@@ -371,9 +371,20 @@ export class DecisionBox {
   }
 
   hover(controlId: string | null): void {
+    this.#hovered = controlId;
     this.#light(controlId === null ? null : this.#piecesOf(controlId));
     this.#publish();
   }
+  #hovered: string | null = null;
+
+  /** The control under the pointer, its tile's or the button over the unit's (the same id): both draw lit. */
+  get hoveredControl(): string | null { return this.#lit === null ? null : this.#hovered; }
+
+  /** The keys the box answers to now: the full list, or a selected unit's options renumbered from 1. */
+  get numbered(): readonly Numbered[] { return this.#numbered; }
+
+  /** Whether this Ask is the one on the card and still unanswered: no answer sent, its tiles live. */
+  answering(askId: string): boolean { return this.#renderedAsk === askId && this.handlers.onNumber !== null; }
 
   /**
    * p.13: "may spend any number of spell tokens", capped per model by what that model holds. So one box per model, each bounded by its

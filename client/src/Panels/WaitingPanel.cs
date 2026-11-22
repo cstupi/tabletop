@@ -37,11 +37,11 @@ public partial class WaitingPanel : PanelContainer
 
     void Build(Session s, Tabletop.Protocol.GameInfo game, IReadOnlyList<WaitingColumn> columns)
     {
-        var stack = new VBoxContainer(); stack.AddThemeConstantOverride("separation", 10); AddChild(stack);
-        var band = new HBoxContainer(); band.AddThemeConstantOverride("separation", 8); stack.AddChild(band);
+        var stack = new VBoxContainer(); stack.AddThemeConstantOverride("separation", Space.S); AddChild(stack);
+        var band = new HBoxContainer(); band.AddThemeConstantOverride("separation", Space.S); stack.AddChild(band);
         band.AddChild(Icon("watch", Ui.DimText, 18));
         band.AddChild(new Label { Text = WaitingView.Band, ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill });
-        var row = new HFlowContainer(); row.AddThemeConstantOverride("h_separation", 8); row.AddThemeConstantOverride("v_separation", 8); stack.AddChild(row);
+        var row = new HFlowContainer(); row.AddThemeConstantOverride("h_separation", Space.S); row.AddThemeConstantOverride("v_separation", Space.S); stack.AddChild(row);
         var pickers = new List<(ArmySeat Seat, OptionButton Box)>();
         foreach (var column in columns) row.AddChild(Column(s, column, pickers));
         var error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false };
@@ -67,20 +67,20 @@ public partial class WaitingPanel : PanelContainer
         box.AddThemeStyleboxOverride("panel", Ui.TeamColumn(column.Ordinal));
         var stack = new VBoxContainer(); stack.AddThemeConstantOverride("separation", 0); box.AddChild(stack);
         var band = new PanelContainer(); band.AddThemeStyleboxOverride("panel", Ui.TeamBand(column.Ordinal, compact: true)); stack.AddChild(band);
-        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", 8); band.AddChild(line);
+        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", Space.S); band.AddChild(line);
         var ink = Ui.OnBand(column.Ordinal);
         line.AddChild(Icon("team", ink, 18));
         var title = new Label { Text = column.Title.ToUpperInvariant(), SizeFlagsHorizontal = SizeFlags.ExpandFill }; title.AddThemeColorOverride("font_color", ink); line.AddChild(title);
         line.AddChild(Icon(column.State == ColumnState.Ready ? "ready" : "warning", ink, 16));
         var state = new Label { Text = column.StateText }; state.AddThemeColorOverride("font_color", ink); line.AddChild(state);
         var body = new MarginContainer();
-        foreach (var edge in new[] { "margin_left", "margin_right", "margin_top", "margin_bottom" }) body.AddThemeConstantOverride(edge, 8);
+        foreach (var edge in new[] { "margin_left", "margin_right", "margin_top", "margin_bottom" }) body.AddThemeConstantOverride(edge, Space.S);
         stack.AddChild(body);
-        var rows = new VBoxContainer(); rows.AddThemeConstantOverride("separation", 4); body.AddChild(rows);
+        var rows = new VBoxContainer(); rows.AddThemeConstantOverride("separation", Space.XS); body.AddChild(rows);
         if (column.Members.Count == 0) rows.AddChild(new Label { Text = "No players yet", ThemeTypeVariation = Variation.Dim });
         foreach (var (name, army) in column.Members)
         {
-            var who = new HBoxContainer(); who.AddThemeConstantOverride("separation", 6); rows.AddChild(who);
+            var who = new HBoxContainer(); who.AddThemeConstantOverride("separation", Space.XS); rows.AddChild(who);
             who.AddChild(Icon("player", Ui.Team(column.Ordinal), 16));
             who.AddChild(new Label { Text = army is null ? name : $"{name} · {army}", ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
                 SizeFlagsHorizontal = SizeFlags.ExpandFill, TooltipText = army ?? name, MouseFilter = MouseFilterEnum.Pass });
@@ -93,7 +93,7 @@ public partial class WaitingPanel : PanelContainer
         }
         if (column.Army is { } seat)
         {
-            var army = new HBoxContainer(); army.AddThemeConstantOverride("separation", 6); rows.AddChild(army);
+            var army = new HBoxContainer(); army.AddThemeConstantOverride("separation", Space.XS); rows.AddChild(army);
             army.AddChild(Icon("army", Ui.Warning, 16));
             var picker = new OptionButton { Disabled = true, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, FitToLongestItem = false, TooltipText = seat.Label };
             picker.AddItem(TeamColumns.NoArmy); army.AddChild(picker);

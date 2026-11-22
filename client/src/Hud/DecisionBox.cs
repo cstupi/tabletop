@@ -55,7 +55,7 @@ public partial class DecisionBox : PanelContainer
     partial void UnhookPicks();
 
     /// <summary>The gap between scrolled content and its bar.</summary>
-    public const int ScrollGap = 8;
+    public const int ScrollGap = Space.S;
 
     public void Bind(Session s, TableView view, TableInput input)
     {
@@ -63,20 +63,20 @@ public partial class DecisionBox : PanelContainer
         CustomMinimumSize = new Vector2(420, 0);
         ThemeTypeVariation = Variation.Card;
         var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", 0); AddChild(box);
-        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", 10); _band.AddChild(head);
+        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", Space.S); _band.AddChild(head);
         _keys.Icon = Ui.Icon("key"); _keys.Pressed += () => KeysRequested?.Invoke();
         foreach (var c in new Control[] { _icon, _title, _seat, _keys }) head.AddChild(c);
         // The controls keep clear of the scroll bar: a margin between their right edge and the bar's.
         var inset = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; inset.AddThemeConstantOverride("margin_right", ScrollGap);
-        _controls.SizeFlagsHorizontal = SizeFlags.ExpandFill; _controls.AddThemeConstantOverride("separation", 10); inset.AddChild(_controls); _scroll.AddChild(inset);
-        foreach (var side in new[] { "left", "right", "top", "bottom" }) _inset.AddThemeConstantOverride($"margin_{side}", 16);
-        _body.AddThemeConstantOverride("separation", 12); _inset.AddChild(_body);
-        _foot.AddThemeConstantOverride("h_separation", 10); _foot.AddThemeConstantOverride("v_separation", 8);
-        _reveal.AddThemeConstantOverride("h_separation", 8); _reveal.AddThemeConstantOverride("v_separation", 6);
-        _choices.AddThemeConstantOverride("separation", 10);
+        _controls.SizeFlagsHorizontal = SizeFlags.ExpandFill; _controls.AddThemeConstantOverride("separation", Space.S); inset.AddChild(_controls); _scroll.AddChild(inset);
+        foreach (var side in new[] { "left", "right", "top", "bottom" }) _inset.AddThemeConstantOverride($"margin_{side}", Space.S);
+        _body.AddThemeConstantOverride("separation", Space.M); _inset.AddChild(_body);
+        _foot.AddThemeConstantOverride("h_separation", Space.S); _foot.AddThemeConstantOverride("v_separation", Space.S);
+        _reveal.AddThemeConstantOverride("h_separation", Space.S); _reveal.AddThemeConstantOverride("v_separation", Space.XS);
+        _choices.AddThemeConstantOverride("separation", Space.S);
         foreach (var c in new Control[] { _reveal, _prompt, _note, _scroll, _refusalLabel, _foot }) _body.AddChild(c);
         _reveal.Visible = false;                                                    // an empty row still takes the body's separation: a gap above the first line
-        _quiet.AddThemeConstantOverride("separation", 6);
+        _quiet.AddThemeConstantOverride("separation", Space.XS);
         foreach (var c in new Control[] { _band, _inset, _quiet }) box.AddChild(c);
         _controls.MinimumSizeChanged += QueueFit;                                  // a ScrollContainer reports no content height
         Ui.Changed += Restyle;
@@ -95,6 +95,7 @@ public partial class DecisionBox : PanelContainer
         _onSelection = () => { if (_input.Selected is null) _onDeselect?.Invoke(); };
         s.EventsApplied += _onEvents; s.Frame.Render += _onFrame; s.RefusedReceived += _onRefused;
         input.TargetClicked += _onTargetClicked; input.ModelClicked += _onModelClicked; input.ModelsDragged += _onDragged; input.UnitClicked += _onUnitClicked; input.PickedUp += _onPickedUp; input.SelectionChanged += _onSelection;
+        BindActions();
         Render();
     }
 
@@ -106,6 +107,7 @@ public partial class DecisionBox : PanelContainer
         if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelsDragged -= _onDragged; _input.UnitClicked -= _onUnitClicked; _input.PickedUp -= _onPickedUp; _input.SelectionChanged -= _onSelection; }
         Unhook();
         if (_region is not null && IsInstanceValid(_region)) _region.QueueFree();
+        UnbindActions();
     }
 
     /// <summary>
@@ -189,6 +191,7 @@ public partial class DecisionBox : PanelContainer
         Frame(card || body && _quiet.GetChildCount() == 0);
         _quiet.Visible = !card && _quiet.GetChildCount() > 0;
         Visible = card || body || _quiet.Visible;
+        Rendered?.Invoke();
     }
 
     /// <summary>Each team's choice in a sealed Ask's reveal: its band and the chip.</summary>
@@ -354,7 +357,7 @@ public partial class DecisionBox : PanelContainer
         var spends = new Dictionary<Guid, SpinBox>();
         foreach (var (id, max) in spendable)
         {
-            var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 10);
+            var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S);
             row.AddChild(new Label { Text = names.Piece(id), SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart, VerticalAlignment = VerticalAlignment.Center });
             row.AddChild(DecisionTiles.Pips(RosterView.Pips(p.Models.GetValueOrDefault(id)?.SpellTokens ?? max, p.Models.GetValueOrDefault(id)?.SpellTokens ?? max), MyOrdinal));
             var spin = new SpinBox { MinValue = 0, MaxValue = max }; row.AddChild(spin); spends[id] = spin;
@@ -470,8 +473,8 @@ public partial class DecisionBox : PanelContainer
     {
         var b = new DecisionTiles.ChoiceTile();
         b.Pressed += () => { if (b.Option is { } o) _onTile?.Invoke(o.OptionId); };
-        b.MouseEntered += () => { if (b.Option is { } o) Light(o.Pieces); };
-        b.MouseExited += () => Light(null);
+        b.MouseEntered += () => { if (b.Option is { } o) { Light(o.Pieces); TileHovered?.Invoke(o.OptionId); } };
+        b.MouseExited += () => { Light(null); TileHovered?.Invoke(null); };
         return b;
     }
 

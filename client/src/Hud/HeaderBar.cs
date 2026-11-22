@@ -39,11 +39,11 @@ public partial class HeaderBar : PanelContainer
     public void Bind(Session session, TableView view, TableInput input)
     {
         _s = session;
-        var lines = new VBoxContainer(); lines.AddThemeConstantOverride("separation", 4); AddChild(lines);
-        _top.AddThemeConstantOverride("separation", 12); _tiles.AddThemeConstantOverride("separation", 8);
-        _activation.AddThemeConstantOverride("separation", 10); _waiting.AddThemeConstantOverride("separation", 8);
+        var lines = new VBoxContainer(); lines.AddThemeConstantOverride("separation", Space.XS); AddChild(lines);
+        _top.AddThemeConstantOverride("separation", Space.S); _tiles.AddThemeConstantOverride("separation", Space.S);
+        _activation.AddThemeConstantOverride("separation", Space.S); _waiting.AddThemeConstantOverride("separation", Space.S);
         lines.AddChild(_top); lines.AddChild(_activation); lines.AddChild(_waiting);
-        _roundBox.AddThemeConstantOverride("separation", 6); _roundBox.AddChild(_roundIcon); _roundBox.AddChild(_roundText);
+        _roundBox.AddThemeConstantOverride("separation", Space.XS); _roundBox.AddChild(_roundIcon); _roundBox.AddChild(_roundText);
         _top.AddChild(_roundBox); _top.AddChild(_tiles); _top.AddChild(_settings);
         _settings.Pressed += () => SettingsRequested?.Invoke();
         _gameOver.Pressed += () => GameOverPressed?.Invoke();
@@ -149,7 +149,7 @@ public partial class HeaderBar : PanelContainer
         _middleKids.Begin();
         if (objectives.Count > 0)
         {
-            var row = _middleKids.Take("marks", () => { var r = new HBoxContainer(); r.AddThemeConstantOverride("separation", 4); return r; });
+            var row = _middleKids.Take("marks", () => { var r = new HBoxContainer(); r.AddThemeConstantOverride("separation", Space.XS); return r; });
             _middleMarks ??= new Kept(row);
             Marks(_middleMarks.Begin(), objectives, HeaderFit.Tight, game); _middleMarks.End();
         }
@@ -162,7 +162,7 @@ public partial class HeaderBar : PanelContainer
         {
             var who = _middleKids.Take("who", () =>
             {
-                var box = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; box.AddThemeConstantOverride("separation", 6);
+                var box = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; box.AddThemeConstantOverride("separation", Space.XS);
                 box.AddChild(HudBits.Icon("", Ui.Accent, 18)); box.AddChild(OneLine("", ""));
                 return box;
             });
@@ -227,9 +227,9 @@ public partial class HeaderBar : PanelContainer
         public TileControls()
         {
             MouseFilter = MouseFilterEnum.Stop;
-            Frame.BorderWidthLeft = 6; Frame.ContentMarginLeft = 10; Frame.ContentMarginRight = 8; Frame.ContentMarginTop = 2; Frame.ContentMarginBottom = 2;
+            Frame.BorderWidthLeft = 6; Frame.ContentMarginLeft = Frame.ContentMarginRight = Space.S; Frame.ContentMarginTop = Frame.ContentMarginBottom = 0;
             AddThemeStyleboxOverride("panel", Frame);
-            var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", 6); AddChild(row);
+            var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", Space.XS); AddChild(row);
             foreach (var c in new Control[] { Player, Title, Score, Vp, Dots, Turn }) row.AddChild(c);
             GuiInput += e => { if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b) Header?.TeamMenuRequested?.Invoke(TeamId, b.GlobalPosition); };
         }

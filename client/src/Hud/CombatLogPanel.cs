@@ -46,7 +46,7 @@ public partial class CombatLogPanel : VBoxContainer
         _detailed.ButtonPressed = s.Settings.LogDetailed;
         _detailed.Toggled += on => { _s.UpdateSettings(x => x with { LogDetailed = on }); Render(); };
         // The head: the log's icon and name, the filter, Detailed, Undo to here (the picked entry) and Copy (the whole log as shown).
-        var top = new HBoxContainer(); top.AddThemeConstantOverride("separation", 10);
+        var top = new HBoxContainer(); top.AddThemeConstantOverride("separation", Space.S);
         top.AddChild(HudBits.Icon("log", Ui.Accent, 18)); top.AddChild(new Label { Text = "LOG", ThemeTypeVariation = Variation.Display });
         _undo = HudBits.IconButton("undo", "Undo to here: pick an entry first", 18); _undo.SizeFlagsVertical = SizeFlags.ShrinkCenter;
         _copy = HudBits.IconButton("copy", "Copy the log as shown", 18); _copy.SizeFlagsVertical = SizeFlags.ShrinkCenter;

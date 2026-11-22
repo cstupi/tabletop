@@ -41,7 +41,7 @@ public static partial class DecisionTiles
     {
         var b = new Button { FocusMode = Control.FocusModeEnum.None, ThemeTypeVariation = primary ? Variation.Primary : Variation.FlatButton, TooltipText = "" };
         var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        row.AddThemeConstantOverride("separation", 8);
+        row.AddThemeConstantOverride("separation", Space.S);
         if (icon is not null) row.AddChild(Icon(icon, 18, primary ? Ui.Background with { A = 1 } : null));
         var word = new Label { Text = text, MouseFilter = Control.MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center };
         if (primary) word.AddThemeColorOverride("font_color", Ui.Background with { A = 1 });
@@ -49,7 +49,7 @@ public static partial class DecisionTiles
         if (key != "") { var cap = Cap(key); if (primary) cap.AddThemeColorOverride("font_color", Ui.Background with { A = 1 }); row.AddChild(cap); }
         b.Pressed += pressed;
         b.CustomMinimumSize = new Vector2(0, 34);
-        Holding(b, row, primary ? 14 : 6, 4);
+        Holding(b, row, primary ? Space.M : Space.S, Space.XS);
         b.Ready += () => b.CustomMinimumSize = new Vector2(row.GetCombinedMinimumSize().X + (primary ? 28 : 12), Math.Max(34, b.CustomMinimumSize.Y));
         return b;
     }
@@ -70,10 +70,10 @@ public static partial class DecisionTiles
         {
             FocusMode = FocusModeEnum.None; ThemeTypeVariation = Variation.Tile; SizeFlagsHorizontal = SizeFlags.ExpandFill; CustomMinimumSize = new Vector2(minWidth, 0);
             var col = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
-            col.AddThemeConstantOverride("separation", 4);
+            col.AddThemeConstantOverride("separation", Space.XS);
             Picture.SizeFlagsHorizontal = SizeFlags.ShrinkCenter; col.AddChild(Picture);
             Word.CustomMinimumSize = new Vector2(minWidth - 24, 0); col.AddChild(Word);
-            DecisionTiles.Holding(this, col, 10, 10);
+            DecisionTiles.Holding(this, col, Space.S, Space.S);
             Key.SetAnchorsAndOffsetsPreset(LayoutPreset.TopRight);
             Key.GrowHorizontal = GrowDirection.Begin;
             Key.Position = new Vector2(-4, 4);
@@ -86,6 +86,7 @@ public static partial class DecisionTiles
     public static void Fill(ChoiceTile b, OptionTile tile)
     {
         b.Option = tile;
+        if (b.ThemeTypeVariation != Variation.Tile) b.ThemeTypeVariation = Variation.Tile;   // a tile lit from the buttons over the unit (DecisionBox.HoverOption) is plain again
         Look.Tip(b, tile.Label);
         var picture = tile.Icon is null ? null : Ui.Icon(tile.Icon);
         if (!ReferenceEquals(b.Picture.Texture, picture)) b.Picture.Texture = picture;
@@ -101,7 +102,7 @@ public static partial class DecisionTiles
     public static GridContainer Grid(int count)
     {
         var g = new GridContainer { Columns = Math.Clamp(count, 1, 4), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-        g.AddThemeConstantOverride("h_separation", 8); g.AddThemeConstantOverride("v_separation", 8);
+        g.AddThemeConstantOverride("h_separation", Space.S); g.AddThemeConstantOverride("v_separation", Space.S);
         return g;
     }
 
@@ -121,11 +122,11 @@ public static partial class DecisionTiles
         public OptionPanel()
         {
             Kept = new(Tiles);
-            foreach (var side in new[] { "left", "right", "top", "bottom" }) Inset.AddThemeConstantOverride($"margin_{side}", 10);
-            Inset.AddThemeConstantOverride("margin_left", 14);
+            foreach (var side in new[] { "left", "right", "top", "bottom" }) Inset.AddThemeConstantOverride($"margin_{side}", Space.S);
+            Inset.AddThemeConstantOverride("margin_left", Space.M);
             AddChild(Inset);
-            var col = new VBoxContainer(); col.AddThemeConstantOverride("separation", 8); Inset.AddChild(col);
-            Head.AddThemeConstantOverride("separation", 10); col.AddChild(Head);
+            var col = new VBoxContainer(); col.AddThemeConstantOverride("separation", Space.S); Inset.AddChild(col);
+            Head.AddThemeConstantOverride("separation", Space.S); col.AddChild(Head);
             Head.AddChild(Unit); Head.AddChild(Pips);
             col.AddChild(Tiles); col.AddChild(Note);
         }
@@ -143,7 +144,7 @@ public static partial class DecisionTiles
         {
             panel.Ordinal = ordinal;
             panel.AddThemeStyleboxOverride("panel", ordinal is { } o ? Ui.TeamColumn(o) : Bare);
-            foreach (var side in new[] { "left", "right", "top", "bottom" }) panel.Inset.AddThemeConstantOverride($"margin_{side}", framed ? side == "left" ? 14 : 10 : 0);
+            foreach (var side in new[] { "left", "right", "top", "bottom" }) panel.Inset.AddThemeConstantOverride($"margin_{side}", framed ? side == "left" ? Space.M : Space.S : 0);
         }
         panel.Head.Visible = group.Unit is not null;
         if (group.Unit is { } unit) Look.Text(panel.Unit, unit, Variation.Display);
@@ -169,7 +170,7 @@ public static partial class DecisionTiles
     /// <summary>The allowance bar: the track filled to the farthest model, a mark at a minimum, the inches beside it; over the allowance in failure colour.</summary>
     public static HBoxContainer Bar(out Action<AllowanceBar> set)
     {
-        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 12);
+        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S);
         var bar = new ProgressBar { ShowPercentage = false, MinValue = 0, MaxValue = 1, Step = 0, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
             CustomMinimumSize = new Vector2(0, 12), SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
         var mark = new ColorRect { Color = Ui.Text, Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -194,7 +195,7 @@ public static partial class DecisionTiles
     public static PanelContainer Band(int ordinal, string team, string? rest, string icon = "team")
     {
         var panel = new PanelContainer { ThemeTypeVariation = Variation.Quiet, MouseFilter = Control.MouseFilterEnum.Ignore };
-        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 10); panel.AddChild(row);
+        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S); panel.AddChild(row);
         var colour = ordinal > 0 ? Ui.Team(ordinal) : Ui.DimText;
         row.AddChild(new ColorRect { Color = colour, CustomMinimumSize = new Vector2(6, 0), MouseFilter = Control.MouseFilterEnum.Ignore });
         row.AddChild(Icon(icon, 18, colour));

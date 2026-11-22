@@ -23,7 +23,7 @@ public partial class HomeScreen : Control
     MenuButton _account = null!;
     Action? _onAccount, _onTheme;
 
-    const int Gap = 24, CardWidth = 280;
+    const int CardWidth = 280;
 
     public override void _Ready()
     {
@@ -53,9 +53,9 @@ public partial class HomeScreen : Control
     {
         foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); }
         var margin = new MarginContainer(); margin.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(margin);
-        foreach (var side in new[] { "margin_left", "margin_right" }) margin.AddThemeConstantOverride(side, Gap);
-        foreach (var side in new[] { "margin_top", "margin_bottom" }) margin.AddThemeConstantOverride(side, 16);
-        var root = new VBoxContainer(); root.AddThemeConstantOverride("separation", 14); margin.AddChild(root);
+        foreach (var side in new[] { "margin_left", "margin_right" }) margin.AddThemeConstantOverride(side, Space.XL);
+        foreach (var side in new[] { "margin_top", "margin_bottom" }) margin.AddThemeConstantOverride(side, Space.XL);
+        var root = new VBoxContainer(); root.AddThemeConstantOverride("separation", Space.L); margin.AddChild(root);
         root.AddChild(Header());
         root.AddChild(_hint = new Label { ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart });
         root.AddChild(Toolbar());
@@ -63,7 +63,7 @@ public partial class HomeScreen : Control
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
         root.AddChild(scroll);
         scroll.AddChild(_body = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill });
-        _body.AddThemeConstantOverride("separation", 12);
+        _body.AddThemeConstantOverride("separation", Space.S);
         root.AddChild(_status = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
         ShowName();
         Render();
@@ -72,7 +72,7 @@ public partial class HomeScreen : Control
     Control Header()
     {
         var session = Main.Instance.Session;
-        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 12);
+        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.M);
         row.AddChild(Icon("objective", Ui.Accent, 30));
         row.AddChild(new Label { Text = "TABLETOP", ThemeTypeVariation = Variation.Display, SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center });
         var gear = IconButton("settings", "Settings", () => SettingsDialog.Open(this, session));
@@ -89,7 +89,7 @@ public partial class HomeScreen : Control
 
     Control Toolbar()
     {
-        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 12);
+        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S);
         var create = new Button { Text = "New game", Icon = Ui.Icon("add"), ExpandIcon = false };
         create.AddThemeConstantOverride("icon_max_width", 18);
         HomeLook.Primary(create);
@@ -126,7 +126,7 @@ public partial class HomeScreen : Control
     /// <summary>A dialog field under its name.</summary>
     static Control Field(string label, Control field)
     {
-        var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", 4);
+        var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", Space.XS);
         box.AddChild(new Label { Text = label, ThemeTypeVariation = Variation.Dim }); box.AddChild(field); return box;
     }
 
@@ -172,7 +172,7 @@ public partial class HomeScreen : Control
             _body.AddChild(Quiet(!_loaded ? "Loading games…" : _search.Text.Length > 0 ? "No game of yours matches" : lists.HasAny ? "None in play" : "No games yet"));
         else
         {
-            var cards = new HFlowContainer(); cards.AddThemeConstantOverride("h_separation", 16); cards.AddThemeConstantOverride("v_separation", 16);
+            var cards = new HFlowContainer(); cards.AddThemeConstantOverride("h_separation", Space.L); cards.AddThemeConstantOverride("v_separation", Space.L);
             foreach (var card in lists.Yours) cards.AddChild(Card(card));
             _body.AddChild(cards);
         }
@@ -198,11 +198,11 @@ public partial class HomeScreen : Control
     }
 
     static Label Caption(string text) => new() { Text = text, ThemeTypeVariation = Variation.Accent };
-    static Control Spacer() => new() { CustomMinimumSize = new Vector2(0, 8) };
+    static Control Spacer() => new() { CustomMinimumSize = new Vector2(0, Space.M) };
 
     static Control Quiet(string text)
     {
-        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", 8);
+        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", Space.S);
         line.AddChild(new Label { Text = text, ThemeTypeVariation = Variation.Dim });
         return line;
     }
@@ -210,7 +210,7 @@ public partial class HomeScreen : Control
     /// <summary>The status mark and word, then the edition, in the status colour.</summary>
     static Control StatusLine(GameSummary g, string edition)
     {
-        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", 8);
+        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", Space.S);
         line.AddChild(new HomeLook.StatusMark(g.Status));
         var words = new Label { Text = g.Status.ToString().ToUpperInvariant() + (edition.Length > 0 ? $"  ·  {edition}" : "") };
         words.AddThemeColorOverride("font_color", HomeLook.Status(g.Status));
@@ -221,7 +221,7 @@ public partial class HomeScreen : Control
     /// <summary>The players, three by name, then "+N"; the names clip at the line's end.</summary>
     static Control Players(HomeCard c)
     {
-        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", 6);
+        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", Space.XS);
         line.AddChild(Icon("player", Ui.DimText, 16));
         line.AddChild(new Label { Text = c.Players.Count == 0 ? "No players" : string.Join("   ", c.Players), SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true,
             TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, TooltipText = string.Join(", ", c.Game.ParticipantNames ?? []), MouseFilter = MouseFilterEnum.Pass });
@@ -234,13 +234,13 @@ public partial class HomeScreen : Control
         var g = c.Game;
         var card = new PanelContainer { CustomMinimumSize = new Vector2(CardWidth, 0) };
         card.AddThemeStyleboxOverride("panel", HomeLook.Card(g.Status));
-        var col = new VBoxContainer(); col.AddThemeConstantOverride("separation", 8); card.AddChild(col);
+        var col = new VBoxContainer(); col.AddThemeConstantOverride("separation", Space.S); card.AddChild(col);
         col.AddChild(StatusLine(g, c.Edition));
         col.AddChild(new Label { Text = g.Name, ThemeTypeVariation = Variation.Display, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
             TooltipText = g.Name, MouseFilter = MouseFilterEnum.Pass, CustomMinimumSize = new Vector2(CardWidth - 40, 0) });
         col.AddChild(Players(c));
         col.AddChild(new Label { Text = c.State, ThemeTypeVariation = c.StateWarns ? Variation.Warning : Variation.Dim });
-        var foot = new HBoxContainer(); foot.AddThemeConstantOverride("separation", 8); col.AddChild(foot);
+        var foot = new HBoxContainer(); foot.AddThemeConstantOverride("separation", Space.S); col.AddChild(foot);
         foot.AddChild(PrimaryButton(c));
         foot.AddChild(new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill });
         if (c.Menu.Count > 0) foot.AddChild(MenuOf(c));
@@ -251,7 +251,7 @@ public partial class HomeScreen : Control
     {
         var g = c.Game;
         var panel = new PanelContainer(); panel.AddThemeStyleboxOverride("panel", HomeLook.Row(g.Status));
-        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 16); panel.AddChild(row);
+        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.M); panel.AddChild(row);
         row.AddChild(new HomeLook.StatusMark(g.Status));
         row.AddChild(new Label { Text = g.Name, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsStretchRatio = 2, ClipText = true,
             TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, TooltipText = g.Name, MouseFilter = MouseFilterEnum.Pass, CustomMinimumSize = new Vector2(120, 0) });
@@ -404,7 +404,7 @@ public partial class HomeScreen : Control
         Show("");
         var dialog = new ConfirmationDialog { Title = "Create game", OkButtonText = "Create game" };
         HomeLook.Primary(dialog.GetOkButton());
-        var form = new VBoxContainer(); form.AddThemeConstantOverride("separation", 12); dialog.AddChild(form);
+        var form = new VBoxContainer(); form.AddThemeConstantOverride("separation", Space.M); dialog.AddChild(form);
         var touched = false;
         var problem = DialogText(variation: Variation.Warning); problem.Visible = false;
         var name = new LineEdit { MaxLength = TextLimits.Name, PlaceholderText = "Friday night skirmish" };
@@ -418,7 +418,7 @@ public partial class HomeScreen : Control
         var nameField = Field("Name", name); ((VBoxContainer)nameField).AddChild(problem); form.AddChild(nameField);
         var pack = new OptionButton(); foreach (var p in packs) pack.AddItem(CreateDefaults.PackLabel(p)); pack.Select(CreateDefaults.DefaultIndex(packs));
         if (packs.Count > 1) form.AddChild(Field("Rule set", pack));
-        var two = new HBoxContainer(); two.AddThemeConstantOverride("separation", 12); form.AddChild(two);
+        var two = new HBoxContainer(); two.AddThemeConstantOverride("separation", Space.M); form.AddChild(two);
         var shape = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill }; shape.AddItem("Alternating activation"); shape.AddItem("Player turn");
         var shapeField = Field("Activation", shape); shapeField.SizeFlagsHorizontal = SizeFlags.ExpandFill; two.AddChild(shapeField);
         var enforcement = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill }; foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select(1);

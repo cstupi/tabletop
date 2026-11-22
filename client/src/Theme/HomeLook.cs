@@ -24,7 +24,7 @@ public static partial class HomeLook
         var edge = Status(status);
         var b = new StyleBoxFlat { BgColor = Ui.Of(Ui.Current.Panel) with { A = 1 }, BorderColor = edge with { A = 0.55f }, CornerDetail = Ui.Current.Shape.Clipped ? 1 : 8 };
         b.SetBorderWidthAll(1); b.BorderWidthLeft = 6; b.SetCornerRadiusAll(Radius);
-        b.ContentMarginLeft = 22; b.ContentMarginRight = 16; b.ContentMarginTop = b.ContentMarginBottom = 14;
+        b.SetContentMarginAll(Space.M);
         return b;
     }
 
@@ -33,7 +33,7 @@ public static partial class HomeLook
     {
         var b = new StyleBoxFlat { BgColor = Ui.Of(Ui.Current.Panel) with { A = 1 }, BorderColor = Status(status) with { A = 0.9f } };
         b.BorderWidthLeft = 4; b.SetCornerRadiusAll(Math.Min(Radius, 4));
-        b.ContentMarginLeft = 14; b.ContentMarginRight = 10; b.ContentMarginTop = b.ContentMarginBottom = 6;
+        b.ContentMarginLeft = b.ContentMarginRight = Space.M; b.ContentMarginTop = b.ContentMarginBottom = Space.S;
         return b;
     }
 
@@ -43,12 +43,12 @@ public static partial class HomeLook
         foreach (var (state, mix) in new[] { ("normal", 0f), ("hover", 0.18f), ("pressed", 0.32f), ("focus", 0f) })
         {
             var s = new StyleBoxFlat { BgColor = Ui.Accent.Lerp(Ui.Text, mix) };
-            s.SetCornerRadiusAll(Math.Min(Radius, 6)); s.ContentMarginLeft = s.ContentMarginRight = 14; s.ContentMarginTop = s.ContentMarginBottom = 6;
+            s.SetCornerRadiusAll(Math.Min(Radius, 6)); s.ContentMarginLeft = s.ContentMarginRight = Space.M; s.ContentMarginTop = s.ContentMarginBottom = Space.S;
             if (state == "focus") { s.DrawCenter = false; s.BorderColor = Ui.Text; s.SetBorderWidthAll(1); }
             b.AddThemeStyleboxOverride(state, s);
         }
         var disabled = new StyleBoxFlat { BgColor = Ui.Accent with { A = 0.35f } };
-        disabled.SetCornerRadiusAll(Math.Min(Radius, 6)); disabled.ContentMarginLeft = disabled.ContentMarginRight = 14; disabled.ContentMarginTop = disabled.ContentMarginBottom = 6;
+        disabled.SetCornerRadiusAll(Math.Min(Radius, 6)); disabled.ContentMarginLeft = disabled.ContentMarginRight = Space.M; disabled.ContentMarginTop = disabled.ContentMarginBottom = Space.S;
         b.AddThemeStyleboxOverride("disabled", disabled);
         var ink = Ink;
         foreach (var name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color" })

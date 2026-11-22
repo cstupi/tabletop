@@ -20,7 +20,7 @@ public partial class Fold : VBoxContainer
     {
         _title = title;
         var open = folds.IsOpen(fold, status);
-        AddThemeConstantOverride("separation", Space.S);
+        AddThemeConstantOverride("separation", Space.XS);
         var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S); AddChild(row);
         _head = new Button { Flat = true, ThemeTypeVariation = Variation.FlatButton, ToggleMode = true, ButtonPressed = open, Alignment = HorizontalAlignment.Left,
             FocusMode = FocusModeEnum.None, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis };

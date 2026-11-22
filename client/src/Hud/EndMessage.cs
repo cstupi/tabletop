@@ -33,10 +33,10 @@ public partial class EndMessage : Control
         Visible = false;
         var centre = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore }; centre.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(centre);
         centre.AddChild(_panel);
-        var box = new VBoxContainer { CustomMinimumSize = new Vector2(420, 0) }; box.AddThemeConstantOverride("separation", 12); _panel.AddChild(box);
-        _scores.AddThemeConstantOverride("separation", 16); _waiting.AddThemeConstantOverride("separation", 8);
+        var box = new VBoxContainer { CustomMinimumSize = new Vector2(420, 0) }; box.AddThemeConstantOverride("separation", Space.M); _panel.AddChild(box);
+        _scores.AddThemeConstantOverride("separation", Space.M); _waiting.AddThemeConstantOverride("separation", Space.S);
         box.AddChild(_title); box.AddChild(_result); box.AddChild(_scores); box.AddChild(_reason); box.AddChild(_note); box.AddChild(_waiting);
-        _buttons.AddThemeConstantOverride("separation", 16); box.AddChild(_buttons);
+        _buttons.AddThemeConstantOverride("separation", Space.M); box.AddChild(_buttons);
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Game)) != 0) Render(); };
         session.Frame.Render += _onFrame;
         _onTheme = Render; Ui.Changed += _onTheme;
@@ -121,9 +121,9 @@ public partial class EndMessage : Control
         var tile = new PanelContainer();
         var box = new StyleBoxFlat { BgColor = Ui.Team(t.Ordinal) with { A = 0.12f }, BorderColor = Ui.Team(t.Ordinal) with { A = 0.6f }, CornerDetail = Ui.Current.Shape.Clipped ? 1 : 8 };
         box.SetBorderWidthAll(1); box.BorderWidthLeft = 8; box.SetCornerRadiusAll(Math.Min(Ui.Current.Shape.CornerRadius, 6));
-        box.ContentMarginLeft = 16; box.ContentMarginRight = 14; box.ContentMarginTop = box.ContentMarginBottom = 6;
+        box.ContentMarginLeft = box.ContentMarginRight = Space.M; box.ContentMarginTop = box.ContentMarginBottom = Space.S;
         tile.AddThemeStyleboxOverride("panel", box);
-        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 10); tile.AddChild(row);
+        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S); tile.AddChild(row);
         if (t.Mine) row.AddChild(HudBits.Icon("player", Ui.Team(t.Ordinal), 20));
         var name = new Label { Text = t.Name.ToUpperInvariant(), VerticalAlignment = VerticalAlignment.Center }; name.AddThemeColorOverride("font_color", Ui.Team(t.Ordinal)); row.AddChild(name);
         var score = new Label { Text = t.Score.ToString(), VerticalAlignment = VerticalAlignment.Center };

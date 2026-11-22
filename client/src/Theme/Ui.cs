@@ -12,6 +12,8 @@ public static class Variation
     /// <summary>The UX redesign's shared vocabulary (spec 2026-11-07-ux-redesign-design.md → Shared vocabulary): a key boxed in the numeral font,
     /// an icon-over-word button, a panel with a 16 px inset, a one-line dim band, and the one lit button of a card.</summary>
     public const string KeyCap = nameof(KeyCap), Tile = nameof(Tile), Card = nameof(Card), Quiet = nameof(Quiet), Primary = nameof(Primary);
+    /// <summary>A tile lit while its match elsewhere is under the pointer, and the round icon buttons over the selected unit, plain and lit.</summary>
+    public const string TileLit = nameof(TileLit), RoundTile = nameof(RoundTile), RoundTileLit = nameof(RoundTileLit);
 }
 
 /// <summary>The current UiTheme, its built Godot theme, and its colours and icons as Godot types.</summary>
@@ -58,7 +60,7 @@ public static class Ui
     public static StyleBoxFlat TeamBand(int ordinal, bool compact = false)
     {
         var b = new StyleBoxFlat { BgColor = ordinal > 0 ? Team(ordinal) : DimText with { A = 0.25f } };
-        b.ContentMarginLeft = b.ContentMarginRight = compact ? 8 : 14; b.ContentMarginTop = b.ContentMarginBottom = compact ? 4 : 10;
+        b.ContentMarginLeft = b.ContentMarginRight = compact ? Space.S : Space.M; b.ContentMarginTop = b.ContentMarginBottom = compact ? Space.XS : Space.S;
         return b;
     }
 
@@ -69,7 +71,7 @@ public static class Ui
     public static StyleBoxFlat MemberRow(bool mine)
     {
         var b = new StyleBoxFlat { BgColor = mine ? Accent with { A = 0.10f } : Accent with { A = 0 } };
-        b.SetCornerRadiusAll(Math.Min(Current.Shape.CornerRadius, 4)); b.ContentMarginLeft = b.ContentMarginRight = 8; b.ContentMarginTop = b.ContentMarginBottom = 6;
+        b.SetCornerRadiusAll(Math.Min(Current.Shape.CornerRadius, 4)); b.ContentMarginLeft = b.ContentMarginRight = Space.S; b.ContentMarginTop = b.ContentMarginBottom = Space.XS;
         return b;
     }
 
@@ -79,7 +81,7 @@ public static class Ui
         var c = Of(colour);
         var b = new StyleBoxFlat { BgColor = c with { A = 0.2f }, BorderColor = c, CornerDetail = 6 };
         b.SetBorderWidthAll(1); b.SetCornerRadiusAll(Math.Max(3, Math.Min(Current.Shape.CornerRadius, 8)));
-        b.ContentMarginLeft = 6; b.ContentMarginRight = 10; b.ContentMarginTop = b.ContentMarginBottom = 3;
+        b.ContentMarginLeft = b.ContentMarginRight = Space.S; b.ContentMarginTop = b.ContentMarginBottom = Space.XS;
         return b;
     }
 
@@ -87,7 +89,7 @@ public static class Ui
     public static StyleBoxFlat EdgeBand(Color edge)
     {
         var b = new StyleBoxFlat { BgColor = edge with { A = 0.12f }, BorderColor = edge };
-        b.BorderWidthLeft = 6; b.ContentMarginLeft = 12; b.ContentMarginRight = 8; b.ContentMarginTop = b.ContentMarginBottom = 4;
+        b.BorderWidthLeft = 6; b.ContentMarginLeft = b.ContentMarginRight = Space.S; b.ContentMarginTop = b.ContentMarginBottom = Space.XS;
         return b;
     }
 
@@ -95,7 +97,7 @@ public static class Ui
     public static StyleBoxFlat FloatingPanel()
     {
         var b = new StyleBoxFlat { BgColor = Of(Current.Panel) with { A = 0.97f }, BorderColor = Of(Current.PanelBorder), CornerDetail = 6 };
-        b.SetBorderWidthAll(Math.Max(1, Current.Shape.BorderWidth)); b.SetCornerRadiusAll(Current.Shape.CornerRadius); b.SetContentMarginAll(12);
+        b.SetBorderWidthAll(Math.Max(1, Current.Shape.BorderWidth)); b.SetCornerRadiusAll(Current.Shape.CornerRadius); b.SetContentMarginAll(Space.S);
         b.ShadowColor = Background with { A = 0.5f }; b.ShadowSize = 6;
         return b;
     }

@@ -76,13 +76,13 @@ public partial class DiceTray : PanelContainer
         foreach (var c in _row.GetChildren()) { _row.RemoveChild(c); c.QueueFree(); }
         _tumbling.Clear();
         // The title line: the dice icon and the roll's words; a roll-off's words carry its team labels between the faces.
-        var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", 8);
+        var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", Space.S);
         title.AddChild(HudBits.Icon("dice", Ui.Accent, 18));
         var rollOff = r.DieLabels is { Count: > 0 };
         title.AddChild(new Label { Text = rollOff ? r.Collapsed(CombatLog.Pip) : r.Title, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill });
         Add(title);
         if (rollOff) return;
-        var faces = new HFlowContainer(); faces.AddThemeConstantOverride("h_separation", 6); Add(faces);
+        var faces = new HFlowContainer(); faces.AddThemeConstantOverride("h_separation", Space.XS); Add(faces);
         void Face(Control c) { Ignore(c); faces.AddChild(c); }
         foreach (var d in r.Dice)
         {

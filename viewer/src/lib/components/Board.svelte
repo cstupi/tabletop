@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import type { Scene } from '../board/frame';
   import { draw } from '../board/draw';
   import { boardColoursOf, type BoardColours } from '../board/style';
@@ -11,7 +12,7 @@
 
   let {
     scene, view = $bindable(null), extent, interaction, overlays = [], selected = new Set<string>(), models = 'bases',
-    showGrid = true, showZones = true, showLabels = true, glow, marks, warned, dimmed, floating,
+    showGrid = true, showZones = true, showLabels = true, glow, marks, warned, dimmed, floating, above,
   }: {
     scene: Scene;
     /** The parent holds the view, so setup and play share one pan and zoom; null fits the extent. */
@@ -32,6 +33,9 @@
     dimmed?: ReadonlySet<string> | undefined;
     /** What moves for a moment (the wound numbers), on a canvas of its own: animated only while it draws something. */
     floating?: FloatingLayer | undefined;
+    /** Controls over the board at table points (the action buttons over the selected unit): given the table-to-screen map, the scale in
+     *  pixels per inch and the board's size. */
+    above?: Snippet<[(p: Point) => Point, number, { width: number; height: number }]> | undefined;
   } = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -167,6 +171,7 @@
     }}
   ></canvas>
   {#if floating !== undefined}<canvas class="floating" bind:this={floatCanvas} aria-hidden="true"></canvas>{/if}
+  {@render above?.((p) => toScreen(current, scene.table, p), current.scale, box)}
   <button class="small reset" title="Fit the table to the window" onclick={() => (view = null)}>Reset view</button>
 </div>
 
