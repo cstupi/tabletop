@@ -4,6 +4,7 @@
 
 import type { Enforcement } from '../protocol/wire.generated';
 import { sentence } from './contactCheck';
+import { shortWords } from './markLabels';
 
 export class Violations {
   readonly #measured = new Map<string, string>();
@@ -73,13 +74,16 @@ export class Violations {
   /** Under strict a marked model holds the commit; under warn and silent it goes and the server judges. */
   blocks(enforcement: Enforcement): boolean { return enforcement === 'strict' && this.#marked.size > 0; }
 
-  /** One label per reason, over the first model in this order that has it: the words, since the label stands over the model. */
+  /** One label per reason, over the first model in this order that has it, in its short words (markLabels' shortWords: the full sentence is
+   *  the decision box's); a model with a mark and a warning carries both, the mark first. */
   labels(order: Iterable<string>): { modelId: string; reason: string }[] {
     const seen = new Set<string>();
     const out: { modelId: string; reason: string }[] = [];
     for (const id of order)
-      for (const reason of [this.#words.get(id), this.#warned.get(id)]) {
-        if (reason === undefined || seen.has(reason)) continue;
+      for (const words of [this.#words.get(id), this.#warned.get(id)]) {
+        if (words === undefined) continue;
+        const reason = shortWords(words);
+        if (seen.has(reason)) continue;
         seen.add(reason); out.push({ modelId: id, reason });
       }
     return out;

@@ -32,6 +32,8 @@ public partial class DecisionBox : PanelContainer
     readonly ScrollContainer _scroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
     HudRect? _slot; bool _fitQueued;
     Guid? _renderedAsk, _answering, _lastCommand, _refusalAsk; string? _refusal, _refusalDetail; readonly SealedReveals _reveals = new();
+    /// <summary>The command the box sent last: its refusal shows in the box's refusal line, so the screen does not toast it too.</summary>
+    public Guid? LastCommand => _lastCommand;
     /// <summary>The set-aside facts the drawn Ask was drawn with (SetAsideView.DrawnKey): facts that arrive after it draw it again.</summary>
     string _asideDrawn = "";
     IReadOnlyList<IReadOnlyList<RevealChip>>? _revealed; IReadOnlyList<IReadOnlyList<RevealChip>>? _revealDrawn;

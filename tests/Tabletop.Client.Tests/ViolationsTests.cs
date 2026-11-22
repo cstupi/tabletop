@@ -64,17 +64,18 @@ public class ViolationsTests
     }
 
     [Fact]
-    public void With_a_subject_a_mark_reads_as_a_sentence_naming_the_first_model_with_it_and_the_labels_keep_the_words()
+    public void With_a_subject_a_mark_reads_as_a_sentence_naming_the_first_model_with_it_and_the_labels_read_short()
     {
         var v = new Violations { Subject = id => id == A ? "APC 1" : id == B ? "APC 2" : null };
         v.Measure([A, B, C], new Dictionary<Guid, string> { [A] = "within 1\" of Orcs", [B] = "within 1\" of Orcs", [C] = "overlaps a base" });
         Assert.Equal("APC 1 would end within 1\" of Orcs", v.Marked[A]);
         Assert.Equal("APC 1 would end within 1\" of Orcs", v.Marked[B]);
         Assert.Equal("overlaps a base", v.Marked[C]);
-        Assert.Equal([(B, "within 1\" of Orcs"), (C, "overlaps a base")], v.Labels([B, A, C]));
+        Assert.Equal([(B, "Too close 1\""), (C, "On a base")], v.Labels([B, A, C]));
         v.Refused([C], "C would be placed outside its deployment zone");
         v.Measure([C], new Dictionary<Guid, string>());
         Assert.Equal("C would be placed outside its deployment zone", v.Marked[C]);
+        Assert.Equal([(C, "Outside its zone")], v.Labels([C]));
     }
 
     [Fact]
@@ -82,8 +83,8 @@ public class ViolationsTests
     {
         var v = new Violations();
         v.Measure([A, B, C], new Dictionary<Guid, string> { [A] = "overlaps a base", [B] = "overlaps a base", [C] = "within 1\" of Orcs" });
-        Assert.Equal([(A, "overlaps a base"), (C, "within 1\" of Orcs")], v.Labels([A, B, C]));
-        Assert.Equal([(B, "overlaps a base"), (C, "within 1\" of Orcs")], v.Labels([B, C, A]));
+        Assert.Equal([(A, "On a base"), (C, "Too close 1\"")], v.Labels([A, B, C]));
+        Assert.Equal([(B, "On a base"), (C, "Too close 1\"")], v.Labels([B, C, A]));
     }
 
     [Fact]
@@ -96,7 +97,7 @@ public class ViolationsTests
         Assert.Empty(v.Marked);
         Assert.False(v.Blocks(Enforcement.Strict));
         v.Measure([B], new Dictionary<Guid, string> { [B] = "overlaps a base" });
-        Assert.Equal([(A, "Dangerous terrain test"), (B, "overlaps a base")], v.Labels([A, B]));
+        Assert.Equal([(A, "Dangerous terrain test"), (B, "On a base")], v.Labels([A, B]));
         v.Warn([A, B], new Dictionary<Guid, string> { [A] = "Dangerous terrain test" });
         Assert.Equal(2, raised);                                                                   // the same warning again raises nothing
         v.Clear();

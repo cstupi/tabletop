@@ -21,6 +21,15 @@ public class FeedbackTests
     }
 
     [Fact]
+    public void A_refusal_the_decision_box_shows_is_not_toasted_again()
+    {
+        var sent = Guid.NewGuid();
+        var refused = new Refused(sent, RefusalReason.Illegal, "Flayer Cavalry would end out of coherency.");
+        Assert.Null(Feedback.Refusal(refused, shownInBox: sent));
+        Assert.Equal("Against the rules: Flayer Cavalry would end out of coherency.", Feedback.Refusal(refused, shownInBox: Guid.NewGuid()));
+    }
+
+    [Fact]
     public void A_refusal_keeps_its_own_full_stop_and_says_something_without_a_detail()
     {
         Assert.Equal("Not allowed: not your army.", Feedback.Refusal(new Refused(Guid.NewGuid(), RefusalReason.NotPermitted, "not your army.")));

@@ -49,7 +49,7 @@ public partial class GameScreen
 
         // Table overlays: Node3D children of the table, and the markers and floating text in a canvas layer of the table's own viewport.
         Table.AddChild(_hover = new HoverLabels()); _hover.Bind(_session, Table, Input);
-        Table.AddChild(_violations = new ViolationMarks()); _violations.Bind(Table, Input);
+        Table.AddChild(_violations = new ViolationMarks()); _violations.Bind(Table, Input); _violations.Covered = Covered;
         Table.AddChild(_sight = new SightLines()); _sight.Bind(_session, Table, Input);
         Table.AddChild(_targets = new TargetLines()); _targets.Bind(_session, Table, Input);
         Table.AddChild(_rings = new RangeRingNode()); _rings.Bind(_session, Input); _rings.Covered = Covered;

@@ -9,9 +9,11 @@ namespace Tabletop.Client.Core;
 public static class Feedback
 {
     /// <summary>The toast for a refusal. Null for a watcher's refused presence or ping (message id empty): the client stops sending
-    /// those once it knows it watches, and a stray one is not news.</summary>
-    public static string? Refusal(Refused r)
+    /// those once it knows it watches, and a stray one is not news. Null too for the decision box's own command (`shownInBox`): its refusal line
+    /// says it, once.</summary>
+    public static string? Refusal(Refused r, Guid? shownInBox = null)
     {
+        if (shownInBox is { } mine && r.MessageId == mine) return null;
         if (r.Reason == RefusalReason.Watcher) return r.MessageId == Guid.Empty ? null : "You are watching this game.";
         var kind = r.Reason switch
         {
