@@ -21,25 +21,22 @@ export interface HomeCard {
 export interface HomeLists { readonly yours: readonly HomeCard[]; readonly open: readonly HomeCard[]; readonly ended: readonly HomeCard[]; readonly hasAny: boolean }
 
 export const PLAYERS_SHOWN = 3;
-/** How long an ended game of mine stays among Your games. */
-export const RECENT_DAYS = 7;
 
 export const ACTION_LABEL: Record<HomeAction, string> = {
   play: 'Play', continue: 'Continue', open: 'Open', replay: 'Replay', join: 'Join', end: 'End game', delete: 'Delete game', leave: 'Leave',
 };
 
-/** My games not ended and those ended in the last RECENT_DAYS (cards), the others not ended (rows with Join), my other ended games (rows with
- *  Replay; empty unless asked for). Newest first. */
+/** My games not ended (cards), the others not ended (rows with Join), my ended games (rows with Replay; empty unless "Ended too" is on).
+ *  Newest first. */
 export function homeListsOf(games: readonly GameSummary[], me: string | null, search: string, endedToo: boolean, now: Date = new Date()): HomeLists {
   const needle = search.trim().toLowerCase();
   const shown = games.filter((g) => needle === '' || g.name.toLowerCase().includes(needle))
     .slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
   const cards = (keep: (g: GameSummary) => boolean) => shown.filter(keep).map((g) => cardOf(g, me, now));
-  const recent = (g: GameSummary) => g.endedAt != null && now.getTime() - Date.parse(g.endedAt) <= RECENT_DAYS * 86_400_000;
   return {
-    yours: cards((g) => g.joined && (g.status !== 'ended' || recent(g))),
+    yours: cards((g) => g.joined && g.status !== 'ended'),
     open: cards((g) => !g.joined && g.status !== 'ended'),
-    ended: endedToo ? cards((g) => g.joined && g.status === 'ended' && !recent(g)) : [],
+    ended: endedToo ? cards((g) => g.joined && g.status === 'ended') : [],
     hasAny: games.some((g) => g.joined),
   };
 }

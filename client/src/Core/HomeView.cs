@@ -11,27 +11,23 @@ public enum HomeAction { Play, Continue, Open, Replay, Join, End, Delete, Leave 
 public sealed record HomeCard(GameSummary Game, string Edition, IReadOnlyList<string> Players, int MorePlayers, string State, bool StateWarns,
     HomeAction Primary, IReadOnlyList<HomeAction> Menu);
 
-/// <summary>Home's sections: my games not ended and those ended in the last RecentDays (cards), the others not ended (rows with Join), my
-/// other ended games (rows with Replay; empty unless asked for). HasAny: I hold a game at all, ended or not, whatever the search.</summary>
+/// <summary>Home's sections: my games not ended (cards), the others not ended (rows with Join), my ended games (rows with Replay; empty
+/// unless "Ended too" is on). HasAny: I hold a game at all, ended or not, whatever the search.</summary>
 public sealed record HomeLists(IReadOnlyList<HomeCard> Yours, IReadOnlyList<HomeCard> Open, IReadOnlyList<HomeCard> Ended, bool HasAny);
 
 /// <summary>What Home shows for the games management lists. The viewer's games page reads the same (viewer/src/lib/games/homeView.ts).</summary>
 public static partial class HomeView
 {
     public const int PlayersShown = 3;
-    /// <summary>How long an ended game of mine stays among Your games.</summary>
-    public const int RecentDays = 7;
-
     public static HomeLists Of(IEnumerable<GameSummary> games, Guid? me, string search, bool endedToo, DateTimeOffset now)
     {
         var shown = games.Where(g => search.Length == 0 || g.Name.Contains(search, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(g => g.CreatedAt).ThenByDescending(g => g.Id).ToList();
         List<HomeCard> Cards(Func<GameSummary, bool> keep) => shown.Where(keep).Select(g => CardOf(g, me, now)).ToList();
-        bool Recent(GameSummary g) => g.EndedAt is { } at && now - at <= TimeSpan.FromDays(RecentDays);
         return new(
-            Cards(g => g.Joined && (g.Status != GameStatus.Ended || Recent(g))),
+            Cards(g => g.Joined && g.Status != GameStatus.Ended),
             Cards(g => !g.Joined && g.Status != GameStatus.Ended),
-            endedToo ? Cards(g => g.Joined && g.Status == GameStatus.Ended && !Recent(g)) : [],
+            endedToo ? Cards(g => g.Joined && g.Status == GameStatus.Ended) : [],
             games.Any(g => g.Joined));
     }
 

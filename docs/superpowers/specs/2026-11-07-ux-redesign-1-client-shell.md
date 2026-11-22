@@ -70,7 +70,7 @@ Size: L (new `HomeView` in Core: the cards, their state and actions; `HomeScreen
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Your games** are `GET /v1/games?joined=true` not ended, and those ended in the last seven days (`GameSummary.EndedAt`): a card each, newest first, the status band and icon (`○` lobby, `◐` setup, `●` playing,
+- **Your games** are `GET /v1/games?joined=true` not ended (an ended game is only under Ended, with "Ended too" on; owner 2026-11-22): a card each, newest first, the status band and icon (`○` lobby, `◐` setup, `●` playing,
   `✓` ended), the rule set as its edition, the players (`ParticipantNames`, three then `+N`), one state line, one primary button and a
   `▸` menu. The primary is **Play** (playing), **Continue** (setup), **Open** (lobby), **Replay** (ended). The menu holds Replay (a
   playing game), End game and Delete game (the creator, asked first, as today), Leave.

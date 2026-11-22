@@ -16,7 +16,7 @@ public class HomeViewTests
     static HomeCard Card(GameSummary g) => HomeView.CardOf(g, Me, Now);
 
     [Fact]
-    public void My_games_ended_in_the_last_seven_days_stay_in_yours_and_older_ones_fold_into_ended()
+    public void Your_games_never_lists_an_ended_game_and_ended_too_shows_every_ended_game_of_mine()
     {
         var lobby = Game(GameStatus.Lobby, at: Now.AddDays(-1));
         var recent = Game(GameStatus.Ended, at: Now.AddDays(-30), ended: Now.AddDays(-6));
@@ -24,10 +24,12 @@ public class HomeViewTests
         var undated = Game(GameStatus.Ended, at: Now.AddDays(-30));
         var notMine = Game(GameStatus.Ended, joined: false, ended: Now.AddHours(-1));
         var lists = HomeView.Of([lobby, recent, old, undated, notMine], Me, "", endedToo: false, Now);
-        Assert.Equal([lobby.Id, recent.Id], lists.Yours.Select(c => c.Game.Id));
-        Assert.Equal(HomeAction.Replay, lists.Yours[1].Primary);
+        Assert.Equal([lobby.Id], lists.Yours.Select(c => c.Game.Id));
         Assert.Empty(lists.Ended);
-        Assert.Equal(new[] { old.Id, undated.Id }.Order(), HomeView.Of([lobby, recent, old, undated, notMine], Me, "", endedToo: true, Now).Ended.Select(c => c.Game.Id).Order());
+        var withEnded = HomeView.Of([lobby, recent, old, undated, notMine], Me, "", endedToo: true, Now);
+        Assert.Equal([lobby.Id], withEnded.Yours.Select(c => c.Game.Id));
+        Assert.Equal(new[] { recent.Id, old.Id, undated.Id }.Order(), withEnded.Ended.Select(c => c.Game.Id).Order());
+        Assert.All(withEnded.Ended, c => Assert.Equal(HomeAction.Replay, c.Primary));
         Assert.True(HomeView.Of([old], Me, "", false, Now).HasAny);
         Assert.False(HomeView.Of([notMine], Me, "", false, Now).HasAny);
     }
