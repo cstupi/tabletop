@@ -93,6 +93,15 @@ Look at a game position without sending anything: sign in a participant of the g
 TABLETOP_PERF_ZOOM=14 TABLETOP_PERF_SECONDS=25 godot --path client --rendering-driver opengl3` (`DISPLAY=:0` under WSLg); the
 replay moves to the position 8 s in, and touching `<dir>/perf.csv.shot` writes `perf.csv.shot.png`.
 
+## Spacing
+
+Every separation, margin and content margin is a step of `Space` (`src/Theme/Space.cs`): `XS` 4, `S` 8, `M` 16, `L` 24, `XL` 32,
+`XXL` 48; 0 means none. A container's padding is smaller than the gap to its siblings, and related items sit closer than unrelated ones
+(label and value `XS`–`S`, rows `S`, groups `M`–`L`, sections `XL`–`XXL`); the Hud over the table keeps to `XS`–`M`, full-screen pages
+(Home, Login, lobby) use the upper steps. Fixed control sizes and borders are not spacing. Where a layout breaks, change the layout, not
+the scale. Spec `docs/superpowers/specs/2026-11-21-spacing-rules-design.md`; `./scripts/check-client` fails on a numeric spacing argument
+under `src/{Hud,Panels,Screens,Theme}`.
+
 ## Driving a game by eye
 
 To look at Hud states one after another (selections, Asks, team switches) in a game you may answer: clone the perf template
