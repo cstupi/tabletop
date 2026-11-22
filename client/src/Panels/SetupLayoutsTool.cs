@@ -42,8 +42,8 @@ public partial class SetupLayoutsTool : SetupToolBody
         {
             var line = Row(); _rows.AddChild(line);
             line.AddChild(Icon("layout", choice.Builtin is null ? Ui.Accent : Ui.DimText, 16));
-            line.AddChild(new Label { Text = choice.Label, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
-                TooltipText = choice.Label, MouseFilter = MouseFilterEnum.Pass });
+            line.AddChild(new Label { Text = choice.Label, SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                MouseFilter = MouseFilterEnum.Pass });   // wraps: the panel has the height, a cut name hides the size and piece count
             var menu = new MenuButton { Text = "▸", Flat = true, ThemeTypeVariation = Variation.FlatButton, FocusMode = FocusModeEnum.None };
             menu.GetPopup().AddItem("Load", 0);
             if (choice.SavedId is not null) menu.GetPopup().AddItem("Delete", 1);
