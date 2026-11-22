@@ -114,11 +114,23 @@ describe('the decision box controller', () => {
 
   it('picking a unit to activate is never answered by a click on it, even with one action', () => {
     const r = rig();
-    r.apply(open(askOf(opts(option('a', 'Advance', [r.s.squad.id]), option('h', 'Hold', [r.s.squad.id]), option('i', 'Idle', [r.s.rivals.id])))));   // question: activate
+    r.apply(open(askOf(opts(option('i', 'Idle', [r.s.squad.id])))));   // question: activate
     r.box.render();
     expect([...r.box.eligible]).toEqual([]);
-    r.box.target(r.s.rival.id);
+    r.box.target(r.s.model.id);
     expect(r.sent).toHaveLength(0);
+  });
+
+  // The owner, 2026-11-21: "Its automatically moving to the shooting phase when i reclick the unit."
+  it('a click on my acting unit that one option names only selects it', () => {
+    const r = rig();
+    r.apply(open(askOf(opts(option('s', 'Shoot', [r.s.squad.id]), option('c', 'Charge', [r.s.rivals.id])), { question: 'shoot_or_not' })));
+    r.box.render();
+    r.box.target(r.s.model.id);
+    r.box.target(r.s.squad.id);
+    expect(r.sent).toHaveLength(0);
+    r.box.target(r.s.rival.id);
+    expect(answerOf(r.sent[0]!)).toEqual({ kind: 'chosen', optionId: 'c' });
   });
 
   it('a unit several choices name narrows the box, renumbered, and Esc widens it', () => {

@@ -265,7 +265,8 @@ public partial class DecisionBox : PanelContainer
 
     /// <summary>
     /// Option tiles. An activation's options are grouped by unit (DecisionCard.Groups), its pips and team edge, its note once under it; any other
-    /// Ask's options are one row of tiles. A click on a piece exactly one choice names picks that choice. A piece several choices name (activate:
+    /// Ask's options are one row of tiles. A click on the other team's piece exactly one choice names picks that choice (DecisionView.ClickAnswers);
+    /// a click on a unit of mine only selects it. A piece several choices name (activate:
     /// one option per unit and action) is not a pick: the click selects its unit as any click does, and the card narrows to that unit's group,
     /// renumbered from 1, until another unit is clicked, or Esc or Tab past the last unit clears the selection and widens it again.
     /// </summary>
@@ -298,10 +299,10 @@ public partial class DecisionBox : PanelContainer
         }
         Show(all, full);
         _onNumber = option => Send(mine.Ask, new Chosen(option));
-        _input.Eligible = DecisionView.ClickAnswers(options, mine.Ask.Question);
+        _input.Eligible = DecisionView.ClickAnswers(options, mine.Ask, p0, game);
         _onTarget = clicked =>
         {
-            if (_s.Projection is { } p && AskAnswers.ChosenByClick(options, p, clicked, mine.Ask.Question) is { } chosen) Send(mine.Ask, chosen);
+            if (_s.Projection is { } p && AskAnswers.ChosenByClick(mine.Ask, p, game, clicked) is { } chosen) Send(mine.Ask, chosen);
         };
         _onUnit = unit =>
         {

@@ -14,7 +14,7 @@ import type {
 import { confirmLabel, mine as myAsk, spendableBy, answeredBy, type AskView } from './askView';
 import { CasualtyPick } from './casualtyPick';
 import { ENTER, ESC, groupsOf, headOf, keyCap, quietOf, unitPips, type AllowanceBar, type CardHead, type OptionGroup, type OptionTile, type RevealChip } from './decisionCard';
-import { choicesOf, clickAnswers, decisionOf, number as numberChoices, unitNamed, type Numbered } from './decisionView';
+import { choicesOf, clickAnswers, othersPiece, decisionOf, number as numberChoices, unitNamed, type Numbered } from './decisionView';
 import { midDeploy, offTable, pickable, type MidDeploy } from './deployView';
 import { Names } from './names';
 import { SealedReveals } from './sealedReveals';
@@ -301,7 +301,7 @@ export class DecisionBox {
   }
 
   /**
-   * Numbered options. A click on a piece exactly one choice names picks that choice. A piece several choices name (activate: one option
+   * Numbered options. A click on the other team's piece exactly one choice names picks that choice; a click on a unit of mine only selects it. A piece several choices name (activate: one option
    * per unit and action) is not a pick: the click selects its unit as any click does, and the box narrows to that unit's options,
    * renumbered from 1, until another unit is clicked or Esc widens it again.
    */
@@ -329,9 +329,11 @@ export class DecisionBox {
     };
     show(all, full);
     this.handlers.onNumber = (option) => this.#send(mine.ask, { kind: 'chosen', optionId: option });
-    this.#eligible = clickAnswers(options, mine.ask.question);
+    const p0 = this.#host.state().projection;
+    this.#eligible = p0 === null ? new Set() : clickAnswers(options, mine.ask, p0, game);
     this.handlers.onTarget = (clicked) => {
-      if (this.#eligible.size === 0) return;
+      const p = this.#host.state().projection;
+      if (p === null || !othersPiece(mine.ask, p, game, clicked)) return;
       const hits = all.filter((c) => this.#resolve(clicked, c.pieces) !== null);
       if (hits.length === 1) this.#send(mine.ask, { kind: 'chosen', optionId: hits[0]!.id });
     };

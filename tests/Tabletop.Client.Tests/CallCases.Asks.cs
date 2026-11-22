@@ -84,12 +84,16 @@ public static partial class CallCases
                             answerOf: _ => ch);
                     if (take("choose/clickNone"))
                         yield return Make("choose/clickNone", Choice("click", ("pieceId", S(picked.Pieces[0]))),
-                            s => AskAnswers.ChosenByClick(o, s.P!, picked.Pieces[0], ask.Question) is { } hit ? Send(s, hit) : null);
+                            s => AskAnswers.ChosenByClick(ask, s.P!, s.Game, picked.Pieces[0]) is { } hit ? Send(s, hit) : null);
                 }
-                else if (picked.Pieces.FirstOrDefault(pc => AskAnswers.ChosenByClick(o, CallState.Playing(log, upTo, player).P!, pc, ask.Question)?.OptionId == ch.OptionId) is var piece && piece != Guid.Empty
+                else if (picked.Pieces.FirstOrDefault(pc => AskAnswers.ChosenByClick(ask, CallState.Playing(log, upTo, player).P!, log.Game, pc)?.OptionId == ch.OptionId) is var piece && piece != Guid.Empty
                     && take("choose/click"))
                     yield return Make("choose/click", Choice("click", ("pieceId", S(piece))),
-                        s => AskAnswers.ChosenByClick(o, s.P!, piece, ask.Question) is { } hit ? Send(s, hit) : null, answerOf: _ => ch);
+                        s => AskAnswers.ChosenByClick(ask, s.P!, s.Game, piece) is { } hit ? Send(s, hit) : null, answerOf: _ => ch);
+                else if (picked.Pieces.Count > 0 && take("choose/clickMine"))
+                    // The owner, 2026-11-21: a click on my own unit the option names (the acting unit's Shoot) only selects it; nothing is sent.
+                    yield return Make("choose/clickMine", Choice("click", ("pieceId", S(picked.Pieces[0]))),
+                        s => AskAnswers.ChosenByClick(ask, s.P!, s.Game, picked.Pieces[0]) is { } hit ? Send(s, hit) : null);
                 break;
 
             case (_, Passed) when ask.AllowPass:
