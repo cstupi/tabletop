@@ -192,8 +192,10 @@ public partial class GameScreen
         var hintH = _hints is { } hb && IsInstanceValid(hb) ? hb.GetCombinedMinimumSize().Y : HudLayout.HintH;
         var r = HudLayout.Setup(_hud.Size.X, _hud.Size.Y, v, _topBar!.GetCombinedMinimumSize().Y, hintH);
         HudPlacement.Fill(_topBar, r[SetupPart.TopBar]);
-        _topBar.Lead = r[SetupPart.Corner].Right - Space.S;   // the bar's items start past the corner
         PlaceCorner(r[SetupPart.Corner] with { Y = MathF.Floor((r[SetupPart.TopBar].H - _corner.GetCombinedMinimumSize().Y) / 2) });
+        // The bar's items start a group's gap past what the corner draws (a short name leaves no hole), never past its slot.
+        var corner = r[SetupPart.Corner];
+        _topBar.Lead = MathF.Min(corner.Right, corner.X + _corner.GetCombinedMinimumSize().X + Space.L) - Space.S;
         HudPlacement.Top(_toasts, r[SetupPart.Toasts]);
         if (Shows(_strip)) HudPlacement.Bottom(_strip, r[SetupPart.Loading]);
         if (r.TryGetValue(SetupPart.Rail, out var rail)) HudPlacement.Fill(_rail!, rail);
