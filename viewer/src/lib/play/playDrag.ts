@@ -17,6 +17,7 @@ import type { MarkerLocks } from './markerLocks';
 import { ModelDrag, type Held } from './modelDrag';
 import { ModelPicks, shiftPress, type PickBox, type PickCandidate } from './modelPicks';
 import { allowanceOverlay, bandsOverlay, boxOverlay, labelOverlay, landingOverlay, landingRings, pathsOverlay, rulerLines, rulerOverlay, violationLabels } from './moveOverlays';
+import { isVehicle } from './movePaths';
 import { read } from './moveRuler';
 import { Names } from './names';
 import { teamsOf } from '../lobby/seats';
@@ -304,7 +305,7 @@ export class PlayDrags {
     if (bands.length > 0) out.push(bandsOverlay(bands, teamColour(colour)));
     if (rings.length > 0) out.push(allowanceOverlay(rings, teamColour(colour)));
     const paths = hooks?.paths() ?? [];
-    if (paths.length > 0) out.push(pathsOverlay(paths, teamColour(colour)));
+    if (paths.length > 0) out.push(pathsOverlay(paths, teamColour(colour), (id) => p !== null && isVehicle(p, id)));
     if (held !== null && p !== null) {
       const readouts = this.#proposing ? hooks?.readouts(held) ?? []
         : held.ids.flatMap((id) => {

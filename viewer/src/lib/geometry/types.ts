@@ -41,11 +41,13 @@ export interface RouteModel { readonly id: string; readonly start: PlacedModel; 
 export type RoutesRequest = Omit<BandsRequest, 'start' | 'minDistance'> & { readonly models: readonly RouteModel[]; readonly capped?: boolean };
 /** One footprint of the base along its path (SweptPath): the centre, the base at the start's facing; whether it touches dangerous ground there. */
 export interface PathFootprint { readonly at: XY; readonly dangerous: boolean }
+/** A stretch of the walked length, from..to inches from the path's start, along which the base touches a dangerous volume (SweptPath). */
+export interface PathStretch { readonly from: number; readonly to: number }
 /** The path a move is measured along, its length, whether the base goes in or through difficult ground on it, the base's footprints along it and
  *  the volumes dangerous to the move its swept base enters or crosses (SweptPath.Of, Movement.VolumesOnPath: the server's test). */
 export interface RouteFound {
   readonly id: string; readonly points: readonly XY[]; readonly distance: number; readonly entersDifficult: boolean;
-  readonly footprints: readonly PathFootprint[]; readonly dangerous: readonly string[];
+  readonly footprints: readonly PathFootprint[]; readonly dangerous: readonly string[]; readonly stretches: readonly PathStretch[];
 }
 /** The area in its bands, each as triangles (three points each): clear, only through difficult ground, only into ground dangerous to the move. */
 export interface MoveBands { readonly clear: readonly XY[]; readonly difficult: readonly XY[]; readonly dangerous: readonly XY[] }

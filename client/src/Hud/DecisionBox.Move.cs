@@ -125,7 +125,7 @@ public partial class DecisionBox
             // Each moved model's path and footprints, and a warning where its swept base crosses dangerous ground: never holding the commit.
             var paths = pathCache?.Proposed(proposed.ToDictionary(kv => kv.Key, kv => kv.Value.Horizontal), unit < allowance) ?? [];
             _input.Violations.Warn(legal.ModelIds, MovePaths.Marks(paths));
-            _view.Paths.Show(paths, _regionColour);
+            _view.Paths.Show(paths, _regionColour, id => MovePaths.Vehicle(p, id));
             var warnings = MovePaths.Lines(paths, id => _input.Violations.Subject?.Invoke(id) ?? names.Model(id), v => MovePaths.VolumeName(p.Board.Table, v));
             _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MarkedOf(legal.ModelIds), warnings);
             if (unit is { } cap) setBar?.Invoke(DecisionCard.Bar(readouts, cap, minimum));

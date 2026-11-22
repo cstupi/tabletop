@@ -9,7 +9,8 @@ import type { MoveBands, XY } from '../geometry';
 import { bandColour, layers, STRIPE_SPACING, striped } from './moveBandLook';
 import { readoutText, type RulerReadout } from './moveRuler';
 import type { Held } from './modelDrag';
-import { footprintColour, lineColour, outline, type ModelPath } from './movePaths';
+import { markColour, RIM_SCALE, rimColour, type ModelPath } from './movePaths';
+import { marksOf, placed, type PathMark } from './pathMarks';
 import type { Violations } from './violations';
 import { MARK_GAP, placeMarkLabels } from './markLabels';
 
@@ -92,31 +93,41 @@ export const bandsOverlay = (areas: readonly MoveBands[], team: string): Overlay
   }
 };
 
-/** MovePathNode: each model's route as a faint line and its base's outline at each footprint (the start's facing) in the team colour, a footprint
- *  touching dangerous ground in the dangerous colour; one stroke per colour. */
-export const pathsOverlay = (paths: readonly ModelPath[], team: string): Overlay => (ctx, project) => {
+/** The theme's look for the marks: Fantasy's ink stamp, else Sci-fi's light trace (read when drawn; the board redraws on a theme switch). */
+const inkLook = (): boolean => typeof document !== 'undefined' && document.documentElement.dataset['theme'] === 'fantasy';
+
+/** Each path's marks, laid once per ModelPath (a ghost that stayed put hands back the same path). */
+const laid = new WeakMap<ModelPath, { vehicle: boolean; marks: PathMark[] }>();
+const marksOfPath = (path: ModelPath, vehicle: boolean): PathMark[] => {
+  const known = laid.get(path);
+  if (known !== undefined && known.vehicle === vehicle) return known.marks;
+  const marks = marksOf(path.route, path.start.body.base, path.start.placement.yaw.degrees, path.stretches, vehicle);
+  laid.set(path, { vehicle, marks });
+  return marks;
+};
+
+/** MovePathNode: each model's marks along its route (pathMarks: boot prints, a vehicle's treads) in the team colour in the theme's look, a mark
+ *  where the base touches dangerous ground in the dangerous colour, each over a dark rim; `kept`, the last move's, fainter. One fill per colour. */
+export const pathsOverlay = (paths: readonly ModelPath[], team: string, vehicle: (modelId: string) => boolean, kept = false): Overlay => (ctx, project) => {
   if (paths.length === 0) return;
-  ctx.save();
-  ctx.lineWidth = 1.5; ctx.setLineDash([]);
-  ctx.strokeStyle = lineColour(team);
-  ctx.beginPath();
-  for (const path of paths) {
-    const points = path.route.map(project);
-    if (points.length < 2) continue;
-    ctx.moveTo(points[0]!.x, points[0]!.y);
-    for (const q of points.slice(1)) ctx.lineTo(q.x, q.y);
-  }
-  ctx.stroke();
-  for (const dangerous of [false, true]) {
-    const rings = paths.flatMap((path) => path.footprints.filter((f) => f.dangerous === dangerous)
-      .map((f) => outline(path.start.body.base, f.at, path.start.placement.yaw.degrees).map(project)));
-    if (rings.length === 0) continue;
-    ctx.strokeStyle = footprintColour({ at: { x: 0, y: 0 }, dangerous }, team);
-    ctx.lineWidth = dangerous ? 2 : 1.5;
+  const ink = inkLook();
+  const all = paths.flatMap((path) => marksOfPath(path, vehicle(path.modelId)));
+  const fill = (marks: readonly PathMark[], style: string, scale: number): void => {
+    if (marks.length === 0) return;
+    ctx.fillStyle = style;
     ctx.beginPath();
-    for (const ring of rings) { ctx.moveTo(ring[0]!.x, ring[0]!.y); for (const q of ring.slice(1)) ctx.lineTo(q.x, q.y); ctx.closePath(); }
-    ctx.stroke();
-  }
+    for (const m of marks)
+      for (const part of placed(m, scale)) {
+        const points = part.map(project);
+        ctx.moveTo(points[0]!.x, points[0]!.y);
+        for (const q of points.slice(1)) ctx.lineTo(q.x, q.y);
+        ctx.closePath();
+      }
+    ctx.fill('nonzero');
+  };
+  ctx.save();
+  fill(all, rimColour(kept), RIM_SCALE);
+  for (const dangerous of [false, true]) fill(all.filter((m) => m.dangerous === dangerous), markColour({ dangerous }, team, ink, kept), 1);
   ctx.restore();
 };
 

@@ -188,7 +188,7 @@ public static class Facade
                 : Movement.Measured(m.Start, m.To, r.Allowance, impassable, difficult, r.DifficultCap, r.Size, r.Stationary, volumes, dangerous,
                     unstable, r.UnstableOver ?? 0, steep);
             var swept = SweptPath.Of(m.Start, path.Path, SweptPath.DangerousTo(path.Distance, dangerous, unstable, r.UnstableOver ?? 0));
-            return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult, [.. swept.Footprints], [.. swept.Dangerous]);
+            return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult, [.. swept.Footprints], [.. swept.Dangerous], [.. swept.Stretches]);
         }).ToArray());
     }
 

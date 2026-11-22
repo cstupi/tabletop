@@ -59,7 +59,7 @@
   import { relocations } from './relocations';
   import { PlayDrags } from './playDrag';
   import { Violations } from './violations';
-  import { KeptPathCache, volumeName } from './movePaths';
+  import { isVehicle, KeptPathCache, volumeName } from './movePaths';
   import { pathsOverlay } from './moveOverlays';
   import { EMPTY_FRAME, hudFrameOf, M, PLAY, type HudPart } from './hudFrame';
 
@@ -275,7 +275,7 @@
     if (paths.length === 0) return null;
     const unit = p.models.get(paths[0]!.modelId)?.unitId;
     const ordinal = unit === undefined ? 1 : teamOf(p, game, unit)?.ordinal ?? 1;
-    return pathsOverlay(paths, teamColour(ordinal));
+    return pathsOverlay(paths, teamColour(ordinal), (id) => isVehicle(p, id), true);
   });
 
   // D4: range rings for my selected unit when V has them on (RangeRingNode).

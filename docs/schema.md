@@ -376,6 +376,11 @@ entry, a joined one included, carries its own `armyId`, and `Caster(X)` is a mod
 upgrades', written at import (`ArmyForgeImport.Points`) and shown on the unit card; null for an army imported before
 management's `034_unit_points.sql`, until it is imported again. Nothing in the rules reads it.
 
+`model_slot.vehicle boolean not null default false` marks a vehicle (`ModelSlot.Vehicle`): the army list published no base
+for the slot's entry (Army Forge's `bases` "none" or empty), so the import stood it on the vehicle hull; both clients draw
+its move path as treads. Management's `035_model_slot_vehicle.sql` marks the slots imported before it that stand on that
+hull. Nothing in the rules reads it.
+
 `unit.reserve_property text null` and `unit.reserve_of uuid null`, both set or both null, mark a unit the army holds off
 the table until a rule places it (`Unit.Reserve`): the rule (Spawn, Split, Reinforcement) and the model slot or unit of
 the same army that holds it. The import writes them (army-book rules spec → Readings, batch 7); management's

@@ -74,4 +74,28 @@ public class SweptPathTests
         Assert.Equal([Smog, unstable], SweptPath.DangerousTo(6.5, [Smog], [unstable], 6));
         Assert.Equal([Smog, unstable], SweptPath.DangerousTo(3, [Smog], [unstable], 2));
     }
+
+    [Fact]
+    public void A_hit_gives_the_stretch_of_the_walk_along_which_the_base_touches_the_volume()
+    {
+        var (a, b) = Riders[0];
+        var swept = SweptPath.Of(Rider(0), [a, b], [Smog]);
+        var stretch = Assert.Single(swept.Stretches);
+        var total = a.DistanceTo(b);
+        Assert.InRange(stretch.From, 0, stretch.To);
+        Assert.InRange(stretch.To, stretch.From, total);
+        Assert.True(stretch.To - stretch.From > 0.5, $"{stretch}");
+        var dir = (b - a) * (1 / total);
+        bool Touches(double s) => Movement.VolumesOnPath(Fx.Model(Oval, (a + dir * s).X, (a + dir * s).Y, height: 4.43), [a + dir * s], [Smog]).Count > 0;
+        Assert.True(Touches((stretch.From + stretch.To) / 2));
+        Assert.False(Touches(stretch.From - 0.01));
+        Assert.False(Touches(stretch.To + 0.01));
+    }
+
+    [Fact]
+    public void A_miss_has_no_stretch()
+    {
+        var swept = SweptPath.Of(Rider(1), [Riders[1].From, Riders[1].To], [Smog]);
+        Assert.Empty(swept.Stretches);
+    }
 }

@@ -189,6 +189,9 @@ public static class TypeScriptEmitter
     private static bool IsOptional(JsonPropertyInfo property, NullabilityInfoContext context)
     {
         if (Nullable.GetUnderlyingType(property.PropertyType) is not null) return true;
+        // Left out of the JSON at its default (ModelSlot.Vehicle when false).
+        if (property.AttributeProvider is MemberInfo m && m.GetCustomAttribute<System.Text.Json.Serialization.JsonIgnoreAttribute>()?.Condition
+            is System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault) return true;
         return property.AttributeProvider switch
         {
             PropertyInfo p => context.Create(p).ReadState is NullabilityState.Nullable,

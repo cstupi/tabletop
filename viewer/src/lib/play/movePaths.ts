@@ -1,25 +1,33 @@
 // viewer/src/lib/play/movePaths.ts
-// client/src/Core/MovePaths.cs: the faint move path with footprints and the dangerous terrain warning (spec
+// client/src/Core/MovePaths.cs: the move path drawn as marks (pathMarks.ts) and the dangerous terrain warning (spec
 // 2026-11-21-move-path-and-dangerous-warning-design; owner ruling: "Any part of the base counts"). Each moving model's route, its base's
 // footprints along it and the volumes the Ask lists as dangerous that its swept base enters or crosses come from Geometry.moveRoutes (SweptPath
 // over Movement.VolumesOnPath, the server's test); drawn while a move Ask is open and, after it, for the unit's last move until the next
 // activation starts (last, kept), for every player and in a replay.
 
 import type { Base, GameEvent, ModelRelocation, MoveRegion, Placement, TableSize, TerrainPlacement, TableState } from '../protocol/wire.generated';
-import { placed, type Geometry, type PathFootprint, type PlacedModel, type RouteFound, type RoutesRequest, type XY } from '../geometry';
+import { placed, type Geometry, type PathFootprint, type PathStretch, type PlacedModel, type RouteFound, type RoutesRequest, type XY } from '../geometry';
 import type { Projection } from '../live/apply';
 import { nameOf, type Catalog } from '../setup/catalog';
 import { effectOf } from './terrainEffects';
+import type { PathMark } from './pathMarks';
 
 export const TEST_WORDS = 'Dangerous terrain test';
-/** The path's look: the line and footprints in the moving team's colour at these opacities, a footprint touching dangerous ground in the
- *  terrain's dangerous colour at DANGEROUS_ALPHA. */
-export const LINE_ALPHA = 0.6, FOOTPRINT_ALPHA = 0.5, DANGEROUS_ALPHA = 0.9;
+/** A mark where the base touches dangerous ground: the terrain's dangerous colour at this opacity. */
+export const DANGEROUS_ALPHA = 0.9;
+/** The marks' look: Fantasy stamps them in an ink of the team colour, Sci-fi traces them in the team colour lifted halfway to white, at these
+ *  opacities; the kept last move's marks at KEPT_FADE of those. */
+export const INK_ALPHA = 0.7, TRACE_ALPHA = 0.75, INK_SHADE = 0.4, KEPT_FADE = 0.6;
+/** Under every mark a dark rim (the shape at RIM_SCALE, RIM_ALPHA black), so a light trace reads on a light board and a dangerous mark on the
+ *  dangerous band. */
+export const RIM_SCALE = 1.45, RIM_ALPHA = 0.35;
+/** The rim under a mark, as a CSS rgba(). */
+export const rimColour = (kept: boolean): string => `rgba(0, 0, 0, ${kept ? RIM_ALPHA * KEPT_FADE : RIM_ALPHA})`;
 
 /** One model's move path: where it stood (its base at the start's facing), the route, the footprints and the dangerous volumes crossed. */
 export interface ModelPath {
   readonly modelId: string; readonly start: PlacedModel; readonly route: readonly XY[];
-  readonly footprints: readonly PathFootprint[]; readonly dangerous: readonly string[];
+  readonly footprints: readonly PathFootprint[]; readonly dangerous: readonly string[]; readonly stretches: readonly PathStretch[];
 }
 
 /** One answered move Ask: its parameters and the models it moved, from where to where. */
@@ -27,28 +35,23 @@ export interface MoveSegment { readonly legal: MoveRegion; readonly moves: reado
 
 const rgb = (hex: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
 const rgba = (hex: string, a: number): string => { const [r, g, b] = rgb(hex); return `rgba(${r}, ${g}, ${b}, ${a})`; };
-/** The team colour lifted halfway to white: the path is drawn over the move's clear band, which is the team colour itself. */
+/** The team colour lifted halfway to white: the trace is drawn over the move's clear band, which is the team colour itself. */
 const light = (hex: string, a: number): string => { const [r, g, b] = rgb(hex).map((c) => Math.round((c + 255) / 2)); return `rgba(${r}, ${g}, ${b}, ${a})`; };
+const shaded = (hex: string, a: number): string => { const [r, g, b] = rgb(hex).map((c) => Math.round(c * INK_SHADE)); return `rgba(${r}, ${g}, ${b}, ${a})`; };
 
-/** A footprint's colour as a CSS rgba(), for a team colour given as #rrggbb. */
-export const footprintColour = (f: PathFootprint, team: string): string =>
-  f.dangerous ? rgba(effectOf('dangerous').colour, DANGEROUS_ALPHA) : light(team, FOOTPRINT_ALPHA);
-/** The route line's colour. */
-export const lineColour = (team: string): string => light(team, LINE_ALPHA);
-
-/** A footprint's outline: the base at `at` turned to `yaw` degrees (length a along the facing, +Y at yaw 0, counter-clockwise), a circle or
- *  oval as `segments` points, a rectangle as its corners. */
-export function outline(b: Base, at: XY, yaw: number, segments = 32): XY[] {
-  const local: XY[] = b.shape === 'rect'
-    ? [{ x: -b.b / 2, y: -b.a / 2 }, { x: b.b / 2, y: -b.a / 2 }, { x: b.b / 2, y: b.a / 2 }, { x: -b.b / 2, y: b.a / 2 }]
-    : Array.from({ length: segments }, (_, i) => { const t = (2 * Math.PI * i) / segments; return { x: (b.b / 2) * Math.cos(t), y: (b.a / 2) * Math.sin(t) }; });
-  const r = (yaw * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
-  return local.map((p) => ({ x: p.x * c - p.y * s + at.x, y: p.x * s + p.y * c + at.y }));
+/** A mark's colour as a CSS rgba(), for a team colour given as #rrggbb, in the theme's look (`ink`: Fantasy); `kept`, the last move's. */
+export function markColour(m: Pick<PathMark, 'dangerous'>, team: string, ink: boolean, kept: boolean): string {
+  const fade = kept ? KEPT_FADE : 1;
+  if (m.dangerous) return rgba(effectOf('dangerous').colour, DANGEROUS_ALPHA * fade);
+  return ink ? shaded(team, INK_ALPHA * fade) : light(team, TRACE_ALPHA * fade);
 }
+
+/** Whether the model is a vehicle (its slot's `vehicle`, from the army list), whose path is drawn as treads. */
+export const isVehicle = (p: Projection, modelId: string): boolean => p.models.get(modelId)?.slot.vehicle === true;
 
 /** A path from a route Geometry.moveRoutes found for the model starting at `start`. */
 export const pathOf = (start: PlacedModel, route: RouteFound): ModelPath =>
-  ({ modelId: route.id, start, route: route.points, footprints: route.footprints, dangerous: route.dangerous });
+  ({ modelId: route.id, start, route: route.points, footprints: route.footprints, dangerous: route.dangerous, stretches: route.stretches });
 
 /** The label each crossing model carries (beside the contact marks): the test it owes. */
 export function marks(paths: readonly ModelPath[]): Map<string, string> {

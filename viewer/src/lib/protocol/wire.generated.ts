@@ -408,6 +408,7 @@ export interface ModelSlot {
   readonly assetId?: string;
   readonly weapons: readonly Weapon[];
   readonly armyBook?: string;
+  readonly vehicle?: boolean;
 }
 
 export interface ModelsMoved {

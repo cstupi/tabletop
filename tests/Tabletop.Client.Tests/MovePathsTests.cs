@@ -135,29 +135,6 @@ public class MovePathsTests
         Assert.Equal(FlayerRush.Moves[0].To, kept[0].Route[^1]);
     }
 
-    [Fact]
-    public void A_footprint_outline_is_the_base_at_the_starts_facing()
-    {
-        var oval = MovePaths.Outline(FlayerRush.Oval, new Point2(10, 10), new Yaw(0), 4);
-        Assert.Equal([new Point2(10.688976, 10), new(10, 11.181102), new(9.311024, 10), new(10, 8.818898)],
-            oval.Select(p => new Point2(Math.Round(p.X, 6), Math.Round(p.Y, 6))));
-        var square = MovePaths.Outline(Base.Rect(2, 1), new Point2(0, 0), new Yaw(90), 4);
-        Assert.Equal([new Point2(1, -0.5), new(1, 0.5), new(-1, 0.5), new(-1, -0.5)], square.Select(p => new Point2(Math.Round(p.X, 6) + 0, Math.Round(p.Y, 6) + 0)));
-    }
-
-    [Fact]
-    public void Footprints_are_faint_in_the_team_colour_and_a_dangerous_one_in_the_dangerous_colour()
-    {
-        var team = new Rgba(0.2f, 0.4f, 0.9f);
-        // Over the move's clear band, which is the team colour itself, the path is the team colour lifted halfway to white.
-        var light = new Rgba(0.6f, 0.7f, 0.95f);
-        Assert.Equal(light with { A = MovePaths.FootprintAlpha }, MovePaths.Colour(new PathFootprint(new Point2(0, 0), false), team));
-        Assert.Equal(light with { A = MovePaths.LineAlpha }, MovePaths.Line(team));
-        Assert.Equal(TerrainEffects.Of(TerrainDeclarations.Dangerous).Colour with { A = MovePaths.DangerousAlpha },
-            MovePaths.Colour(new PathFootprint(new Point2(0, 0), true), team));
-        Assert.True(MovePaths.FootprintAlpha < 1 && MovePaths.LineAlpha < 1);
-    }
-
     static GameEvent E(long seq, EventPayload payload) => new(seq, null, payload, null);
 
     [Fact]

@@ -238,7 +238,7 @@ public static class AgreementCases
             var path = capped ? Movement.Check(m.Start, m.To, 6, [], [], null, size, routeStanding, routeVolumes)
                 : Movement.Measured(m.Start, m.To, 9, [], Volumes([routeWood]), 6, size, routeStanding, routeVolumes, Volumes([routePit]), Volumes([routeRuin]), 6, []);
             var swept = SweptPath.Of(m.Start, path.Path, SweptPath.DangerousTo(path.Distance, Volumes([routePit]), Volumes([routeRuin]), 6));
-            return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult, [.. swept.Footprints], [.. swept.Dangerous]);
+            return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult, [.. swept.Footprints], [.. swept.Dangerous], [.. swept.Stretches]);
         })];
         foreach (var capped in new[] { false, true })
             Add(capped ? "move_routes_capped" : "move_routes_wood_pit_and_ruin", "MoveRoutes",
@@ -255,7 +255,7 @@ public static class AgreementCases
             {
                 var path = Movement.Measured(m.Start, m.To, 16, [], [], 6, size, [], Volumes([smog]), Volumes([smog]), [], 0, []);
                 var swept = SweptPath.Of(m.Start, path.Path, Volumes([smog]));
-                return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult, [.. swept.Footprints], [.. swept.Dangerous]);
+                return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult, [.. swept.Footprints], [.. swept.Dangerous], [.. swept.Stretches]);
             }).ToArray());
         return cases;
     }

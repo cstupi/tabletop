@@ -10,13 +10,14 @@ public sealed record ModelPath(Guid ModelId, PlacedModel Start, IReadOnlyList<Po
 {
     public IReadOnlyList<PathFootprint> Footprints => Swept.Footprints;
     public IReadOnlyList<Guid> Dangerous => Swept.Dangerous;
+    public IReadOnlyList<PathStretch> Stretches => Swept.Stretches;
 }
 
 /// <summary>One answered move Ask: its parameters and the models it moved, from where to where (the move step's Destinations).</summary>
 public sealed record MoveSegment(MoveRegion Legal, IReadOnlyList<ModelRelocation> Moves);
 
 /// <summary>
-/// The faint move path with footprints and the dangerous terrain warning (spec 2026-11-21-move-path-and-dangerous-warning-design; owner ruling:
+/// The move path drawn as marks (PathMarks) and the dangerous terrain warning (spec 2026-11-21-move-path-and-dangerous-warning-design; owner ruling:
 /// "Any part of the base counts"): each moving model's route, its base's footprints along it and the volumes the Ask lists as dangerous (the
 /// unstable ones past UnstableOver) that its swept base enters or crosses, by SweptPath over Movement.VolumesOnPath, the geometry the server's
 /// ApplyMove tests with, so the warning and the server's test agree. Drawn while a move Ask is open (Proposed) and, after it, for the unit's last
@@ -25,19 +26,31 @@ public sealed record MoveSegment(MoveRegion Legal, IReadOnlyList<ModelRelocation
 public static class MovePaths
 {
     public const string TestWords = "Dangerous terrain test";
-    /// <summary>The path's look: the line and footprints in the moving team's colour at these opacities, a footprint touching dangerous ground in the
-    /// terrain's dangerous colour (TerrainEffects, the dangerous band's) at DangerousAlpha.</summary>
-    public const float LineAlpha = 0.6f, FootprintAlpha = 0.5f, DangerousAlpha = 0.9f;
+    /// <summary>A mark where the base touches dangerous ground: the terrain's dangerous colour (TerrainEffects, the dangerous band's) at this opacity.</summary>
+    public const float DangerousAlpha = 0.9f;
 
-    /// <summary>The team colour lifted halfway to white: the path is drawn over the move's clear band, which is the team colour itself.</summary>
+    /// <summary>The team colour lifted halfway to white: the trace is drawn over the move's clear band, which is the team colour itself.</summary>
     static Rgba Light(Rgba team) => new((team.R + 1) / 2, (team.G + 1) / 2, (team.B + 1) / 2);
 
-    /// <summary>A footprint's colour for the moving team's colour.</summary>
-    public static Rgba Colour(PathFootprint f, Rgba team) =>
-        f.Dangerous ? TerrainEffects.Of(TerrainDeclarations.Dangerous).Colour with { A = DangerousAlpha } : Light(team) with { A = FootprintAlpha };
+    /// <summary>The marks' look (PathMarks): Fantasy stamps them in an ink of the team colour (`ink`), Sci-fi traces them in the team colour lifted
+    /// halfway to white, both at these opacities; a mark where the base touches dangerous ground in the dangerous colour at DangerousAlpha; the kept
+    /// last move's marks at KeptFade of those. Under every mark a dark rim (the shape at RimScale, RimAlpha black), so a light trace reads on a light
+    /// print and a dangerous mark on the dangerous band.</summary>
+    public const float InkAlpha = 0.7f, TraceAlpha = 0.75f, InkShade = 0.4f, KeptFade = 0.6f, RimScale = 1.45f, RimAlpha = 0.35f;
 
-    /// <summary>The route line's colour for the moving team's colour.</summary>
-    public static Rgba Line(Rgba team) => Light(team) with { A = LineAlpha };
+    /// <summary>A mark's colour for the moving team's colour, in the theme's look.</summary>
+    public static Rgba MarkColour(PathMark m, Rgba team, bool ink, bool kept)
+    {
+        var c = m.Dangerous ? TerrainEffects.Of(TerrainDeclarations.Dangerous).Colour with { A = DangerousAlpha }
+            : ink ? new Rgba(team.R * InkShade, team.G * InkShade, team.B * InkShade, InkAlpha) : Light(team) with { A = TraceAlpha };
+        return kept ? c with { A = c.A * KeptFade } : c;
+    }
+
+    /// <summary>The rim under a mark.</summary>
+    public static Rgba RimColour(bool kept) => new(0, 0, 0, kept ? RimAlpha * KeptFade : RimAlpha);
+
+    /// <summary>Whether the model is a vehicle (ModelSlot.Vehicle, from the army list), whose path is drawn as treads.</summary>
+    public static bool Vehicle(Projection p, Guid modelId) => p.Models.GetValueOrDefault(modelId)?.Slot.Vehicle == true;
 
     /// <summary>The Ask's models where they stand on the table, as MoveRegions.Of reads them.</summary>
     public static IReadOnlyDictionary<Guid, PlacedModel> Starts(Projection p, MoveRegion legal) =>
@@ -68,16 +81,6 @@ public static class MovePaths
             paths.Add(Of(id, start, route.Points, route.Distance, legal, volumes));
         }
         return paths;
-    }
-
-    /// <summary>A footprint's outline: the base at `at` turned to `yaw` (length A along the facing, +Y at yaw 0), a circle or oval as `segments`
-    /// points, a rectangle as its corners.</summary>
-    public static IReadOnlyList<Point2> Outline(Base b, Point2 at, Yaw yaw, int segments = 32)
-    {
-        IEnumerable<Point2> local = b.Shape == BaseShape.Rect
-            ? [new(-b.B / 2, -b.A / 2), new(b.B / 2, -b.A / 2), new(b.B / 2, b.A / 2), new(-b.B / 2, b.A / 2)]
-            : Enumerable.Range(0, segments).Select(i => { var t = Math.Tau * i / segments; return new Point2(b.B / 2 * Math.Cos(t), b.A / 2 * Math.Sin(t)); });
-        return local.Select(p => p.Rotate(yaw) + at).ToList();
     }
 
     /// <summary>The label each crossing model carries (beside the contact marks): the test it owes.</summary>

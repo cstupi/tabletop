@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Held } from '../src/lib/play/modelDrag';
 import { labelOverlay, landingOverlay, landingRings, pathsOverlay, rulerLines, rulerOverlay, violationLabels, allowanceOverlay } from '../src/lib/play/moveOverlays';
-import { footprintColour, lineColour } from '../src/lib/play/movePaths';
+import { markColour, rimColour } from '../src/lib/play/movePaths';
 import { read } from '../src/lib/play/moveRuler';
 import { Violations } from '../src/lib/play/violations';
 
@@ -79,15 +79,22 @@ describe('move overlays', () => {
     expect([first, second].every((t) => Math.abs(other!.y - t!.y) >= 13 || Math.abs(other!.x - t!.x) * 2 >= (t!.text.length + other!.text.length) * 7)).toBe(true);
   });
 
-  it('a path draws its route and each footprint, a dangerous one in the dangerous colour', () => {
-    const strokes: string[] = []; let style = '';
-    const ctx = new Proxy({}, {
-      get: (_t, k) => (k === 'stroke' ? () => strokes.push(style) : () => {}),
-      set: (_t, k, v) => { if (k === 'strokeStyle') style = String(v); return true; },
-    }) as unknown as CanvasRenderingContext2D;
-    const start = { body: { base: { shape: 'circle' as const, a: 1, b: 1 }, height: 1 }, placement: { position: { x: 0, y: 0, z: 0 }, yaw: { degrees: 0 } } };
-    pathsOverlay([{ modelId: 'm', start, route: [O, { x: 2, y: 0 }], footprints: [{ at: O, dangerous: false }, { at: { x: 2, y: 0 }, dangerous: true }], dangerous: ['v'] }],
-      '#3366e6')((ctx), (p) => p, 10);
-    expect(strokes).toEqual([lineColour('#3366e6'), footprintColour({ at: O, dangerous: false }, '#3366e6'), footprintColour({ at: O, dangerous: true }, '#3366e6')]);
+  it('a path fills its marks over their rims, those on a dangerous stretch in the dangerous colour, the kept path fainter', () => {
+    const run = (kept: boolean, vehicle: boolean): { fills: string[]; moves: number } => {
+      const fills: string[] = []; let style = ''; let moves = 0;
+      const ctx = new Proxy({}, {
+        get: (_t, k) => (k === 'fill' ? () => fills.push(style) : k === 'moveTo' ? () => { moves++; } : () => {}),
+        set: (_t, k, v) => { if (k === 'fillStyle') style = String(v); return true; },
+      }) as unknown as CanvasRenderingContext2D;
+      const start = { body: { base: { shape: 'circle' as const, a: 1, b: 1 }, height: 1 }, placement: { position: { x: 0, y: 0, z: 0 }, yaw: { degrees: 0 } } };
+      pathsOverlay([{ modelId: 'm', start, route: [O, { x: 2, y: 0 }], footprints: [], dangerous: ['v'], stretches: [{ from: 1, to: 1.5 }] }],
+        '#3366e6', () => vehicle, kept)((ctx), (p) => p, 10);
+      return { fills, moves };
+    };
+    expect(run(false, false).fills).toEqual([rimColour(false), markColour({ dangerous: false }, '#3366e6', false, false), markColour({ dangerous: true }, '#3366e6', false, false)]);
+    expect(run(true, false).fills).toEqual([rimColour(true), markColour({ dangerous: false }, '#3366e6', false, true), markColour({ dangerous: true }, '#3366e6', false, true)]);
+    // A print is a sole and a heel; a tread link one outline.
+    expect(run(false, false).moves % 2).toBe(0);
+    expect(run(false, true).moves).toBeGreaterThan(0);
   });
 });
