@@ -15,8 +15,10 @@ public sealed class FakeGameSocket : IGameSocket
     public Task SendAsync(SocketMessage frame)
     {
         if (SendFails is { } error && frame is not Connect) return Task.FromException(error);
-        Sent.Add(frame); return Task.CompletedTask;
+        Sent.Add(frame); Answering?.Invoke(frame); return Task.CompletedTask;
     }
+    /// <summary>A reply the server sends before the send's own continuation runs.</summary>
+    public Action<SocketMessage>? Answering { get; set; }
     public Task CloseAsync() { Connected = false; Closed?.Invoke(new SocketClosed(1000, "bye", null)); return Task.CompletedTask; }
     public void Deliver(SocketMessage frame) => FrameReceived?.Invoke(frame);
     public void Drop(int? code, string? reason) { Connected = false; Closed?.Invoke(new SocketClosed(code, reason, null)); }

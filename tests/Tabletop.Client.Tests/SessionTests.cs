@@ -158,6 +158,18 @@ public class SessionTests : IDisposable
         Assert.Equal(1, _s.Projection!.Scores[Samples.Team1]);           // back to the truth
     }
 
+    /// <summary>The owner, 2026-11-22: "I undid the choice of Rush and now my game is stuck." A refusal of the undo that lands before the
+    /// send's continuation still ends the prediction: the undo names its command before it sends.</summary>
+    [Fact]
+    public async Task An_undo_refused_before_its_send_returns_ends_the_prediction()
+    {
+        var sock = await ConnectedAtPlaying();
+        sock.Answering = frame => { if (frame is CommandMessage { Command: Undo } c) sock.Deliver(new Refused(c.CommandId, RefusalReason.Unknown, "no")); };
+        await _s.UndoToAsync(1);
+        Assert.Null(_s.PendingUndoTo);
+        Assert.Same(_s.Applier!.Projection, _s.Projection);
+    }
+
     [Fact]
     public async Task SendCommandAsync_uses_the_caller_s_id_and_the_plain_overload_mints_one()
     {

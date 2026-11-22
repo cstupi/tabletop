@@ -380,7 +380,9 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
         try { _predicted = Applier.ProjectTo(seq); }
         catch (ProjectionDesyncException desync) { OnDesync(desync); return; }
         PendingUndoTo = seq;
-        try { _pendingUndoCommand = await SendCommandAsync(new Undo(seq)); }
+        var id = Guid.CreateVersion7();
+        _pendingUndoCommand = id;                                       // before the send: a refusal can land before its continuation runs
+        try { await SendCommandAsync(new Undo(seq), id); }
         catch (Exception)
         {
             _predicted = null; PendingUndoTo = null;

@@ -164,6 +164,7 @@
       rules: () => rules,
       send: (command) => conn.sendCommand(command),
       onRefused: (listener) => conn.onRefused((refused) => listener(refused)),
+      selected: () => selection?.pieceId ?? null,
     }, moves);
     const stops = [
       b.subscribe((p) => { panel = p; }),
