@@ -55,3 +55,18 @@
 
 - [ ] Test `An_old_file_loads_every_new_field_at_its_default` (today's JSON, no new keys) and `New_fields_round_trip` (including a `Shift+Tab`-style override and an out-of-range value clamped).
 - [ ] Implement; run tests; commit.
+
+### Task 3: OptionsModel and the theme's accessibility variants
+
+**Files:** create `client/src/Core/OptionsModel.cs`; modify `client/src/Core/UiThemes.cs`; test `tests/Tabletop.Client.Tests/OptionsModelTests.cs`, `UiThemesTests.cs`.
+
+**Produces:**
+- `enum OptionCategory { Gameplay, Camera, Controls, Video, Audio, Interface, Accessibility }`, `enum OptionKind { Toggle, Choice, Slider, Themes }`.
+- `record OptionRow(Id, Category, Label, Description, Kind, Get, Set)` with `Choices`, `Min`, `Max`, `Step`, `Text(int)`; every value an `int`.
+- `OptionsModel(ClientSettings applied)`: `Rows`, `In(category)`, `Value(row)`, `Set(row, v)`, `Pending`, `Applied`, `Dirty`, `ResetTab(category)` (Controls: clears `KeyOverrides`), `Revert()`, `Apply()`,
+  `static NeedsConfirm(before, after)` (display mode or window size changed), `Keys`, `Conflict(intent, binding)`, `Bind(intent, slot, binding, swap)`.
+- `UiThemes.Adjusted(UiTheme, int textSize, bool colourBlind)`: font sizes × textSize/100; `ColourBlindTeams` replaces `Teams`.
+- `OptionsModel.Resolutions`: 1280×720, 1366×768, 1600×900, 1920×1080, 2560×1440, 3840×2160.
+
+- [ ] Tests: every category but Controls has rows; Set is pending until Apply; Revert restores; ResetTab touches only its tab; a conflicting Bind without swap reports, with swap gives the other intent the old key; Quality resets Render scale; NeedsConfirm on display/resolution only; colour-blind palette distinct under deuteranopia, protanopia and tritanopia simulation and ≥ 3:1 against both themes' panels, none within 40° hue of Success.
+- [ ] Implement; run tests; commit.
