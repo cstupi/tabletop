@@ -308,4 +308,40 @@ public partial class GameScreen
         ? new MenuContext(game, p, _session.Log, _session.IsWatching, _session.MyTeamId, AskViewModel.Mine(p, game, _session.MyTeamId),
             _session.Grantable, _session.DeployInside, _session.MaySetAside, Input.Locks)
         : null;
+
+    /// <summary>
+    /// The settling work behind the curtain, a frame each (LoadSettled.Then), so none of it costs a frame after the curtain lifts: the unit card's
+    /// controls (UnitCard.Prebuild), a move measured once (MoveWarmup), a move Ask's meshes drawn once (DecisionBox.WarmMove), a hover rehearsed on
+    /// a unit of another team (its label and threat rings built and drawn) with the battle effects' flashes drawn beside it and every glyph the
+    /// play screen's text uses (GlyphWarmup), held a moment so the pool's ring build lands and the pipelines compile, then put back; last the
+    /// loading's garbage collected.
+    /// </summary>
+    void QueueSettling()
+    {
+        _settled.Then(() => _card?.Prebuild());
+        _settled.Then(() => { if (_session.Projection is { } p) MoveWarmup.Run(p, Table.Volumes, Table.Size); });
+        _settled.Then(() => _decision?.WarmMove());
+        var fx = new List<Node>(); var since = TimeSpan.Zero;
+        _settled.Then(() =>
+        {
+            since = TimeSpan.FromMilliseconds(Time.GetTicksMsec());
+            fx.AddRange(GlyphWarmup.Warm(Table, _hud));
+            if (RehearsedUnit() is not { } unit) return;
+            Input.HoverUnit(unit);
+            if (Table.Pieces.OfType<PieceNode>().FirstOrDefault(n => n.UnitId == unit) is { } piece)
+                foreach (var node in BattleFx.WarmupNodes()) { node.Position += piece.Position + new Vector3(0, 1, 0); Table.AddChild(node); fx.Add(node); }
+        });
+        _settled.Then(() => TimeSpan.FromMilliseconds(Time.GetTicksMsec()) - since >= TimeSpan.FromMilliseconds(400));
+        _settled.Then(() => { Input.HoverUnit(null); foreach (var node in fx) node.QueueFree(); fx.Clear(); });
+        _settled.Then(() => GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true));
+    }
+
+    /// <summary>The unit the settling hover rehearses: one on the table of a team I do not act for, else any on the table.</summary>
+    Guid? RehearsedUnit()
+    {
+        if (_session.Projection is not { } p || _session.Game is not { } game) return null;
+        var units = Table.Pieces.OfType<PieceNode>().Select(n => n.UnitId).Distinct().Where(p.Units.ContainsKey).ToList();
+        bool Mine(Guid u) => game.Participants.FirstOrDefault(x => x.Id == p.Units[u].ParticipantId)?.TeamId is { } t && _session.MyTeamIds.Contains(t);
+        return units.Where(u => !Mine(u)).Cast<Guid?>().FirstOrDefault() ?? units.Cast<Guid?>().FirstOrDefault();
+    }
 }
