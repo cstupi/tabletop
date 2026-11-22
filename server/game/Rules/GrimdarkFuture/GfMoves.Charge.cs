@@ -1,3 +1,4 @@
+using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Interpreter;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
@@ -101,6 +102,12 @@ public static partial class GfMoves
         var reach = GfEdition.Of(state).MeleeVertical;
         return targets.Where(t => Distance.Vertical(model, t) <= reach + Touching).ToList();
     }
+
+    /// <summary>Whether a living model of the unit on the table stands in one of these volumes, as a move's path is read for them (Movement.VolumesOnPath, ApplyMove's
+    /// "in or through"): any move of that model is in difficult ground (3.5.1 p.11, 3.6.0 p.12). Read by GfMelee.ChargeTargets.</summary>
+    public static bool StandsIn(GameState state, Guid unit, IReadOnlyList<WorldVolume> volumes) =>
+        volumes.Count > 0 && Lookup.AliveModels(state, unit).Select(id => Battlefield.Placed(state, id)).OfType<PlacedModel>()
+            .Any(m => Movement.VolumesOnPath(m, [m.Placement.Position.Horizontal, m.Placement.Position.Horizontal], volumes).Count > 0);
 
     /// <summary>
     /// The charging unit in base contact and in coherency (UnitFormation.InContact), its moves judged against the Ask's own parameters: the listed

@@ -21,7 +21,7 @@ public partial class NoPageCitationsTests
     {
         string?[] texts =
         [
-            GrimdarkFutureRules.AircraftNote, GrimdarkFutureRules.ShakenNote, GrimdarkFutureRules.ImmobileNote, GrimdarkFutureRules.NoChargeNote,
+            GrimdarkFutureRules.AircraftNote, GrimdarkFutureRules.ShakenNote, GrimdarkFutureRules.ImmobileNote, GrimdarkFutureRules.NoChargeNote, GrimdarkFutureRules.DifficultNoChargeNote,
             GfEdition.V351.ArtilleryNote, GfEdition.V360.CumbersomeNote, GrimdarkFutureRules.MissionLengthDetail(4),
         ];
         Assert.All(texts, t => Assert.DoesNotMatch(Citation(), t ?? ""));

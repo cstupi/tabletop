@@ -102,7 +102,9 @@ It reads management's rows, owns each game's append-only event log, and hosts th
   `ChargeContactBreach` and `ChargeLanding` measure the gap only to such models (`GfMoves.Gap`), `ChargeFormation` passes the reach as
   `FormationTerms.ContactVertical` (the lead's landing resting on its open surface nearest the target's level, `Collision.RestNear`), and `GfMelee.ChargeTargets`
   offers a unit only when some charging model reaches one of its models by `Movement.ContactInReach` (a plan path to contact, and a contact landing on one of 16
-  bearings, rested nearest the target's level, within the reach and a path within the charge distance). The Ask carries the reach as `MoveRegion.ContactVertical`,
+  bearings, rested nearest the target's level, within the reach and a path within the charge distance), under the difficult cap unless the unit ignores it
+  (`GfMoves.ReachTerrain`: a path past 6" round the Difficult and Steep ground; 6" at most for a unit counted as in difficult terrain or with a model standing in it,
+  `GfMoves.StandsIn`); `ActivationChoices` notes a unit only the cap keeps out with `DifficultNoChargeNote`. The Ask carries the reach as `MoveRegion.ContactVertical`,
   which both clients' landing pull reads (`Abutment.Vertical`). All read the
   answer through `GfAnswers.Moves`, the reading the move steps apply, so a check never passes a relocation the step reads differently.
   A charge's reading is the charge's end (`GfMoves.ChargeLanding`; owner ruling: "charging base to base is TOO strict and requires literally overlapping. It
