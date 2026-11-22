@@ -18,6 +18,6 @@
   <div class="menu-list" onclick={(e) => { if ((e.target as HTMLElement).closest('button, a')) close(); }}>{@render children()}</div>
 </details>
 <style>
-  summary { gap: var(--s1); }
+  summary { gap: var(--space-1); }
   .text { max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

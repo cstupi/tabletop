@@ -105,12 +105,12 @@
 {/if}
 {#if error}<p role="alert">{error}</p>{/if}
 <style>
-  .layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--s5); align-items: start }
+  .layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-4); align-items: start }
   @media (max-width: 48rem) { .layout { grid-template-columns: minmax(0, 1fr); gap: 0 } }
   .view { min-height: 24rem; padding: 0; background: var(--view-bg); display: grid; overflow: hidden }
-  .view > p { margin: auto; padding: var(--s5); text-align: center }
+  .view > p { margin: auto; padding: var(--space-4); text-align: center }
   :global([data-theme='fantasy']) .view { background: var(--view-bg) }
-  .check { display: flex; align-items: center; gap: var(--s1); margin: var(--s1) 0 }
-  aside h2 { margin-top: var(--s5) }
-  .meta { margin: var(--s4) 0 var(--s3); overflow-wrap: anywhere }
+  .check { display: flex; align-items: center; gap: var(--space-1); margin: var(--space-1) 0 }
+  aside h2 { margin-top: var(--space-4) }
+  .meta { margin: var(--space-3) 0 var(--space-3); overflow-wrap: anywhere }
 </style>

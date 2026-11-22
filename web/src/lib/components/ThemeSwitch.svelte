@@ -14,8 +14,8 @@
   {/each}
 </div>
 <style>
-  .swatches { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
-  .swatch { flex-direction: column; gap: var(--s1); min-height: 4rem; padding: var(--s2); font-size: .9rem; }
+  .swatches { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+  .swatch { flex-direction: column; gap: var(--space-1); min-height: 4rem; padding: var(--space-2); font-size: .9rem; }
   .sample { display: flex; width: 100%; height: 1.1rem; border: 1px solid #0006; }
   .sample i { flex: 1; }
   .scifi .sample i:nth-child(1) { background: #0A0F14 } .scifi .sample i:nth-child(2) { background: #3FD0E0 } .scifi .sample i:nth-child(3) { background: #DCEBF2 }

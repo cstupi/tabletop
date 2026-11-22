@@ -85,39 +85,39 @@
 <style>
   .roster { display: flex; flex-direction: column; width: 16rem; height: 100%; min-height: 0; background: var(--panel-solid); border-right: 1px solid var(--rule); }
   .roster.collapsed { width: 2.75rem; align-items: center; }
-  .head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); padding: var(--s2) var(--s2) var(--s2) var(--s3); border-bottom: 1px solid var(--rule); }
-  .collapsed .head { padding: var(--s2) 0; border-bottom: 0; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-2); border-bottom: 1px solid var(--rule); }
+  .collapsed .head { padding: var(--space-2) 0; border-bottom: 0; }
   .head h2 { margin: 0; font-size: .85rem; }
   .chev { display: inline-flex; transition: transform .12s; }
   .chev.open { transform: rotate(180deg); }
-  .rail { display: flex; flex-direction: column; gap: var(--s2); align-items: center; padding-top: var(--s2); }
+  .rail { display: flex; flex-direction: column; gap: var(--space-2); align-items: center; padding-top: var(--space-2); }
   .dot { width: .75rem; height: .75rem; border-radius: 50%; }
-  .body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--s1) 0 var(--s3); }
+  .body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-1) 0 var(--space-2); }
   /* The team's band: its colour solid, the words in the background colour (Ui.TeamBand, Ui.OnBand). */
-  .team { display: flex; align-items: center; gap: var(--s2); margin: var(--s3) var(--s2) var(--s1); padding: var(--s1) var(--s3); background: var(--team);
+  .team { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-2) var(--space-2) var(--space-1); padding: var(--space-1) var(--space-2); background: var(--team);
     font-size: .8rem; color: var(--panel-solid); }
   .tname { flex: 1; text-transform: uppercase; }
   .you { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: .8rem; font-weight: inherit; }
   .acting { flex: none; width: .8rem; color: var(--accent); font-size: .75rem; }
   .mark { flex: none; width: 1rem; display: inline-flex; justify-content: center; color: var(--text); }
   .mark.off { color: var(--dim); }
-  .menu { flex: none; visibility: hidden; color: var(--dim); padding: 0 2px; }
+  .menu { flex: none; visibility: hidden; color: var(--dim); padding: 0 var(--space-1); }
   .row:hover .menu { visibility: visible; }
   .menu:hover { color: var(--accent); }
   @media (hover: none) { .menu { visibility: visible; } }
   ul { list-style: none; margin: 0; padding: 0; }
   /* A row is a plain list entry, not a themed button. */
-  .row { display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%; min-height: 0; padding: var(--s1) var(--s3) var(--s1) calc(var(--s3) - 3px);
-    border: 0; border-left: 3px solid transparent; border-radius: 0; clip-path: none; box-shadow: none; background: none; color: var(--text);
+  .row { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-1); width: 100%; min-height: 0; padding: var(--space-1) var(--space-2);
+    border: 0; border-radius: 0; clip-path: none; box-shadow: none; background: none; color: var(--text);
     text-align: left; white-space: normal; font-size: .95rem; cursor: pointer; }
   .row:hover:not(:disabled) { background: var(--rule); color: var(--text); }
-  .row.on, .row.on:hover:not(:disabled) { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .row.on, .row.on:hover:not(:disabled) { box-shadow: inset 3px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
   .row.off { color: var(--dim); }
-  .line { display: flex; align-items: center; gap: var(--s2); }
+  .line { display: flex; align-items: center; gap: var(--space-2); }
   .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .done { display: inline-flex; color: var(--success); }
   .wounds { font-size: .7rem; letter-spacing: 1px; color: var(--dim); white-space: nowrap; }
-  .tags { display: flex; flex-wrap: wrap; gap: var(--s1); }
-  .tag { font-size: .75rem; padding: 0 var(--s1); border: 1px solid var(--rule); color: var(--dim); line-height: 1.4; }
+  .tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+  .tag { font-size: .75rem; padding: 0 var(--space-1); border: 1px solid var(--rule); color: var(--dim); line-height: 1.4; }
   .tag.warn { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); }
 </style>

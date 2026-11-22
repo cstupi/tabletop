@@ -137,17 +137,17 @@
 <style>
   .playback { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; min-height: 0; }
   .status {
-    display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; padding: var(--s2) var(--s4);
+    display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--rule); background: var(--panel-solid);
   }
   .panes { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; min-height: 0; }
   .left { position: relative; min-width: 0; min-height: 0; }
   .right {
-    display: flex; flex-direction: column; gap: var(--s2); min-height: 0; padding: var(--s3);
+    display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; padding: var(--space-2);
     border-left: 1px solid var(--rule); background: var(--panel-solid);
   }
   .tab { flex: 1; min-height: 0; overflow: auto; }
-  .pad { padding: var(--s3); margin: 0; }
-  .pad p { margin: 0 0 var(--s1); }
+  .pad { padding: var(--space-2); margin: 0; }
+  .pad p { margin: 0 0 var(--space-1); }
   .selected { border-top: 1px solid var(--rule); flex: none; }
 </style>

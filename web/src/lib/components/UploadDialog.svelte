@@ -300,22 +300,22 @@
 
 <style>
   dialog { width: min(64rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; }
-  .head { display: flex; justify-content: space-between; align-items: center; gap: var(--s4); margin-bottom: var(--s4); }
-  .head h2 { display: inline-flex; align-items: center; gap: var(--s2); margin: 0; font-size: 1.15rem; }
-  .preview { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--s5); min-height: 24rem; }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+  .head h2 { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; font-size: 1.15rem; }
+  .preview { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-4); min-height: 24rem; }
   .view { padding: 0; margin: 0; background: var(--view-bg); height: min(34rem, calc(100dvh - 10rem)); min-height: 20rem; overflow: hidden; align-self: start; position: sticky; top: 0; }
   @media (max-width: 48rem) { .preview { grid-template-columns: minmax(0, 1fr); } .view { height: 20rem; position: static; } }
-  .drop { display: flex; flex-direction: column; align-items: center; gap: var(--s3); border: 2px dashed var(--accent); padding: var(--s7) var(--s4); text-align: center; color: var(--text); background: var(--rule); }
+  .drop { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); border: 2px dashed var(--accent); padding: var(--space-6) var(--space-3); text-align: center; color: var(--text); background: var(--rule); }
   .drop :global(.icon) { color: var(--accent); }
   .drop.over { border-style: solid; background: var(--panel-solid); }
   :global([data-theme='fantasy']) .drop { border-color: var(--wood); border-radius: 4px; }
   progress { width: 100%; }
   .batch { width: 100%; border-collapse: collapse; }
-  .batch th, .batch td { text-align: left; padding: var(--s1) var(--s2); vertical-align: middle; }
+  .batch th, .batch td { text-align: left; padding: var(--space-1) var(--space-2); vertical-align: middle; }
   .batch td input { width: 100%; min-width: 10rem; }
   .batch td.done { color: var(--success); }
-  .stepper { list-style: none; padding: 0; margin: var(--s3) 0; display: grid; gap: var(--s2); }
-  .stepper li { display: grid; grid-template-columns: 1.6rem 1fr; align-items: center; gap: var(--s2); color: var(--dim); }
+  .stepper { list-style: none; padding: 0; margin: var(--space-3) 0; display: grid; gap: var(--space-2); }
+  .stepper li { display: grid; grid-template-columns: 1.6rem 1fr; align-items: center; gap: var(--space-2); color: var(--dim); }
   .stepper li.current, .stepper li.done { color: var(--text); }
   .stepper .mark { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border: 1px solid currentColor; border-radius: 50%; font-size: .8rem; }
   .stepper li.done .mark { border-color: transparent; color: var(--success); }

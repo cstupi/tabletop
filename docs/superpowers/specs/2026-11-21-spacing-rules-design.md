@@ -21,7 +21,7 @@ the Godot client, the web app and the viewer. Owner: the client is the priority;
 8. **Named, never literal.** Code names a step, never a number:
    - Godot: `Space.XS` 4, `Space.S` 8, `Space.M` 16, `Space.L` 24, `Space.XL` 32, `Space.XXL` 48 (`client/src/Theme/Space.cs`).
    - Web and viewer: `--space-1` 4px, `--space-2` 8px, `--space-3` 16px, `--space-4` 24px, `--space-5` 32px, `--space-6` 48px
-     (`web/src/themes.css`, `viewer/src/app.css`).
+     (`web/src/themes.css`; the viewer imports it in `viewer/src/main.ts`).
    A literal spacing number in a UI file is a defect; `./scripts/check-client` reports one in `client/src/{Hud,Panels,Screens,Theme}`.
 
 ## Where it goes

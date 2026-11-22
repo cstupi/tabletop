@@ -84,15 +84,15 @@
 <Confirm bind:ask={asking} />
 
 <style>
-  h4 { margin: var(--s2) 0 0; font-size: .75rem; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
+  h4 { margin: var(--space-2) 0 0; font-size: .75rem; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
   :global([data-theme='fantasy']) h4 { font-family: var(--font-display); text-transform: none; letter-spacing: .03em; font-size: .85rem; color: var(--wood); }
   ul { list-style: none; margin: 0; padding: 0; }
-  li { display: flex; gap: var(--s2); align-items: center; padding: var(--s1) 0; border-top: 1px solid var(--rule); }
+  li { display: flex; gap: var(--space-2); align-items: center; padding: var(--space-1) 0; border-top: 1px solid var(--rule); }
   li:first-child { border-top: 0; }
   li.dim { font-size: .9rem; }
   .what { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
   .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .what .dim { font-size: .8rem; }
-  .inline { display: flex; gap: var(--s2); align-items: center; }
+  .inline { display: flex; gap: var(--space-2); align-items: center; }
   .inline input { flex: 1; min-width: 0; }
 </style>

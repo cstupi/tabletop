@@ -29,9 +29,9 @@
 {/each}
 
 <style>
-  .ask { border: 1px solid var(--line); border-radius: 3px; padding: 0.4rem 0.5rem; margin-bottom: 0.5rem; }
-  h3 { margin: 0 0 0.25rem; font-size: 1rem; }
-  p { margin: 0.15rem 0; }
-  ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
+  .ask { border: 1px solid var(--line); border-radius: 3px; padding: var(--space-2) var(--space-2); margin-bottom: var(--space-2); }
+  h3 { margin: 0 0 var(--space-1); font-size: 1rem; }
+  p { margin: var(--space-1) 0; }
+  ul { margin: var(--space-1) 0 0; padding-left: var(--space-3); }
   .answered { color: var(--ink); }
 </style>

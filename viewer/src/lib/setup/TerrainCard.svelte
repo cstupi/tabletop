@@ -164,25 +164,25 @@
 
 <style>
   .card { display: flex; flex-direction: column; }
-  header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s2); padding: var(--s4); border-bottom: 1px solid var(--rule); }
-  .title { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); padding: var(--space-3); border-bottom: 1px solid var(--rule); }
+  .title { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
   h2 { margin: 0; font-size: 1.05rem; color: var(--text); }
   .title .dim { font-size: .9rem; }
-  .group { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s3) var(--s4); border-bottom: 1px solid var(--rule); }
+  .group { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--rule); }
   h3 { margin: 0; font-size: .75rem; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; font-family: var(--font-body); }
   :global([data-theme='fantasy']) h3 { font-family: var(--font-display); text-transform: none; letter-spacing: .03em; font-size: .85rem; color: var(--wood); }
-  .sub { text-transform: none; letter-spacing: 0; font-weight: normal; margin-left: var(--s1); }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
-  label { display: flex; flex-direction: column; gap: var(--s1); color: var(--dim); font-size: .85rem; min-width: 0; }
+  .sub { text-transform: none; letter-spacing: 0; font-weight: normal; margin-left: var(--space-1); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+  label { display: flex; flex-direction: column; gap: var(--space-1); color: var(--dim); font-size: .85rem; min-width: 0; }
   label input:not([type='checkbox']), label select { width: 100%; color: var(--text); font-size: 1rem; }
   .full { grid-column: 1 / -1; }
   input[type='number'] { width: 100%; }
-  .pair { display: flex; gap: var(--s2); }
+  .pair { display: flex; gap: var(--space-2); }
   .pair > button { flex: 1; }
-  .inline { display: flex; gap: var(--s2); align-items: center; }
+  .inline { display: flex; gap: var(--space-2); align-items: center; }
   .inline select { flex: 1; min-width: 0; }
   .left { align-self: flex-start; }
-  fieldset { display: grid; grid-template-columns: 1fr; gap: var(--s1); padding: var(--s2) var(--s3); }
-  .check { flex-direction: row; align-items: center; gap: var(--s2); color: var(--text); font-size: .95rem; margin: 0; }
-  .actions-row { display: flex; gap: var(--s2); justify-content: space-between; padding: var(--s3) var(--s4) var(--s4); }
+  fieldset { display: grid; grid-template-columns: 1fr; gap: var(--space-1); padding: var(--space-2) var(--space-2); }
+  .check { flex-direction: row; align-items: center; gap: var(--space-2); color: var(--text); font-size: .95rem; margin: 0; }
+  .actions-row { display: flex; gap: var(--space-2); justify-content: space-between; padding: var(--space-2) var(--space-3) var(--space-3); }
 </style>

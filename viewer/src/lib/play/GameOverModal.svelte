@@ -112,19 +112,19 @@
 
 <style>
   dialog { width: min(30rem, calc(100vw - 2rem)); text-align: center; }
-  h2 { margin: 0 0 var(--s2); text-transform: uppercase; }
+  h2 { margin: 0 0 var(--space-2); text-transform: uppercase; }
   .result { margin: 0; font-family: var(--font-display); font-weight: var(--display-weight); text-transform: var(--display-case);
     letter-spacing: var(--display-tracking); font-size: 1.35rem; color: var(--text); }
   .reason { color: var(--dim); }
-  .tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s3); margin: var(--s3) 0; }
-  .tile { display: inline-flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s3); color: var(--team);
+  .tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin: var(--space-2) 0; }
+  .tile { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); color: var(--team);
     border: 1px solid color-mix(in srgb, var(--team) 60%, transparent); border-left: 8px solid var(--team); background: color-mix(in srgb, var(--team) 12%, transparent); }
   .name { font-weight: 700; text-transform: uppercase; }
   .points { font-size: 1.9rem; color: var(--text); }
   .vp { color: var(--dim); font-size: .85rem; }
   .note { color: var(--dim); }
-  .waiting { display: flex; justify-content: center; align-items: center; gap: var(--s2); color: var(--dim); }
+  .waiting { display: flex; justify-content: center; align-items: center; gap: var(--space-2); color: var(--dim); }
   .band { width: 4px; height: 1.1rem; background: var(--team); }
-  .leave { display: inline-flex; align-items: center; gap: var(--s1); }
+  .leave { display: inline-flex; align-items: center; gap: var(--space-1); }
   .actions { justify-content: space-between; margin-bottom: 0; }
 </style>

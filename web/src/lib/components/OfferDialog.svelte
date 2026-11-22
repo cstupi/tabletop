@@ -59,9 +59,9 @@
 </dialog>
 <style>
   dialog { width: min(32rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto }
-  .head { display: flex; justify-content: space-between; align-items: center; gap: var(--s3) }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3) }
   .head h2 { margin: 0 }
-  .players { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s2); max-height: 22rem; overflow: auto }
-  .check { display: flex; gap: var(--s2); align-items: flex-start; overflow-wrap: anywhere }
+  .players { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); max-height: 22rem; overflow: auto }
+  .check { display: flex; gap: var(--space-2); align-items: flex-start; overflow-wrap: anywhere }
   .dim { color: var(--dim) }
 </style>

@@ -61,23 +61,23 @@
 </div>
 
 <style>
-  .replay-bar { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2) var(--s4); background: var(--panel-solid); border-top: 1px solid var(--rule); }
-  .title { display: flex; align-items: center; gap: var(--s2); color: var(--accent); font-family: var(--display, inherit); text-transform: uppercase; letter-spacing: .06em; font-size: .9rem; }
-  .steps { display: flex; align-items: stretch; justify-content: center; gap: var(--s1); flex-wrap: wrap; }
-  .step, .play { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 3.4rem; padding: var(--s1) var(--s2); }
+  .replay-bar { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: var(--panel-solid); border-top: 1px solid var(--rule); }
+  .title { display: flex; align-items: center; gap: var(--space-2); color: var(--accent); font-family: var(--display, inherit); text-transform: uppercase; letter-spacing: .06em; font-size: .9rem; }
+  .steps { display: flex; align-items: stretch; justify-content: center; gap: var(--space-1); flex-wrap: wrap; }
+  .step, .play { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); min-width: 3.4rem; padding: var(--space-1) var(--space-2); }
   .step span, .play span { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
   .flat { background: transparent; border: 1px solid transparent; color: var(--text); }
   .flat:hover:not(:disabled) { border-color: var(--rule); }
   .flat:disabled { color: var(--dim); }
-  .play { min-width: 4.6rem; margin: 0 var(--s2); }
-  .line { display: flex; align-items: center; gap: var(--s4); }
-  .scrub { position: relative; flex: 1 1 14rem; display: flex; align-items: center; min-width: 10rem; padding-bottom: 1rem; }
+  .play { min-width: 4.6rem; margin: 0 var(--space-2); }
+  .line { display: flex; align-items: center; gap: var(--space-3); }
+  .scrub { position: relative; flex: 1 1 14rem; display: flex; align-items: center; min-width: 10rem; padding-bottom: var(--space-3); }
   .scrub input { width: 100%; accent-color: var(--accent); }
   .ticks { position: absolute; left: .5rem; right: .5rem; top: 0; bottom: 0; pointer-events: none; }
   .tick { position: absolute; top: 2px; height: 1.1rem; border-left: 2px solid var(--dim); }
   .tick span { position: absolute; top: 1.05rem; left: -.25rem; font-size: .7rem; color: var(--dim); }
   .caption { margin: 0; text-align: center; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .speed { flex: none; }
-  .speed button { min-width: 2.75rem; padding: 0 var(--s2); }
+  .speed button { min-width: 2.75rem; padding: 0 var(--space-2); }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>

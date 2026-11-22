@@ -106,12 +106,12 @@
 
 <style>
   dialog { width: min(30rem, calc(100vw - 2rem)); }
-  form { display: flex; flex-direction: column; gap: var(--s3); }
-  h2 { margin: 0 0 var(--s1); }
-  label { display: flex; flex-direction: column; gap: var(--s1); color: var(--dim); font-size: .95rem; }
+  form { display: flex; flex-direction: column; gap: var(--space-3); }
+  h2 { margin: 0 0 var(--space-1); }
+  label { display: flex; flex-direction: column; gap: var(--space-1); color: var(--dim); font-size: .95rem; }
   label input, label select { width: 100%; color: var(--text); font-size: 1rem; }
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
-  small { font-size: .85rem; margin-top: calc(-1 * var(--s2)); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+  small { font-size: .85rem; margin-top: calc(-1 * var(--space-2)); }
   .warn { color: var(--warning); }
-  .actions { justify-content: flex-end; margin: var(--s2) 0 0; }
+  .actions { justify-content: flex-end; margin: var(--space-2) 0 0; }
 </style>

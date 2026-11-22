@@ -175,5 +175,5 @@
   canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; }
   canvas:focus-visible { box-shadow: inset 0 0 0 1px var(--muted); }
   canvas.floating { position: absolute; inset: 0; pointer-events: none; cursor: default; }
-  .reset { position: absolute; top: var(--s2); right: var(--s2); z-index: 1; }
+  .reset { position: absolute; top: var(--space-2); right: var(--space-2); z-index: 1; }
 </style>

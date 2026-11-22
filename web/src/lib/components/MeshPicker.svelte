@@ -18,7 +18,8 @@
     onpick: (scope: Scope, assetId: Guid | null) => void; onclose: () => void;
   } = $props();
 
-  const MIN_TILE = 116, GAP = 12, NAME_H = 46;
+  // GAP is the grid's gap, var(--space-3).
+  const MIN_TILE = 116, GAP = 16, NAME_H = 46;
 
   let dialog = $state<HTMLDialogElement>(); let input = $state<HTMLInputElement>();
   let scroller = $state<HTMLDivElement>(); let gridEl = $state<HTMLDivElement>();
@@ -147,7 +148,7 @@
 
 {#snippet node(n: FolderNode, depth: number)}
   <li>
-    <button type="button" class="quiet fold" class:here={folder === n.folder.id} aria-current={folder === n.folder.id ? 'true' : undefined} style:padding-left="{0.5 + depth * 0.9}rem" onclick={() => setFolder(n.folder.id)}>
+    <button type="button" class="quiet fold" class:here={folder === n.folder.id} aria-current={folder === n.folder.id ? 'true' : undefined} style:padding-left="calc(var(--space-2) + {depth} * var(--space-3))" onclick={() => setFolder(n.folder.id)}>
       <Icon name={n.folder.shared ? 'offer' : 'folder'} /><span class="fname">{n.folder.name}</span><small class="num">{counts.get(n.folder.id) ?? 0}</small>
     </button>
     {#if n.children.length && (folder === n.folder.id || trail.some((t) => t.id === n.folder.id))}<ul>{#each n.children as c (c.folder.id)}{@render node(c, depth + 1)}{/each}</ul>{/if}
@@ -221,42 +222,42 @@
 </dialog>
 
 <style>
-  dialog.mesh-picker { width: min(78rem, 96vw); height: min(54rem, 94vh); max-width: none; max-height: none; padding: var(--s4) var(--s5); }
-  dialog.mesh-picker[open] { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: var(--s3) }
-  .top { display: flex; align-items: center; gap: var(--s3) }
+  dialog.mesh-picker { width: min(78rem, 96vw); height: min(54rem, 94vh); max-width: none; max-height: none; padding: var(--space-3) var(--space-4); }
+  dialog.mesh-picker[open] { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: var(--space-3) }
+  .top { display: flex; align-items: center; gap: var(--space-3) }
   .top h2 { margin: 0; flex: 1; min-width: 0; font-size: 1.15rem; overflow-wrap: anywhere }
   .top h2::after { display: none }
   .top > :global(.icon) { color: var(--accent) }
   :global([data-theme='fantasy']) .top > :global(.icon) { color: var(--wood) }
   .dim { color: var(--dim) }
-  .find { display: grid; gap: var(--s2) }
-  .searchbox { display: flex; align-items: center; gap: var(--s2) }
+  .find { display: grid; gap: var(--space-2) }
+  .searchbox { display: flex; align-items: center; gap: var(--space-2) }
   .searchbox :global(.icon) { color: var(--accent); flex: none; width: 1.5rem; height: 1.5rem }
   .searchbox input { flex: 1; min-width: 0; font-size: 1.1rem; min-height: 2.75rem }
-  .chips, .fchips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) }
-  .fchip { min-height: 2rem; padding: 0 .75em; gap: var(--s1); border-radius: 1rem; font-size: .92rem }
+  .chips, .fchips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) }
+  .fchip { min-height: 2rem; padding: 0 var(--space-2); gap: var(--space-1); border-radius: 1rem; font-size: .92rem }
   .fchip .num { opacity: .75 }
   .fchip.sub { opacity: .9 }
   .total { margin-left: auto; color: var(--dim) }
   .sep { color: var(--dim) }
   .fchips { display: none }
-  .body { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: var(--s4); min-height: 0 }
-  .tree { overflow: auto; border-right: 1px solid var(--rule); padding-right: var(--s2) }
+  .body { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: var(--space-3); min-height: 0 }
+  .tree { overflow: auto; border-right: 1px solid var(--rule); padding-right: var(--space-2) }
   .tree ul { list-style: none; margin: 0; padding: 0 }
-  .fold { width: 100%; justify-content: flex-start; gap: var(--s2); min-height: 2.1rem; padding: 0 var(--s2); color: var(--text); white-space: nowrap }
+  .fold { width: 100%; justify-content: flex-start; gap: var(--space-2); min-height: 2.1rem; padding: 0 var(--space-2); color: var(--text); white-space: nowrap }
   .fold .fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left }
   .fold small { color: var(--dim) }
   .fold.here { color: var(--accent); background: var(--rule); font-weight: 700 }
   :global([data-theme='fantasy']) .fold.here { color: var(--wood) }
-  .scroll { overflow-y: auto; overflow-x: hidden; position: relative; min-height: 0; padding: 2px }
-  .band { display: flex; align-items: center; gap: var(--s2); margin: var(--s2) 0 var(--s2); font-size: .85rem; letter-spacing: .08em; text-transform: uppercase; color: var(--dim) }
+  .scroll { overflow-y: auto; overflow-x: hidden; position: relative; min-height: 0; padding: var(--space-1) }
+  .band { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-2) 0 var(--space-2); font-size: .85rem; letter-spacing: .08em; text-transform: uppercase; color: var(--dim) }
   .band :global(.icon) { color: var(--accent) }
   :global([data-theme='fantasy']) .band :global(.icon) { color: var(--wood) }
   .band:first-child { margin-top: 0 }
   .vgrid { position: relative }
-  .grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 12px; margin-bottom: 12px }
+  .grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: var(--space-3); margin-bottom: var(--space-3) }
   .vgrid .grid { position: absolute; inset: 0 0 auto 0; grid-auto-rows: var(--row); margin: 0 }
-  .tile-m { position: relative; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; padding: 6px; min-height: 0;
+  .tile-m { position: relative; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-1); padding: var(--space-2); min-height: 0;
     background: var(--panel-solid); color: var(--text); border: 2px solid var(--rule); white-space: normal; text-align: left; clip-path: none; border-radius: 6px }
   .tile-m :global(.thumb) { width: 100%; height: auto; aspect-ratio: 1; border: 0 }
   .tile-m .name { font-size: .85rem; line-height: 1.2; height: 2.4em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere }
@@ -268,25 +269,25 @@
   .fit, .now { position: absolute; top: 4px; display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--panel-solid) }
   .fit { right: 4px; color: var(--success) }
   .now { left: 4px; color: var(--accent) }
-  .why { position: absolute; left: 4px; bottom: 4px; display: inline-flex; align-items: center; gap: 3px; max-width: calc(100% - 8px);
-    padding: 0 .45em; font-size: .72rem; border-radius: .7em; background: var(--panel-solid); border: 1px solid currentColor; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
+  .why { position: absolute; left: 4px; bottom: 4px; display: inline-flex; align-items: center; gap: var(--space-1); max-width: calc(100% - 8px);
+    padding: 0 var(--space-1); font-size: .72rem; border-radius: .7em; background: var(--panel-solid); border: 1px solid currentColor; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
   .why-unit { color: var(--success) } .why-army { color: var(--accent) } .why-name { color: var(--warning) }
   :global([data-theme='fantasy']) .why-army { color: var(--wood) }
-  .empty { display: flex; align-items: center; gap: var(--s2); color: var(--dim) }
-  .more { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); color: var(--dim) }
-  .foot { display: grid; gap: var(--s2); padding-top: var(--s3); border-top: 2px solid var(--accent) }
+  .empty { display: flex; align-items: center; gap: var(--space-2); color: var(--dim) }
+  .more { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); color: var(--dim) }
+  .foot { display: grid; gap: var(--space-2); padding-top: var(--space-3); border-top: 2px solid var(--accent) }
   :global([data-theme='fantasy']) .foot { border-top-color: var(--wood) }
   .scope[aria-checked='true'], .scope[aria-checked='true']:hover:not(:disabled) { background-color: var(--btn-pressed-bg); color: var(--btn-pressed-text) }
-  .scopes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) }
-  .go { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4) }
+  .scopes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) }
+  .go { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3) }
   .change { color: var(--text) }
   .push { flex: 1 }
-  .hint kbd { margin: 0 .25em 0 .6em }
+  .hint kbd { margin: 0 var(--space-1) 0 var(--space-2) }
   @media (max-width: 60rem) {
-    dialog.mesh-picker { width: 100vw; height: 100dvh; max-height: 100dvh; padding: var(--s3) }
+    dialog.mesh-picker { width: 100vw; height: 100dvh; max-height: 100dvh; padding: var(--space-3) }
     .body { grid-template-columns: minmax(0, 1fr) }
     .tree { display: none }
-    .fchips { display: flex; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px }
+    .fchips { display: flex; flex-wrap: nowrap; overflow-x: auto; padding-bottom: var(--space-1) }
     .fchips > * { flex: none }
     .hint { display: none }
     .total { margin-left: 0 }

@@ -61,9 +61,9 @@
   {#if error}<p role="alert">{error}</p>{/if}
 </section>
 <style>
-  .top { height: 24rem; touch-action: none; background: var(--view-bg); margin: var(--s3) 0 }
+  .top { height: 24rem; touch-action: none; background: var(--view-bg); margin: var(--space-3) 0 }
   .selected { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--rule) }
-  .bar { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; margin: var(--s3) 0 }
-  .volumes > div { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s3); align-items: center; padding: var(--s3); border-bottom: 1px solid var(--rule) }
-  .volumes label { display: inline-flex; align-items: center; gap: var(--s1) }
+  .bar { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-3) 0 }
+  .volumes > div { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: center; padding: var(--space-3); border-bottom: 1px solid var(--rule) }
+  .volumes label { display: inline-flex; align-items: center; gap: var(--space-1) }
 </style>

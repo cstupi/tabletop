@@ -42,12 +42,12 @@
 {/if}
 
 <style>
-  .banner { pointer-events: none; text-align: center; margin: 0; padding: var(--s4) var(--s6); background-color: var(--panel-solid); }
+  .banner { pointer-events: none; text-align: center; margin: 0; padding: var(--space-3) var(--space-5); background-color: var(--panel-solid); }
   .text { font-family: var(--font-display); font-weight: var(--display-weight); text-transform: var(--display-case); letter-spacing: var(--display-tracking);
     font-size: 1.5rem; color: var(--accent); }
   :global([data-theme='fantasy']) .text { color: var(--wood); }
-  .text.teamed, :global([data-theme='fantasy']) .text.teamed { display: inline-flex; align-items: center; gap: var(--s3); color: var(--team); }
+  .text.teamed, :global([data-theme='fantasy']) .text.teamed { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--team); }
   .band { width: 6px; align-self: stretch; background: var(--team); }
-  .parts { display: flex; justify-content: center; gap: var(--s5); font-weight: 700; }
+  .parts { display: flex; justify-content: center; gap: var(--space-4); font-weight: 700; }
   .detail { color: var(--dim); }
 </style>

@@ -101,18 +101,18 @@
 
 <style>
   /* One height whatever it says: three single-line rows (the round, the activation, the wait), each cut short with an ellipsis. */
-  .bar { --line: 1.6rem; display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: var(--s5);
-    box-sizing: border-box; height: calc(3 * var(--line) + 4px + 2 * var(--s2)); overflow: hidden;
-    padding: var(--s2) var(--s4); background: var(--panel-solid); border-bottom: 1px solid var(--rule); }
+  .bar { --line: 1.6rem; display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: var(--space-4);
+    box-sizing: border-box; height: calc(3 * var(--line) + 2 * var(--space-1) + 2 * var(--space-2)); overflow: hidden;
+    padding: var(--space-2) var(--space-3); background: var(--panel-solid); border-bottom: 1px solid var(--rule); }
   p { margin: 0; height: var(--line); line-height: var(--line); min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-    display: flex; flex-wrap: nowrap; align-items: center; gap: var(--s2); }
-  .state { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 18rem; }
+    display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-2); }
+  .state { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1 1 18rem; }
   .turn { font-family: var(--font-display); font-weight: var(--display-weight); text-transform: var(--display-case); letter-spacing: var(--display-tracking); font-size: 1rem; }
-  .round { display: inline-flex; align-items: center; gap: var(--s2); color: var(--text); text-transform: uppercase; }
+  .round { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text); text-transform: uppercase; }
   .round :global(.hud-icon) { color: var(--accent); }
   .turn .chip { font-family: var(--font-body); text-transform: none; letter-spacing: 0; }
-  .activation { gap: var(--s3); font-size: .95rem; }
-  .who { display: inline-flex; align-items: center; gap: var(--s2); font-weight: 700; }
+  .activation { gap: var(--space-2); font-size: .95rem; }
+  .who { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: 700; }
   .act { color: var(--accent); display: inline-flex; }
   .step { color: var(--dim); white-space: nowrap; }
   .step.done { color: var(--success); }
@@ -121,8 +121,8 @@
   .wait.quiet { color: var(--dim); }
   .wait.mine { color: var(--team); font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); }
   .band { flex: none; width: 4px; height: 1.1rem; background: var(--team); }
-  .score { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--s3); flex: none; }
-  .tile { display: inline-flex; align-items: center; gap: var(--s2); padding: 2px var(--s3) 2px var(--s3); cursor: context-menu; line-height: 1.2;
+  .score { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-2); flex: none; }
+  .tile { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); cursor: context-menu; line-height: 1.2;
     border: 1px solid color-mix(in srgb, var(--team) 45%, transparent); border-left: 6px solid var(--team); border-radius: 4px;
     background: color-mix(in srgb, var(--team) 10%, transparent); }
   .tile.acting { border-width: 2px; border-left-width: 6px; border-color: var(--team); background: color-mix(in srgb, var(--team) 22%, transparent); }
@@ -131,7 +131,7 @@
   .points { font-size: 1.4rem; color: var(--text); white-space: nowrap; }
   .vp { color: var(--dim); font-size: .85rem; }
   .dots { letter-spacing: 1px; }
-  .objectives { display: flex; gap: var(--s1); align-items: center; }
+  .objectives { display: flex; gap: var(--space-1); align-items: center; }
   .objective { display: inline-flex; color: var(--dim); }
   .objective.held { color: var(--held); }
 </style>

@@ -73,19 +73,19 @@
 </nav>
 <style>
   nav > .actions { justify-content: space-between; margin-top: 0 }
-  ul { list-style: none; padding-left: var(--s3); margin: 0 } nav > ul { padding-left: 0 }
-  ul ul { border-left: 1px solid var(--rule); margin-left: var(--s2) }
-  li { margin: var(--s1) 0 }
-  .folder { color: var(--text); text-decoration: none; justify-content: flex-start; gap: var(--s2); min-height: 2rem; padding: 0 var(--s2); max-width: 100%; white-space: normal; text-align: left }
+  ul { list-style: none; padding-left: var(--space-3); margin: 0 } nav > ul { padding-left: 0 }
+  ul ul { border-left: 1px solid var(--rule); margin-left: var(--space-2) }
+  li { margin: var(--space-1) 0 }
+  .folder { color: var(--text); text-decoration: none; justify-content: flex-start; gap: var(--space-2); min-height: 2rem; padding: 0 var(--space-2); max-width: 100%; white-space: normal; text-align: left }
   .folder:hover:not(:disabled) { color: var(--accent) }
   .over { outline: 2px dashed var(--accent); outline-offset: -2px }
   .selected { color: var(--accent); background: var(--rule); font-weight: 700 }
   :global([data-theme='fantasy']) .selected { color: var(--wood) }
-  .tools { display: inline-flex; gap: var(--s1); white-space: nowrap; margin-left: var(--s2) }
+  .tools { display: inline-flex; gap: var(--space-1); white-space: nowrap; margin-left: var(--space-2) }
   .tools button { min-height: 1.75rem; min-width: 1.75rem }
-  .move { display: block; margin: var(--s1) 0 var(--s2) var(--s2) }
-  .none { margin: var(--s2) 0 }
-  .tag { font-size: 0.75em; padding: 0 0.4em; border: 1px solid var(--accent); color: var(--accent); border-radius: 0.6em; font-weight: 400 }
-  .note { margin: 0 0 var(--s1) var(--s3); color: var(--dim) }
-  .makeshared { margin: var(--s2) 0 }
+  .move { display: block; margin: var(--space-1) 0 var(--space-2) var(--space-2) }
+  .none { margin: var(--space-2) 0 }
+  .tag { font-size: 0.75em; padding: 0 var(--space-1); border: 1px solid var(--accent); color: var(--accent); border-radius: 0.6em; font-weight: 400 }
+  .note { margin: 0 0 var(--space-1) var(--space-3); color: var(--dim) }
+  .makeshared { margin: var(--space-2) 0 }
 </style>

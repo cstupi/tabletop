@@ -72,15 +72,15 @@
 
 <style>
   .picker {
-    display: flex; gap: var(--s2) var(--s3); align-items: center; flex-wrap: wrap; padding: var(--s2) var(--s4);
+    display: flex; gap: var(--space-2) var(--space-3); align-items: center; flex-wrap: wrap; padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--rule);
   }
-  .picker label { display: inline-flex; align-items: center; gap: var(--s2); }
+  .picker label { display: inline-flex; align-items: center; gap: var(--space-2); }
   /* The games list scrolls inside itself, so the board below keeps its room. */
   .live { flex-basis: 100%; max-height: 35vh; overflow: auto; }
   summary { cursor: pointer; color: var(--dim); }
-  table { width: 100%; margin-top: var(--s2); }
+  table { width: 100%; margin-top: var(--space-2); }
   .game { cursor: pointer; }
   .game:hover { text-decoration: underline; }
-  td, th { padding: 0 0.5rem; text-align: left; }
+  td, th { padding: 0 var(--space-2); text-align: left; }
 </style>

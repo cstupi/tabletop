@@ -142,11 +142,11 @@
 
 <style>
   .tests { overflow: auto; height: 100%; }
-  .bar { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.5rem; }
-  h3 { margin: 0.8rem 0 0.2rem; }
-  .game { padding: 0.2rem 0 0.2rem 1.2rem; border-bottom: 1px solid var(--line); }
-  .covers { padding-left: 1.4rem; }
+  .bar { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--space-2); }
+  h3 { margin: var(--space-3) 0 var(--space-1); }
+  .game { padding: var(--space-1) 0 var(--space-1) var(--space-3); border-bottom: 1px solid var(--line); }
+  .covers { padding-left: var(--space-4); }
   .ok { color: #6fcf7f; }
   table { border-collapse: collapse; }
-  th, td { text-align: left; padding: 0.15rem 0.8rem 0.15rem 0; vertical-align: top; border-bottom: 1px solid var(--line); }
+  th, td { text-align: left; padding: var(--space-1) var(--space-3) var(--space-1) 0; vertical-align: top; border-bottom: 1px solid var(--line); }
 </style>

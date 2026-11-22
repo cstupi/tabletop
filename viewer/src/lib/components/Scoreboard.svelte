@@ -28,9 +28,9 @@
 {/if}
 
 <style>
-  .scoreboard { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
-  .team { display: inline-flex; gap: 0.3rem; align-items: center;
-    padding: 0.1rem 0.4rem; border: 1px solid var(--line); border-radius: 0.3rem; }
+  .scoreboard { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+  .team { display: inline-flex; gap: var(--space-1); align-items: center;
+    padding: var(--space-1) var(--space-2); border: 1px solid var(--line); border-radius: 0.3rem; }
   .team.active { border-color: var(--team); }
   .swatch { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--team); }
   .tag { font-size: 0.85em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }

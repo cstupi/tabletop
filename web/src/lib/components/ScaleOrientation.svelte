@@ -38,10 +38,10 @@
 </fieldset>
 
 <style>
-  fieldset { margin: var(--s3) 0; }
-  fieldset label { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--s1); margin: 0 var(--s3) var(--s2) 0; }
-  .tiles { grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr)); margin: var(--s2) 0; max-width: 22rem; }
+  fieldset { margin: var(--space-3) 0; }
+  fieldset label { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); margin: 0 var(--space-3) var(--space-2) 0; }
+  .tiles { grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr)); margin: var(--space-2) 0; max-width: 22rem; }
   .tile { min-height: 2.75rem; }
-  .size, .suggest { margin: var(--s2) 0 0; }
-  .suggest button { margin-left: var(--s2); }
+  .size, .suggest { margin: var(--space-2) 0 0; }
+  .suggest button { margin-left: var(--space-2); }
 </style>

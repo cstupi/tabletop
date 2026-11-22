@@ -128,23 +128,23 @@
   </div>
 {/if}
 <style>
-  .open { display: flex; gap: var(--s2) var(--s3); align-items: center; flex-wrap: wrap; margin-bottom: var(--s4) }
-  .open label { display: inline-flex; align-items: center; gap: var(--s2) }
-  .layout { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: var(--s5); align-items: start }
-  @media (max-width: 48rem) { .layout { grid-template-columns: minmax(0, 1fr); gap: var(--s3) } }
-  .tree, .tree ul { list-style: none; margin: 0; padding-left: var(--s3) } .tree { padding-left: 0 }
-  .tree ul { border-left: 1px solid var(--rule); margin-left: var(--s2) }
-  .folder { color: var(--text); justify-content: flex-start; gap: var(--s2); min-height: 2rem; padding: 0 var(--s2); max-width: 100%; white-space: normal; text-align: left }
+  .open { display: flex; gap: var(--space-2) var(--space-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--space-3) }
+  .open label { display: inline-flex; align-items: center; gap: var(--space-2) }
+  .layout { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: var(--space-4); align-items: start }
+  @media (max-width: 48rem) { .layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-3) } }
+  .tree, .tree ul { list-style: none; margin: 0; padding-left: var(--space-3) } .tree { padding-left: 0 }
+  .tree ul { border-left: 1px solid var(--rule); margin-left: var(--space-2) }
+  .folder { color: var(--text); justify-content: flex-start; gap: var(--space-2); min-height: 2rem; padding: 0 var(--space-2); max-width: 100%; white-space: normal; text-align: left }
   .selected { color: var(--accent); background: var(--rule); font-weight: 700 }
-  .bar { display: flex; gap: var(--s2) var(--s3); align-items: center; flex-wrap: wrap; padding-bottom: var(--s3); border-bottom: 1px solid var(--rule) }
-  .bar label { display: inline-flex; align-items: center; gap: var(--s2); flex-wrap: wrap }
-  .assets { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s1) }
-  .assets li { display: flex; align-items: center; gap: var(--s2) }
+  .bar { display: flex; gap: var(--space-2) var(--space-3); align-items: center; flex-wrap: wrap; padding-bottom: var(--space-3); border-bottom: 1px solid var(--rule) }
+  .bar label { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: wrap }
+  .assets { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-1) }
+  .assets li { display: flex; align-items: center; gap: var(--space-2) }
   .assets :global(.icon) { color: var(--accent); flex: none }
   .name { flex: 1; overflow-wrap: anywhere }
   .view { min-height: 20rem; background: var(--view-bg); display: grid; overflow: hidden }
-  .view > p { margin: auto; padding: var(--s5) }
+  .view > p { margin: auto; padding: var(--space-4) }
   .view img { max-width: 100%; max-height: 24rem; margin: auto }
   .dim { color: var(--dim) }
-  .owner { display: flex; align-items: center; gap: var(--s2) }
+  .owner { display: flex; align-items: center; gap: var(--space-2) }
 </style>

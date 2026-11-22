@@ -30,9 +30,9 @@
 
 <style>
   .log { overflow-y: auto; height: 100%; }
-  .row { display: grid; grid-template-columns: 3.5rem 2rem 1fr; gap: 0.4rem; width: 100%;
+  .row { display: grid; grid-template-columns: 3.5rem 2rem 1fr; gap: var(--space-2); width: 100%;
     text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line);
-    border-radius: 0; padding: 0.15rem 0.4rem; }
+    border-radius: 0; padding: var(--space-1) var(--space-2); }
   .row[data-current='true'] { background: var(--panel); color: #fff; }
   .row.warned .text { color: #ffc44e; }
   .text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

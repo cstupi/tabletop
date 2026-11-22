@@ -123,54 +123,54 @@
      so no part of it, the main action least, is squeezed away. */
   .decision { display: flex; flex-direction: column; margin: 0; padding: 0; flex: none; min-height: 0; max-height: 70%; overflow-y: auto; }
   .decision > * { flex: none; }
-  .band { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s4); background: var(--team); color: var(--bg); }
+  .band { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: var(--team); color: var(--bg); }
   .band h2 { margin: 0; flex: 1; min-width: 0; font-family: var(--font-display); font-size: 1.05rem; text-transform: uppercase; letter-spacing: .06em; color: inherit; }
   .band .subject { opacity: .85; }
   .seat { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
-  .body { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s4); }
+  .body { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); }
   p { margin: 0; white-space: pre-line; }
   .prompt { color: var(--text); }
   .note, .dim { color: var(--dim); }
   .warn { color: var(--warning); }
   .reason { font-size: .9rem; line-height: 1.3; }
-  .group { display: flex; flex-direction: column; gap: var(--s2); }
-  .group.unit { border: 2px solid color-mix(in srgb, var(--team) 85%, transparent); border-left-width: 7px; padding: var(--s3); background: var(--panel-solid); }
-  .group-head { display: flex; align-items: center; gap: var(--s3); }
+  .group { display: flex; flex-direction: column; gap: var(--space-2); }
+  .group.unit { border: 2px solid color-mix(in srgb, var(--team) 85%, transparent); border-left-width: 7px; padding: var(--space-2); background: var(--panel-solid); }
+  .group-head { display: flex; align-items: center; gap: var(--space-2); }
   .group-head strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-display); }
   .pips { color: var(--team, var(--text)); letter-spacing: .05em; white-space: nowrap; overflow: hidden; max-width: 12rem; }
-  .tiles { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: var(--s2); }
-  .tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s1); padding: var(--s3) var(--s2);
+  .tiles { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: var(--space-2); }
+  .tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); padding: var(--space-2) var(--space-2);
     min-height: 0; white-space: normal; text-align: center; }
   .tile kbd { position: absolute; top: 4px; right: 4px; }
-  .tile.row { flex-direction: row; justify-content: flex-start; text-align: left; gap: var(--s3); }
+  .tile.row { flex-direction: row; justify-content: flex-start; text-align: left; gap: var(--space-2); }
   .tile.row .word { flex: 1; min-width: 0; }
   .tile.row kbd { position: static; }
   .team-icon { color: var(--team); display: inline-flex; }
-  .tile.chip { flex-direction: row; display: inline-flex; width: auto; align-self: flex-start; padding: var(--s2) var(--s3); }
+  .tile.chip { flex-direction: row; display: inline-flex; width: auto; align-self: flex-start; padding: var(--space-2) var(--space-2); }
   .tile.chip[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--accent); }
-  .target { color: var(--team); border-left: 5px solid var(--team); padding-left: var(--s1); }
-  .bar { display: flex; align-items: center; gap: var(--s3); }
+  .target { color: var(--team); border-left: 5px solid var(--team); padding-left: var(--space-1); }
+  .bar { display: flex; align-items: center; gap: var(--space-2); }
   .track { position: relative; flex: 1; height: 10px; background: var(--bg); border: 1px solid var(--line, var(--dim)); }
   .fill { height: 100%; background: var(--accent); }
   .bar.over .fill { background: var(--danger-text); }
   .bar.over .inches { color: var(--danger-text); }
   .mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); }
   .inches { font-family: var(--font-num); white-space: nowrap; }
-  .counter { display: flex; align-items: center; gap: var(--s3); }
+  .counter { display: flex; align-items: center; gap: var(--space-2); }
   .counter strong { font-family: var(--font-display); font-size: 1.3rem; }
   .casualties { color: var(--danger-text); letter-spacing: .08em; }
-  .foot { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
-  .foot button { display: inline-flex; align-items: center; gap: var(--s2); width: auto; }
+  .foot { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+  .foot button { display: inline-flex; align-items: center; gap: var(--space-2); width: auto; }
   .foot button.flat { background: none; box-shadow: none; clip-path: none; border-color: transparent; }
-  kbd { font-family: var(--font-num); font-size: .75rem; line-height: 1; padding: 3px 5px; border: 1px solid currentColor; border-radius: 3px; opacity: .7; flex: none; }
+  kbd { font-family: var(--font-num); font-size: .75rem; line-height: 1; padding: var(--space-1) var(--space-1); border: 1px solid currentColor; border-radius: 3px; opacity: .7; flex: none; }
   .label { color: var(--text); font-family: var(--font-num); }
-  .spin { display: flex; gap: var(--s2); align-items: center; justify-content: space-between; }
+  .spin { display: flex; gap: var(--space-2); align-items: center; justify-content: space-between; }
   .spin > span:first-child { flex: 1; }
   .spin input { width: 5.5rem; }
   [role='alert'] { margin: 0; }
-  .quiet-bands { display: flex; flex-direction: column; gap: var(--s2); flex: none; }
-  .reveal { display: flex; flex-wrap: wrap; gap: var(--s2); }
-  .quiet { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s3); background: var(--panel); border: 1px solid color-mix(in srgb, var(--dim) 50%, transparent);
+  .quiet-bands { display: flex; flex-direction: column; gap: var(--space-2); flex: none; }
+  .reveal { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .quiet { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-2); background: var(--panel); border: 1px solid color-mix(in srgb, var(--dim) 50%, transparent);
     border-left: 6px solid var(--team); color: var(--team); }
   .quiet strong { text-transform: uppercase; letter-spacing: .06em; font-family: var(--font-display); }
   .quiet span { color: var(--dim); }
