@@ -66,5 +66,5 @@ function rowOf(p: Projection, u: UnitInPlay, maxWounds: ReadonlyMap<string, numb
 /** `●` for wounds left, `○` for taken. */
 export const pips = (left: number, max: number): string => '●'.repeat(Math.max(0, left)) + '○'.repeat(Math.max(0, max - left));
 
-/** Pips up to 12 wounds, else `left/max` (Roster.cs). */
-export const woundsText = (r: RosterRow): string => (r.max <= 12 ? pips(r.left, r.max) : `${r.left}/${r.max}`);
+/** Pips up to 10 wounds, else `left/max` (Roster.cs). */
+export const woundsText = (r: RosterRow): string => (r.max <= 10 ? pips(r.left, r.max) : `${r.left}/${r.max}`);

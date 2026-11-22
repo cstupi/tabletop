@@ -140,7 +140,8 @@ public partial class Roster : PanelContainer
             }
     }
 
-    static string PipsOf(RosterRow row) => row.Max <= 12 ? RosterView.Pips(row.Left, row.Max) : $"{row.Left}/{row.Max}";
+    /// <summary>A dot per model up to ten; more read as a count, so a long row of dots never cuts the unit's name.</summary>
+    static string PipsOf(RosterRow row) => row.Max <= 10 ? RosterView.Pips(row.Left, row.Max) : $"{row.Left}/{row.Max}";
 
     static readonly bool Touch = DisplayServer.IsTouchscreenAvailable();
 
