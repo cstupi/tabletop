@@ -227,7 +227,7 @@
   .corner { order: 0; display: flex; justify-content: flex-end; gap: var(--space-2); flex: none; }
   .corner :global(.corner-button) { display: inline-flex; align-items: center; justify-content: center; min-height: 0; padding: var(--space-2); line-height: 0; }
   .corner .open { background-color: var(--btn-hover); color: var(--accent); }
-  .log { order: 1; display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-2); flex: 1 1 10rem; min-height: 10rem; }
+  .log { order: 1; display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-2); flex: 1 1 50%; min-height: 10rem; }
   :global([data-theme='fantasy']) .log { padding: calc(var(--space-2) + var(--frame-inset)); }
   .problem { order: 1; margin: 0; }
   .info > :global(:is(.strip, .card, .selection)) { order: 2; }

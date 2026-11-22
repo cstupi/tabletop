@@ -539,10 +539,10 @@
      the latest roll and the decision box (or the waiting teams) flush at the foot. */
   .side > :global(:is(.decision, .quiet-bands, .waiting)) { order: 5; }
   @media (max-width: 75rem) { .play { grid-template-columns: auto minmax(0, 1fr) 20rem; } }
-  /* A short window: the column scrolls as a whole, each part at its own height, the log at least 24rem. */
+  /* A short window: the decision box stays whole at the foot; the cards and the log give way above it, and the column scrolls only past that. */
   @media (max-height: 52rem) {
     .side { overflow-y: auto; }
-    .side :global(:is(.decision, .card)) { flex: none; max-height: none; }
-    .side :global(.log) { flex: 1 0 24rem; height: 24rem; }
+    .side :global(.decision) { max-height: none; }
+    .side :global(.log) { min-height: 8rem; }
   }
 </style>
