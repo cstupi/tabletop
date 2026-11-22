@@ -64,7 +64,7 @@ public partial class SetupTopBar : PanelContainer
             _row.AddChild(action);
         }
         else if (view.Waiting is { } wait) _row.AddChild(new Label { Text = wait, ThemeTypeVariation = Variation.Dim, VerticalAlignment = VerticalAlignment.Center });
-        var burger = HudBits.IconButton("menu", "Menu (Esc)", 22);
+        var burger = HudBits.IconButton("game-menu", "Menu (Esc)", 22);
         burger.SizeFlagsVertical = SizeFlags.ShrinkCenter;
         burger.Pressed += () => MenuRequested?.Invoke();
         _row.AddChild(burger);

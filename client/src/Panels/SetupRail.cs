@@ -28,9 +28,10 @@ public partial class SetupRail : PanelContainer
             b.AddThemeStyleboxOverride("pressed", Lit()); b.AddThemeStyleboxOverride("hover_pressed", Lit());
             var t = tool;
             b.Pressed += () => Pressed?.Invoke(t);
-            var badge = new PanelContainer { ThemeTypeVariation = Variation.Badge, MouseFilter = MouseFilterEnum.Ignore, Visible = false };
+            var badge = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore, Visible = false };
+            badge.AddThemeStyleboxOverride("panel", BadgeBox());
             var count = new Label { MouseFilter = MouseFilterEnum.Ignore, HorizontalAlignment = HorizontalAlignment.Center };
-            count.AddThemeFontSizeOverride("font_size", 11);
+            count.AddThemeFontSizeOverride("font_size", 11); count.AddThemeColorOverride("font_color", Ui.Background with { A = 1 });
             badge.AddChild(count); b.AddChild(badge);
             badge.SetAnchorsAndOffsetsPreset(LayoutPreset.TopRight, LayoutPresetMode.Minsize);
             column.AddChild(b);
@@ -62,6 +63,14 @@ public partial class SetupRail : PanelContainer
         var box = (StyleBox)Ui.Theme.GetStylebox("panel", Variation.Quiet).Duplicate();
         box.SetContentMarginAll(Space.S);
         return box;
+    }
+
+    /// <summary>The count's pill: accent filled, a half-step either side of the digits.</summary>
+    static StyleBoxFlat BadgeBox()
+    {
+        var b = new StyleBoxFlat { BgColor = Ui.Accent };
+        b.SetCornerRadiusAll(8); b.ContentMarginLeft = b.ContentMarginRight = Space.XS;
+        return b;
     }
 
     /// <summary>The open tool's face: a faint accent fill with an accent edge on the left.</summary>

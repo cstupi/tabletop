@@ -22,7 +22,7 @@ public partial class SetupToolPanel : PanelContainer
     public override void _Ready()
     {
         _s = Main.Instance.Session;
-        var box = SetupRail.Band(); box.SetContentMarginAll(Space.M); AddThemeStyleboxOverride("panel", box);
+        var box = SetupRail.Band(); box.SetContentMarginAll(Space.S); AddThemeStyleboxOverride("panel", box);   // compact over the table: two team columns fit
         _column = new VBoxContainer(); _column.AddThemeConstantOverride("separation", Space.M); AddChild(_column);
         _head = new HBoxContainer(); _head.AddThemeConstantOverride("separation", Space.S); _column.AddChild(_head);
         _head.AddChild(_icon = HudBits.Icon("terrain", Ui.Accent, 20));
@@ -39,7 +39,7 @@ public partial class SetupToolPanel : PanelContainer
         Visible = tool is not null;
         if (tool == Tool && Body is not null && IsInstanceValid(Body)) return;
         Tool = tool;
-        if (Body is not null && IsInstanceValid(Body)) { var old = Body.Fills ? (Node)Body : Body.GetParent().GetParent(); old.GetParent()?.RemoveChild(old); old.QueueFree(); }
+        if (Body is not null && IsInstanceValid(Body)) { var old = Body.Fills ? (Node)Body : Body.GetParent(); old.GetParent()?.RemoveChild(old); old.QueueFree(); }
         foreach (var c in _head.GetChildren().Skip(2)) { _head.RemoveChild(c); c.QueueFree(); }
         Body = null;
         if (tool is not { } t) return;
@@ -50,8 +50,7 @@ public partial class SetupToolPanel : PanelContainer
         {
             var scroll = new ScrollContainer { SizeFlagsVertical = SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
                 VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
-            var inset = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; inset.AddThemeConstantOverride("margin_right", Space.S);   // clear of the bar
-            scroll.AddChild(inset); inset.AddChild(Body); _column.AddChild(scroll);
+            scroll.AddChild(Body); _column.AddChild(scroll);
         }
         _icon.Texture = Ui.Icon(SetupTools.Icon(t));
         ShowTitle();

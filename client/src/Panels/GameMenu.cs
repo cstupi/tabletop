@@ -21,13 +21,13 @@ public partial class GameMenu : Control
 
     public override void _Ready()
     {
-        SetAnchorsPreset(LayoutPreset.FullRect);
+        SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         MouseFilter = MouseFilterEnum.Stop;
         Visible = false;
         var dim = new ColorRect { Color = Ui.Background with { A = 0.6f }, MouseFilter = MouseFilterEnum.Stop };
-        dim.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(dim);
+        dim.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(dim);
         dim.GuiInput += e => { if (e is InputEventMouseButton { Pressed: true }) Close(); };   // a click beside the card resumes
-        var center = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore }; center.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(center);
+        var center = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore }; center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(center);
         var card = new PanelContainer { ThemeTypeVariation = Variation.Card, CustomMinimumSize = new Vector2(280, 0) }; center.AddChild(card);
         _items = new VBoxContainer(); _items.AddThemeConstantOverride("separation", Space.S); card.AddChild(_items);
     }
