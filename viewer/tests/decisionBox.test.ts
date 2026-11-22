@@ -219,6 +219,19 @@ describe('the decision box controller', () => {
     expect(answerOf(r.sent[0]!)).toEqual({ kind: 'confirmed' });
   });
 
+  // The bar over the acting unit stands for every step until the answer is sent, not only the activation pick.
+  it('an Ask is being answered until its answer is sent, whatever its mode', () => {
+    const r = rig();
+    const ask = askOf({ kind: 'assignment', items: [option('g1', 'Rifles', ['w1'])], targets: [r.s.rivals.id], maxDistinctTargets: 1 },
+      { question: 'declare_targets', allowPass: false });
+    r.apply(open(ask));
+    r.box.render();
+    expect(r.box.answering(ask.id)).toBe(true);
+    r.box.target(r.s.rival.id);
+    r.box.press('fire');
+    expect(r.box.answering(ask.id)).toBe(false);
+  });
+
   // The owner, 2026-11-21: "if 1,2,3 decides then users should hit 1 not enter". An Ask with only foot actions has its primary on 1.
   it('a number key presses the foot action it caps: the primary first, after the tiles', () => {
     const r = rig();

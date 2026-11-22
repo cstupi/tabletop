@@ -423,7 +423,7 @@ public partial class DecisionBox : PanelContainer
 
     async Task Answer(Ask ask, AskAnswer answer)
     {
-        SetButtons(true); Unhook();                                             // one answer per Ask: no second click or key can double-send
+        SetButtons(true); Unhook(); _sentAsk = ask.Id;                          // one answer per Ask: no second click or key can double-send
         _lastCommand = Guid.CreateVersion7();                                   // before the send, so a Refused that lands first still matches
         _sent.Sent(_lastCommand.Value);                                         // a move commit's ghosts go with it, else none are held
         _flight.Sent(ask.Id, _lastCommand.Value);
@@ -448,7 +448,7 @@ public partial class DecisionBox : PanelContainer
     /// <summary>Unhook, and the card's controls and the table's highlights with it.</summary>
     void Reset()
     {
-        Unhook(); _numbered = []; _foot.Clear(); _cardActions = [];
+        Unhook(); _numbered = []; _foot.Clear(); _cardActions = []; _sentAsk = null;
         // The option tiles and the foot's actions stand for the next Ask, hidden; whatever else the Ask made goes.
         foreach (var parent in new Node[] { _controls, _footRow })
             foreach (var child in parent.GetChildren())

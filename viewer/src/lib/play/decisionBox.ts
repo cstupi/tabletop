@@ -396,7 +396,9 @@ export class DecisionBox {
   get numbered(): readonly Numbered[] { return this.#numbered; }
 
   /** Whether this Ask is the one on the card and still unanswered: no answer sent, its tiles live. */
-  answering(askId: string): boolean { return this.#renderedAsk === askId && this.handlers.onNumber !== null; }
+  /** Whether this Ask is the one on the card and still unanswered: no answer sent. */
+  answering(askId: string): boolean { return this.#renderedAsk === askId && this.#sentAsk !== askId; }
+  #sentAsk: string | null = null;
 
   /**
    * p.13: "may spend any number of spell tokens", capped per model by what that model holds. So one box per model, each bounded by its
@@ -494,7 +496,7 @@ export class DecisionBox {
 
   async #answer(ask: Ask, answer: AskAnswer): Promise<void> {
     this.#controls = this.#controls.map(disable);   // SetButtons(true)
-    this.#unhook();                                                          // one answer per Ask: no second click or key can double-send
+    this.#unhook(); this.#sentAsk = ask.id;                                  // one answer per Ask: no second click or key can double-send
     const token = ++this.#lastToken;                                         // before the send, so a Refused that lands first still matches
     this.#lastId = null;
     this.#publish();
@@ -538,7 +540,7 @@ export class DecisionBox {
 
   /** Unhook, and the box's controls and the table's highlights with it. */
   #reset(): void {
-    this.#unhook(); this.#numbered = []; this.#cardActions = [];
+    this.#unhook(); this.#numbered = []; this.#cardActions = []; this.#sentAsk = null;
     this.#controls = []; this.#segmentLength = 0; this.#actions.clear();
   }
 
