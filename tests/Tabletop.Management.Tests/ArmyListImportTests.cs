@@ -42,6 +42,22 @@ public class ArmyListImportTests : IClassFixture<ManagementFactory>
         Assert.All(veterans.Models, m => Assert.Equal(["Strike", "Shotgun"], m.Weapons.Select(w => w.Name)));
     }
 
+    /// <summary>HDF Artillery Blob: each unit reads back the names of the products Army Forge lists for it (a joined Company Leader's with
+    /// its squad's), and no store link or product image reaches the army.</summary>
+    [Fact]
+    public async Task An_imported_army_reads_back_its_product_names_and_no_links()
+    {
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        var army = await c.PostJson<Army>("/v1/armies/import", new ImportRequest("ipY2KtxH4tJG"));
+        var json = await c.GetStringAsync($"/v1/armies/{army.Id}");
+        var read = System.Text.Json.JsonSerializer.Deserialize<Army>(json, ContentJson.Options)!;
+        Assert.Equal(["Infantry Squad", "Company Leader", "Company Leader (Sniper)"], read.Units.Single(u => u.Name == "Infantry Squad").ProductNames);
+        Assert.Equal(["Field Artillery"], read.Units.First(u => u.Name == "Field Artillery").ProductNames);
+        var units = json[json.IndexOf("\"units\"", StringComparison.Ordinal)..];
+        Assert.DoesNotContain("http", units, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("unitProduct", units);
+    }
+
     /// <summary>Ratmen Clans: three units carry Reinforcement on every model (two combined Operators, Elite Operators, Saboteurs). Each gets a
     /// reserve copy without the rule, which the army's counts leave out: the copy stands on its original's miniatures.</summary>
     [Fact]

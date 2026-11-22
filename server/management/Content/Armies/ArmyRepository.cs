@@ -18,7 +18,17 @@ public sealed record PatchArmyRequest(string? Name, IReadOnlyList<UnitPatch>? Un
 /// <summary>The army tree: army → unit → model_slot → weapon, each level with its stat and property rows.</summary>
 public sealed class ArmyRepository(Database db) : IArmyRepository
 {
-    private sealed record UnitRow(Guid Id, int Ordinal, string Name, string? ReserveProperty, Guid? ReserveOf, int? Points);
+    /// <summary>Settable members, not a constructor: Dapper reads a `text[]` column as System.Array and matches no constructor taking string[].</summary>
+    private sealed class UnitRow
+    {
+        public Guid Id { get; init; }
+        public int Ordinal { get; init; }
+        public string Name { get; init; } = "";
+        public string? ReserveProperty { get; init; }
+        public Guid? ReserveOf { get; init; }
+        public int? Points { get; init; }
+        public string[]? ProductNames { get; init; }
+    }
     private sealed record SlotRow(Guid Id, Guid UnitId, int Ordinal, string Name, string BaseShape, double BaseA, double BaseB, double Height, Guid? AssetId, string? ArmyBook, bool Vehicle);
     private sealed record WeaponRow(Guid Id, Guid SlotId, string Name);
     private sealed record KV(Guid Owner, string Key, string Value);
@@ -31,8 +41,8 @@ public sealed class ArmyRepository(Database db) : IArmyRepository
         await c.ExecuteAsync("insert into army (id, owner_id, name, game_system, source, edition) values (@Id, @ownerId, @Name, @GameSystem, @Source, @Edition)", new { army.Id, ownerId, army.Name, army.GameSystem, army.Source, army.Edition }, tx);
         foreach (var u in army.Units)
         {
-            await c.ExecuteAsync("insert into unit (id, army_id, ordinal, name, reserve_property, reserve_of, points) values (@Id, @armyId, @Ordinal, @Name, @reserveProperty, @reserveOf, @Points)",
-                new { u.Id, armyId = army.Id, u.Ordinal, u.Name, reserveProperty = u.Reserve?.Property, reserveOf = u.Reserve?.Of, u.Points }, tx);
+            await c.ExecuteAsync("insert into unit (id, army_id, ordinal, name, reserve_property, reserve_of, points, product_names) values (@Id, @armyId, @Ordinal, @Name, @reserveProperty, @reserveOf, @Points, @productNames)",
+                new { u.Id, armyId = army.Id, u.Ordinal, u.Name, reserveProperty = u.Reserve?.Property, reserveOf = u.Reserve?.Of, u.Points, productNames = u.ProductNames?.ToArray() }, tx);
             await c.ExecuteAsync("insert into unit_stat (unit_id, stat, value) values (@id, @k, @v)", u.Stats.Select(s => new { id = u.Id, k = s.Key, v = s.Value }), tx);
             await c.ExecuteAsync("insert into unit_property (unit_id, name, parameter) values (@id, @Name, @Parameter)", u.Properties.Select(p => new { id = u.Id, p.Name, p.Parameter }), tx);
             foreach (var m in u.Models)
@@ -57,7 +67,7 @@ public sealed class ArmyRepository(Database db) : IArmyRepository
         await using var c = await db.Open();
         var head = await c.QuerySingleOrDefaultAsync<(string Name, string GameSystem, string Source, string Edition)>("select name, game_system, source, edition from army where id = @id and owner_id = @ownerId", new { id, ownerId });
         if (head == default) return null;
-        var units = (await c.QueryAsync<UnitRow>("select id as Id, ordinal as Ordinal, name as Name, reserve_property as ReserveProperty, reserve_of as ReserveOf, points as Points from unit where army_id = @id order by ordinal", new { id })).ToList();
+        var units = (await c.QueryAsync<UnitRow>("select id as Id, ordinal as Ordinal, name as Name, reserve_property as ReserveProperty, reserve_of as ReserveOf, points as Points, product_names as ProductNames from unit where army_id = @id order by ordinal", new { id })).ToList();
         var slots = (await c.QueryAsync<SlotRow>(@"select s.id as Id, s.unit_id as UnitId, s.ordinal as Ordinal, s.name as Name, s.base_shape as BaseShape, s.base_a::float8 as BaseA, s.base_b::float8 as BaseB, s.height::float8 as Height, s.asset_id as AssetId, s.army_book as ArmyBook, s.vehicle as Vehicle
             from model_slot s join unit u on u.id = s.unit_id where u.army_id = @id order by s.ordinal", new { id })).ToLookup(s => s.UnitId);
         // Stat, property and weapon rows are written once at import and never updated (Patch touches only model_slot
@@ -79,7 +89,7 @@ public sealed class ArmyRepository(Database db) : IArmyRepository
             slots[u.Id].Select(s => new ModelSlot(s.Id, s.Ordinal, s.Name, Stats(slotStats, s.Id), Props(slotProps, s.Id),
                 new Base(Enum.Parse<BaseShape>(s.BaseShape, true), s.BaseA, s.BaseB), s.Height, s.AssetId,
                 weapons[s.Id].Select(w => new Weapon(w.Id, w.Name, Stats(weaponStats, w.Id), Props(weaponProps, w.Id))).ToList(), s.ArmyBook) { Vehicle = s.Vehicle }).ToList(),
-            u.ReserveProperty is { } rule && u.ReserveOf is { } of ? new UnitReserve(rule, of) : null)).ToList()) { Edition = head.Edition };
+            u.ReserveProperty is { } rule && u.ReserveOf is { } of ? new UnitReserve(rule, of) : null, u.Points) { ProductNames = u.ProductNames }).ToList()) { Edition = head.Edition };
     }
 
     public async Task<IReadOnlyList<ArmySummary>> List(Guid ownerId, Http.Keyset page)

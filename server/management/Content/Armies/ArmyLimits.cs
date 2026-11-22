@@ -17,6 +17,8 @@ public static class ArmyLimits
     /// <summary>A weapon entry's count is at most this many per model of its entry.</summary>
     public const int WeaponsPerModel = 4;
     public const int MaxRange = 120;
+    /// <summary>A unit keeps at most this many product names.</summary>
+    public const int MaxProductNames = 16;
     /// <summary>A unit's points are kept within 0 and this.</summary>
     public const int MaxPoints = 100_000;
     public const double MinBase = 0.4, MaxBase = 12, MinHeight = 0.1, MaxHeight = 24;

@@ -376,6 +376,11 @@ entry, a joined one included, carries its own `armyId`, and `Caster(X)` is a mod
 upgrades', written at import (`ArmyForgeImport.Points`) and shown on the unit card; null for an army imported before
 management's `034_unit_points.sql`, until it is imported again. Nothing in the rules reads it.
 
+`unit.product_names text[] null` (1–16 names) are the names of the official products the army list names for the unit's
+entries: Army Forge's store-link labels, trimmed, once each (`ArmyForgeImport.ProductNames`, `Unit.ProductNames`). No link,
+image or description is stored. The web mesh picker ranks library meshes named after them; null for an army imported before
+management's `036_unit_product_names.sql`, until it is imported again.
+
 `model_slot.vehicle boolean not null default false` marks a vehicle (`ModelSlot.Vehicle`): the army list published no base
 for the slot's entry (Army Forge's `bases` "none" or empty), so the import stood it on the vehicle hull; both clients draw
 its move path as treads. Management's `035_model_slot_vehicle.sql` marks the slots imported before it that stand on that

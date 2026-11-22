@@ -129,7 +129,7 @@
     onpick(scope, assetId);
     dialog?.close();
   }
-  const why = { unit: 'armies', army: 'copy', name: 'search' } as const;
+  const why = { unit: 'armies', army: 'copy', product: 'miniature', name: 'search' } as const;
 </script>
 
 {#snippet tile(e: Entry, i: number, mark?: Suggestion)}
@@ -140,7 +140,7 @@
       <Thumb url={e.asset.thumbnail} alt="" size="100%" />
       {#if fits(e.asset, base)}<span class="fit" title="Fits {baseLabel(base!)}"><Icon name="base" size="1.1rem" label="Fits this base" /></span>{/if}
       {#if held.has(e.asset.id)}<span class="now" title="On this row now"><Icon name="ready" size="1.1rem" label="On this row now" /></span>{/if}
-      {#if mark}<span class="why why-{mark.reason}"><Icon name={why[mark.reason]} size="0.9rem" />{mark.label}</span>{/if}
+      {#if mark}<span class="why why-{mark.reason}" title={mark.label}><Icon name={why[mark.reason]} size="0.9rem" />{mark.label}</span>{/if}
     </span>
     <span class="name">{e.asset.name}</span>
   </button>
@@ -271,7 +271,7 @@
   .now { left: 4px; color: var(--accent) }
   .why { position: absolute; left: 4px; bottom: 4px; display: inline-flex; align-items: center; gap: var(--space-1); max-width: calc(100% - 8px);
     padding: var(--space-2); font-size: .72rem; border-radius: .7em; background: var(--panel-solid); border: 1px solid currentColor; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
-  .why-unit { color: var(--success) } .why-army { color: var(--accent) } .why-name { color: var(--warning) }
+  .why-unit { color: var(--success) } .why-army { color: var(--accent) } .why-product { color: var(--text) } .why-name { color: var(--warning) }
   :global([data-theme='fantasy']) .why-army { color: var(--wood) }
   .empty { display: flex; align-items: center; gap: var(--space-2); color: var(--dim) }
   .more { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); color: var(--dim) }

@@ -150,7 +150,21 @@ public static class ArmyForgeImport
         var models = new List<ModelSlot>();
         Section([host, .. m.Combined], catalog, unitProps, models);
         foreach (var joined in m.Joined) Section([joined], catalog, null, models);
-        return new Unit(Guid.CreateVersion7(), ordinal, host.Name, stats, Stacked(unitProps), models, Points: Points([host, .. m.Combined, .. m.Joined]));
+        return new Unit(Guid.CreateVersion7(), ordinal, host.Name, stats, Stacked(unitProps), models, Points: Points([host, .. m.Combined, .. m.Joined]))
+            { ProductNames = ProductNames([host, .. m.Combined, .. m.Joined]) };
+    }
+
+    /// <summary>The names of the products Army Forge lists for a unit's entries (each store link's label), trimmed, once each ignoring case, in
+    /// the list's order, at most ArmyLimits.MaxProductNames. A label that is no name (empty, over 64 characters, control characters, a web
+    /// address) is dropped. Null when none is left.</summary>
+    private static IReadOnlyList<string>? ProductNames(IReadOnlyList<AfUnit> entries)
+    {
+        var names = entries.SelectMany(e => (e.Product?.StoreLinksDigital ?? []).Concat(e.Product?.StoreLinksPhysical ?? []))
+            .Select(l => l?.Label?.Trim() ?? "")
+            .Where(l => Limits.Text(l, "product", Limits.Name) is null && !l.Contains("http", StringComparison.OrdinalIgnoreCase)
+                && !l.Contains("://", StringComparison.Ordinal) && !l.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase).Take(ArmyLimits.MaxProductNames).ToList();
+        return names.Count > 0 ? names : null;
     }
 
     /// <summary>What the list says a unit cost: each of its entries' `cost` and, per selected upgrade, the option's cost for that entry (its
