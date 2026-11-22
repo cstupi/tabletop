@@ -99,6 +99,7 @@ mesh in the unit:
 | --- | --- | --- |
 | On another slot of this unit | `armies` icon, `this unit` | 8, +4 with the same model name |
 | On a slot of a unit of the same name in any of the account's armies (`GET /v1/armies/meshes`) | `copy` icon, the unit name | 5 + slot count (max 5); 3 when only the model name matches |
+| Name words matching every meaningful word of a product name the army list gives the unit (`Unit.productNames`, Army Forge's store-link labels; a bracketed suffix such as `[Epic]` ignored) | `miniature` icon, the product name as plain text | 6 + per word as the name match × 2; +4 when the asset's name is the product name, with or without its suffix |
 | Name words matching the model name, then the unit name | `mesh` icon, `name` | per word: 3 exact, 2 prefix, 1 inside, 0.5 edit; model words × 2 |
 | Recent pick | — | +1 |
 

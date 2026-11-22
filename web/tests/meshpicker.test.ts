@@ -111,6 +111,29 @@ describe('suggest', () => {
     const mixed = unit('u2', 'Orc Boyz', [slot('a', 'Boy', 'elf'), slot('b', 'Boy')]);
     expect(suggest({ index: idx, unit: mixed, slots: [mixed.models[1]!], uses: [], limit: 1 }).map((s) => s.entry.asset.id)).toEqual(['elf']);
   });
+
+  describe('by the products the army list names for the unit', () => {
+    const plib = [asset('pose', 'Change Avatar Pose 2'), asset('base', 'Avatar Base'), asset('epic', 'Avatar of Change Epic'),
+      asset('exact', 'Avatar of Change'), asset('elf', 'Elf Archer')];
+    const pidx = buildIndex(plib, []);
+    const avatar: Unit = { ...unit('u3', 'Avatar', [slot('a1', 'Avatar')]), productNames: ['Avatar of Change', 'Avatar of Change [Epic]'] };
+    it('ranks an exact product name first, then every product word matched, above the plain name match, marked with the product', () => {
+      const got = suggest({ index: pidx, unit: avatar, slots: avatar.models, uses: [], limit: 8 });
+      expect(got.map((s) => [s.entry.asset.id, s.reason, s.label])).toEqual([
+        ['exact', 'product', 'Avatar of Change'], ['epic', 'product', 'Avatar of Change [Epic]'], ['pose', 'product', 'Avatar of Change'],
+        ['base', 'name', 'name'],
+      ]);
+    });
+    it('puts a product match above a stronger match on the unit\'s own name', () => {
+      const lib2 = buildIndex([asset('bw', 'Blood Warriors'), asset('wb', 'Wrath Brute')], []);
+      const bw: Unit = { ...unit('u4', 'Blood Warriors', [slot('b1', 'Blood Warriors')]), productNames: ['Wrath Brutes'] };
+      expect(suggest({ index: lib2, unit: bw, slots: bw.models, uses: [], limit: 8 }).map((s) => [s.entry.asset.id, s.reason])).toEqual([['wb', 'product'], ['bw', 'name']]);
+    });
+    it('needs every word of the product name', () => {
+      const got = suggest({ index: pidx, unit: { ...avatar, productNames: ['Avatar of Doom'] }, slots: avatar.models, uses: [], limit: 8 });
+      expect(got.every((s) => s.reason === 'name')).toBe(true);
+    });
+  });
 });
 
 describe('scopes', () => {
