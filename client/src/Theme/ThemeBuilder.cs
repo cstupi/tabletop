@@ -12,9 +12,9 @@ public static class ThemeBuilder
         var s = u.Shape; Color C(Rgba c) => Ui.Of(c);
         StyleBox panel = Box(s.PanelNinePatch, s.PanelMargin, s, C(u.Panel), C(u.PanelBorder), s.BorderWidth);
         foreach (var type in new[] { "PanelContainer", "Panel", "TabContainer" }) t.SetStylebox("panel", type, panel);
-        // Every dialog (AcceptDialog, ConfirmationDialog): even L padding, L between the buttons and between the content and the button
-        // row (Godot's buttons_separation is both), each button at least DialogButtonWidth wide. Cancel sits left of the primary
-        // (project.godot gui/common/swap_cancel_ok = Cancel First on every platform).
+        // Every dialog (AcceptDialog, ConfirmationDialog): even L padding, L between the content and the button row (buttons_separation),
+        // each button at least DialogButtonWidth wide; DialogLayout right-aligns the row and spaces its buttons L apart, Cancel left of the
+        // primary (project.godot gui/common/swap_cancel_ok = Cancel First on every platform).
         StyleBox dialogPanel = Box(s.PanelNinePatch, s.PanelMargin, s, C(u.Panel) with { A = 1 }, C(u.PanelBorder), s.BorderWidth); dialogPanel.SetContentMarginAll(Space.L);
         t.SetStylebox("panel", "AcceptDialog", dialogPanel); Variant(t, Variation.DialogCard, "PanelContainer", "panel", dialogPanel);
         t.SetConstant("buttons_separation", "AcceptDialog", Space.L); t.SetConstant("buttons_min_width", "AcceptDialog", DialogButtonWidth);

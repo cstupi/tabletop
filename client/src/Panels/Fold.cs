@@ -18,7 +18,8 @@ public partial class Fold : VBoxContainer
 
     readonly bool _upper;
 
-    /// <summary>Upper: the heading's words before its first digit or · in capitals (Mesh, Volumes 3); off for a heading of values.</summary>
+    /// <summary>Upper: the heading's words before its first digit or · in capitals (Mesh, Volumes 3), clipped to one line; off for a heading of
+    /// values, as written and wrapped.</summary>
     public Fold(SetupFolds folds, SetupFold fold, GameStatus status, Func<string> title, bool upper = true)
     {
         _title = title; _upper = upper;
@@ -27,6 +28,7 @@ public partial class Fold : VBoxContainer
         var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S); AddChild(row);
         _head = new Button { Flat = true, ThemeTypeVariation = Variation.FlatButton, ToggleMode = true, ButtonPressed = open, Alignment = HorizontalAlignment.Left,
             FocusMode = FocusModeEnum.None, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis };
+        if (!upper) { _head.ClipText = false; _head.TextOverrunBehavior = TextServer.OverrunBehavior.NoTrimming; _head.AutowrapMode = TextServer.AutowrapMode.WordSmart; }   // values wrap, never cut
         _head.Toggled += on => { Body.Visible = on; folds.Set(fold, on, status); Refresh(); };
         row.AddChild(_head);
         Actions.AddThemeConstantOverride("separation", Space.XS); row.AddChild(Actions);

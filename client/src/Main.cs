@@ -25,6 +25,7 @@ public partial class Main : Node
     public override void _Ready()
     {
         Instance = this;
+        DialogLayout.Install(GetTree());
         GetWindow().Title = BuildInfo.Current.WindowTitle;
         var data = UserData.Open(BuildInfo.Current, OS.GetUserDataDir());
         _settingsPath = data.Settings; _warmupPath = Path.Combine(data.Dir, "graphics-warmup.txt");
