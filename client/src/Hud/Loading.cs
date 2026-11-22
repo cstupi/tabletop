@@ -116,3 +116,33 @@ public partial class LoadingCurtain : Control
         }
     }
 }
+
+/// <summary>Setup's loading state over the table's box (<see cref="TableLoad"/>): the table dimmed under a <see cref="LoadingPanel"/> at its
+/// centre. It takes the mouse, so the table is not edited while it lays out; the top bar and the tool panel stay usable.</summary>
+public partial class LoadingVeil : Control
+{
+    readonly ColorRect _back = new() { MouseFilter = MouseFilterEnum.Ignore };
+    readonly LoadingPanel _panel = new();
+    Action? _onTheme;
+
+    public override void _Ready()
+    {
+        MouseFilter = MouseFilterEnum.Stop;
+        Visible = false;
+        _back.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(_back);
+        var centre = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore }; centre.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(centre);
+        centre.AddChild(_panel);
+        _onTheme = Recolour; Ui.Changed += _onTheme; Recolour();
+    }
+
+    public override void _ExitTree() => Ui.Changed -= _onTheme;
+
+    void Recolour() => _back.Color = Ui.Of(Ui.Current.Background) with { A = 0.6f };
+
+    /// <summary>Null hides the veil.</summary>
+    public void Set(LoadingLine? line)
+    {
+        if (Visible != line is not null) Visible = line is not null;
+        if (line is not null) _panel.Set(line);
+    }
+}

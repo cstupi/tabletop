@@ -50,7 +50,12 @@ public partial class SetupLayoutsTool : SetupToolBody
             var pick = choice;
             menu.GetPopup().IdPressed += id => Guarded.Run(async () =>
             {
-                if (id == 0) await s.SendEditAsync(SetupEdits.Load(pick.Builtin ?? await s.Management.GetLayout(pick.SavedId!.Value)));
+                if (id == 0)
+                {
+                    Screen.BeginTableLoad();   // the veil from the click: a saved layout's fetch, then its pieces' meshes
+                    try { await s.SendEditAsync(SetupEdits.Load(pick.Builtin ?? await s.Management.GetLayout(pick.SavedId!.Value))); }
+                    catch { Screen.CancelTableLoad(); throw; }
+                }
                 else Confirm($"Delete {pick.Label}?", "Delete", $"Delete {pick.Label}?",
                     () => Guarded.Run(async () => { await s.Management.DeleteLayout(pick.SavedId!.Value); await Fill(); }, Screen.Toast));
             }, Screen.Toast);
