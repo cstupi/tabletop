@@ -36,4 +36,44 @@ public class CoherencyTests
     // has no elevation clause, so the ends are still flagged at 10.74" apart.
     [Fact] public void The_allowance_does_not_widen_the_spread() =>
         Assert.Equal(new[] { 0, 4 }, Opr(Fx.Model(0, 0), Fx.Model(3, 0, z: 2), Fx.Model(6, 0), Fx.Model(9, 0, z: 2), Fx.Model(12, 0)).OutOfCoherency);
+
+    static IReadOnlyList<CoherencyGap> Gaps(params PlacedModel[] models) => Coherency.Gaps(models, 1, 3, 9);
+
+    [Fact] public void A_coherent_unit_has_no_gaps() => Assert.Empty(Gaps(Fx.Model(0, 0), Fx.Model(2, 0), Fx.Model(4, 0)));
+
+    // The straggler's gap is to the nearest model of the chain, edge to edge, with the closest points of the two bases.
+    [Fact] public void A_straggler_is_named_with_its_nearest_model_of_the_chain()
+    {
+        var gap = Assert.Single(Gaps(Fx.Model(0, 0), Fx.Model(2, 0), Fx.Model(6, 0)));
+        Assert.Equal((2, 1, CoherencyBreak.Chain, 1.0), (gap.Model, gap.To, gap.Break, gap.Needed));
+        Assert.Equal(2.74, gap.Distance, 6);
+        Assert.Equal(new Point2(5.37, 0), gap.OnModel);
+        Assert.Equal(new Point2(2.63, 0), gap.OnTo);
+    }
+
+    // p.7's 9": a model of the chain too far from another is named with the farthest one.
+    [Fact] public void A_spread_break_is_named_with_the_farthest_model()
+    {
+        var chain = Enumerable.Range(0, 7).Select(i => Fx.Model(2 * i, 0)).ToArray();
+        var gaps = Gaps(chain);
+        Assert.Equal(new[] { (0, 6), (6, 0) }, gaps.Select(g => (g.Model, g.To)));
+        Assert.All(gaps, g => { Assert.Equal(CoherencyBreak.Spread, g.Break); Assert.Equal(9.0, g.Needed); Assert.Equal(10.74, g.Distance, 6); });
+    }
+
+    // The owner's Flayer Cavalry (2026-11-22): 60 x 35 mm ovals turned to their own facings, measured on the oval edges at those facings.
+    // Rider 1 stood 0.92" from rider 3: in coherency; moved 0.15" further out along the gap it is 1.07" from its nearest rider and out.
+    [Fact] public void Turned_ovals_are_measured_on_their_own_edges()
+    {
+        var oval = Base.Oval(60 / 25.4, 35 / 25.4);
+        PlacedModel R(double x, double y, double yaw) => Fx.Model(oval, x, y, yaw: yaw);
+        PlacedModel[] Unit(double x1, double y1) => [R(39.839, 20.306, 12.185), R(x1, y1, 71.19), R(35.683, 19.208, 71.19), R(37.878, 19.779, 71.19), R(36.120, 21.084, 71.19)];
+        Assert.Empty(Gaps(Unit(38.625, 17.348)));
+        var gap = Assert.Single(Gaps(Unit(38.625 + 0.05, 17.348 - 0.15)));
+        Assert.Equal((1, 3, CoherencyBreak.Chain), (gap.Model, gap.To, gap.Break));
+        Assert.InRange(gap.Distance, 1.0, 1.1);
+    }
+
+    // A pair at different elevation chains at 3": the gap names the 3" it needs.
+    [Fact] public void An_elevated_straggler_needs_three_inches() =>
+        Assert.Equal(3.0, Assert.Single(Gaps(Fx.Model(0, 0), Fx.Model(5, 0, z: 2))).Needed);
 }

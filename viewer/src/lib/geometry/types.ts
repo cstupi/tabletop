@@ -28,6 +28,14 @@ export interface ContactTerms {
 export interface Contact { readonly modelId: string; readonly kind: ContactKind; readonly unitId?: string }
 export interface Nearest { readonly distance: number; readonly from: number; readonly to: number }
 export interface Segment { readonly a: XY; readonly b: XY }
+/** Which half of the unit coherency a model breaks: the chain (outside the largest chain) or the spread (in it, too far from another). */
+export type CoherencyBreak = 'chain' | 'spread';
+/** Coherency.Gaps: a model out of coherency (index into the request) and the one it is measured to, edge to edge, what that pair needs, and the
+ *  two bases' closest points. */
+export interface CoherencyGap {
+  readonly model: number; readonly to: number; readonly break: CoherencyBreak; readonly distance: number; readonly needed: number;
+  readonly onModel: XY; readonly onTo: XY;
+}
 /** One model's move area from a move Ask (MoveRegion) for MoveReach.Bands: the Ask's volume ids, cap and minimum, the standing models (none when the Ask
  *  passes models) and the table. */
 export interface BandsRequest {
@@ -75,6 +83,8 @@ export interface Geometry {
   nearestPair(from: readonly PlacedModel[], to: readonly PlacedModel[]): Nearest | null;
   /** The union outline of the rings at `range` from each model's base edge, or at `ranges[i]` from model i's when given (RangeOutline.Of). */
   rangeOutline(models: readonly PlacedModel[], range: number, ranges?: readonly number[]): Segment[];
+  /** Coherency.Gaps: why each model of a unit is out of coherency at these distances; empty when it is in. */
+  coherencyGaps(models: readonly PlacedModel[], chain: number, elevated: number, spread: number): CoherencyGap[];
   /** Clearance.Outline: the area a placed base's edge may not enter, `from[i]` grown by `over[i]`, less the area within `liftedWithin` of `lifted`. */
   clearanceOutline(from: readonly PlacedModel[], over: readonly number[], lifted?: readonly PlacedModel[], liftedWithin?: number): Segment[];
   /** Clearance.Breaks: the index into `from` the placed base comes within `over[i]` of, or -1 (none, or within `liftedWithin` of a lifted base). */

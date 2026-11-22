@@ -12,6 +12,7 @@ import type { Held } from './modelDrag';
 import { footprintColour, lineColour, outline, type ModelPath } from './movePaths';
 import type { Violations } from './violations';
 import { MARK_GAP, placeMarkLabels } from './markLabels';
+import type { CoherencyPicture } from './coherencyView';
 
 /** `path`: the bent path the move is measured along (from `from` to `to`), drawn instead of the straight line. */
 export interface RulerLine { readonly from: XY; readonly to: XY; readonly text: string; readonly outOfRange: boolean; readonly path?: readonly XY[] }
@@ -116,6 +117,29 @@ export const pathsOverlay = (paths: readonly ModelPath[], team: string): Overlay
     ctx.beginPath();
     for (const ring of rings) { ctx.moveTo(ring[0]!.x, ring[0]!.y); for (const q of ring.slice(1)) ctx.lineTo(q.x, q.y); ctx.closePath(); }
     ctx.stroke();
+  }
+  ctx.restore();
+};
+
+/** CoherencyNode: each ghost's ring at the coherency distance from its base edge, faint in the team's colour, and per model out of coherency a
+ *  dashed line in the warning colour from its base to the model it is measured to, with its words over the line's middle. */
+export const coherencyOverlay = (picture: CoherencyPicture, team: string, warning: string): Overlay => (ctx, project) => {
+  if (picture.rings.length + picture.lines.length === 0) return;
+  ctx.save();
+  ctx.globalAlpha = 0.55; ctx.strokeStyle = team; ctx.lineWidth = 1; ctx.setLineDash([]);
+  ctx.beginPath();
+  for (const ring of picture.rings) for (const s of ring.segments) { const a = project(s.a), b = project(s.b); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
+  ctx.stroke();
+  ctx.globalAlpha = 1; ctx.strokeStyle = warning; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+  for (const line of picture.lines) {
+    const a = project(line.from), b = project(line.to);
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+  ctx.setLineDash([]); ctx.font = 'bold 11px ui-monospace, monospace'; ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)'; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.fillStyle = warning;
+  for (const line of picture.lines) {
+    const a = project(line.from), b = project(line.to), at = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 6 };
+    ctx.strokeText(line.text, at.x, at.y); ctx.fillText(line.text, at.x, at.y);
   }
   ctx.restore();
 };

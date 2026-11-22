@@ -90,4 +90,17 @@ public class GfCoherencyTests
         var applied = Assert.IsType<Applied>(Answer(sim, At(sim, unit.Models[1].Id, 22, 29)));
         Assert.Equal(GfNames.MoveCoherencyRule, applied.Events.OfType<AskAnswered>().Single().Breach);
     }
+
+    /// <summary>The clients measure their ghosts by the coherency the server judges with: p.7's 1" and 9", p.11's 3" at different elevation.</summary>
+    [Fact]
+    public async Task The_welcome_carries_the_unit_coherency()
+    {
+        var db = new InMemorySeeder();
+        using var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
+        await using var client = await TestClient.OpenAsync(factory);
+        var welcome = await client.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
+        Assert.Equal(new UnitCoherency(1, 3, 9), welcome.Coherency);
+        Assert.Equal(GrimdarkFutureRules.V351.Coherency, GrimdarkFutureRules.V360.Coherency);
+    }
 }

@@ -68,8 +68,9 @@ public class SessionTests : IDisposable
         var legs = new Tabletop.Geometry.ZoneLegs(2.0 / 3, 0.75);
         var words = new Dictionary<string, string> { ["see_in_and_out"] = "Dense" };
         var texts = new Dictionary<string, string> { ["cover"] = "+1 to Defense" };
-        sock.Deliver(new RulesOptionsMessage(next) { Zones = legs, TerrainWords = words, TerrainRules = texts, MarkerRange = 4 });
+        sock.Deliver(new RulesOptionsMessage(next) { Zones = legs, TerrainWords = words, TerrainRules = texts, MarkerRange = 4, Coherency = new UnitCoherency(2, 4, 10) });
         Assert.Equal(4, _s.MarkerRange);
+        Assert.Equal(new UnitCoherency(2, 4, 10), _s.Coherency);
         Assert.Same(next, _s.Options);
         Assert.Equal(legs, _s.Zones);
         Assert.Same(words, _s.TerrainWords);

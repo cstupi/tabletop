@@ -23,6 +23,8 @@ namespace Tabletop.Geometry.Wasm;
 [JsonSerializable(typeof(ClearanceRequest))]
 [JsonSerializable(typeof(int))]
 [JsonSerializable(typeof(Segment[]))]
+[JsonSerializable(typeof(CoherencyRequest))]
+[JsonSerializable(typeof(CoherencyGap[]))]
 [JsonSerializable(typeof(ZoneRequest))]
 [JsonSerializable(typeof(TableRequest))]
 [JsonSerializable(typeof(ExitRequest))]
@@ -60,6 +62,7 @@ public static class FacadeJson
         o.Converters.Add(new JsonStringEnumConverter<VolumeKind>(JsonNamingPolicy.SnakeCaseLower, allowIntegerValues: false));
         o.Converters.Add(new JsonStringEnumConverter<TerrainDeclarations>(JsonNamingPolicy.SnakeCaseLower, allowIntegerValues: false));
         o.Converters.Add(new JsonStringEnumConverter<ContactKind>(JsonNamingPolicy.SnakeCaseLower, allowIntegerValues: false));
+        o.Converters.Add(new JsonStringEnumConverter<CoherencyBreak>(JsonNamingPolicy.SnakeCaseLower, allowIntegerValues: false));
         if (readers) FacadeReaders.AddTo(o.Converters);
         o.MakeReadOnly();
         return o;

@@ -109,6 +109,13 @@ public static class Facade
         return Write((r.Ranges is { } each ? Geometry.RangeOutline.Of(r.Models, each) : Geometry.RangeOutline.Of(r.Models, r.Range)).Select(s => new Segment(s.A, s.B)).ToArray());
     }
 
+    /// <summary>Coherency.Gaps: why each model of the unit is out of coherency, empty when it is in.</summary>
+    public static string CoherencyGaps(string json)
+    {
+        var r = Read<CoherencyRequest>(json);
+        return Write(Coherency.Gaps(r.Models, r.Chain, r.Elevated, r.Spread).ToArray());
+    }
+
     /// <summary>Clearance.Outline: the area a placed base's edge may not enter.</summary>
     public static string ClearanceOutline(string json)
     {
