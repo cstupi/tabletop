@@ -38,6 +38,9 @@ public static class GlyphWarmup
             table.AddChild(l); made.Add(l);
         }
         foreach (var v in LabelVariations) made.Add(Shape(hud, new Label { Text = Text, ThemeTypeVariation = v, Visible = false }));
+        // A wrapped label breaks its lines by word (ICU's break iterator, loaded on its first use): a unit card's note paid 13 ms for it.
+        foreach (var v in LabelVariations)
+            made.Add(Shape(hud, new Label { Text = Text + " " + Text, ThemeTypeVariation = v, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false, Size = new Vector2(240, 0) }));
         foreach (var v in ButtonVariations) made.Add(Shape(hud, new Button { Text = Text, ThemeTypeVariation = v, Visible = false }));
         return made;
     }

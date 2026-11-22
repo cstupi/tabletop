@@ -186,7 +186,8 @@ public partial class UnitCard : VBoxContainer
         var largest = p.Units.Keys.Select(u => UnitSheet.Of(p, names, u, _s.Rules, _s.MaxWounds))
             .MaxBy(s => s.Weapons.Count + s.Weapons.Sum(w => w.Rules.Count) + s.Rules.Count + s.Models.Count + s.Chips.Count);
         if (largest is null) return;
-        RenderCard(new UnitCardContent(largest, SheetFocus.TeamOf(p, game, largest.UnitId)?.Ordinal ?? 0, null), Enum.GetValues<UnitCardPart>());
+        // A note too (an activation choice limited for the unit), so its wrapped warning line has been shaped once.
+        RenderCard(new UnitCardContent(largest, SheetFocus.TeamOf(p, game, largest.UnitId)?.Ordinal ?? 0, "No Charge: no enemy unit within charge distance", null, true), Enum.GetValues<UnitCardPart>());
         _body.GetCombinedMinimumSize();   // shapes the text while hidden
         _content = null;                  // the first real render sets every part
     }

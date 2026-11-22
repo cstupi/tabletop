@@ -341,7 +341,7 @@ public partial class GameScreen
     {
         if (_session.Projection is not { } p || _session.Game is not { } game) return null;
         var units = Table.Pieces.OfType<PieceNode>().Select(n => n.UnitId).Distinct().Where(p.Units.ContainsKey).ToList();
-        bool Mine(Guid u) => game.Participants.FirstOrDefault(x => x.Id == p.Units[u].ParticipantId)?.TeamId is { } t && _session.MyTeamIds.Contains(t);
+        bool Mine(Guid u) => game.Participants.FirstOrDefault(x => x.Id == p.Units[u].ParticipantId)?.TeamId is { } t && t == _session.MyTeamId;   // the team I act for: one account may hold both, and the threat rings are of the others
         return units.Where(u => !Mine(u)).Cast<Guid?>().FirstOrDefault() ?? units.Cast<Guid?>().FirstOrDefault();
     }
 }
