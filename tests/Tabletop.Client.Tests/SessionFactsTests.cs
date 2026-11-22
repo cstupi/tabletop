@@ -88,6 +88,17 @@ public class SessionFactsTests : IDisposable
     }
 
     [Fact]
+    public async Task Model_facts_carry_the_rule_each_unit_may_be_set_aside_by()
+    {
+        var sock = await Connected(Game);
+        Assert.Empty(_s.SetAsideRules);
+        sock.Deliver(new ModelFacts(new Dictionary<Guid, int>(), null, [Samples.Unit], SetAsideRules: new Dictionary<Guid, SetAsideRule> { [Samples.Unit] = new("Ambush", "text") }));
+        Assert.Equal(new SetAsideRule("Ambush", "text"), _s.SetAsideRules[Samples.Unit]);
+        sock.Deliver(new ModelFacts(new Dictionary<Guid, int>()));                                   // a server that sends none: none
+        Assert.Empty(_s.SetAsideRules);
+    }
+
+    [Fact]
     public async Task Model_facts_carry_each_units_threat()
     {
         var sock = await Connected(Game);

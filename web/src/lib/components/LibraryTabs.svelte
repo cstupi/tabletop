@@ -16,5 +16,5 @@
   .tabs a { padding: var(--space-2) 0; color: var(--dim); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px }
   .tabs a:hover { color: var(--text) }
   .tabs a[aria-current='page'] { color: var(--text); border-bottom-color: var(--accent) }
-  .badge { display: inline-block; min-width: 1.4em; padding: 0 var(--space-1); border-radius: 0.7em; background: var(--accent); color: var(--panel-solid); font-size: 0.8em; text-align: center; line-height: 1.4em }
+  .badge { display: inline-block; min-width: 1.4em; padding: var(--space-2); border-radius: 0.7em; background: var(--accent); color: var(--panel-solid); font-size: 0.8em; text-align: center; line-height: 1.4em }
 </style>

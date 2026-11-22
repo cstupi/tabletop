@@ -1,5 +1,7 @@
 /* The client's themes (client/src/Core/UiThemes.cs) as tokens. Fonts are the client's files, self-hosted under
-   static/themes/<id>/fonts (SIL OFL 1.1, LICENSES.md there). static/theme-init.js sets data-theme before the first paint. */
+   static/themes/<id>/fonts (SIL OFL 1.1, LICENSES.md there). static/theme-init.js sets data-theme before the first paint.
+   The materials (panel, button faces, input, backdrop) are scripts/ThemeTextures' images in static/themes/<id>/, the same the
+   client draws: app.css lays them as border-image nine-patches (the 2× file, sliced at twice the 1× margin). */
 
 @font-face { font-family: 'Orbitron'; src: url('/themes/scifi/fonts/Orbitron-Variable.ttf') format('truetype'); font-weight: 400 900; font-display: swap; }
 @font-face { font-family: 'Rajdhani'; src: url('/themes/scifi/fonts/Rajdhani-SemiBold.ttf') format('truetype'); font-weight: 600; font-display: swap; }
@@ -11,55 +13,69 @@
   /* The spacing scale (docs/superpowers/specs/2026-11-21-spacing-rules-design.md): every padding, margin and gap is a step.
      The viewer imports this file, so it is the one definition for both apps. */
   --space-1: 4px; --space-2: 8px; --space-3: 16px; --space-4: 24px; --space-5: 32px; --space-6: 48px;
-  /* Fantasy's wood band drawn inside a panel's edge (an inset shadow, a border): a panel's padding adds it so text clears the band. */
-  --frame-inset: 4px;
+  /* A material's drawn frame, outside the padding (spec 2026-11-21-theme-materials-design.md): the panel's, and a button's or input's. */
+  --control-inset: 4px;
   --page: 72rem;
 }
 
-/* Sci-fi, the default. UiThemes.SciFi: dark translucent panels, thin cyan border, clipped corners. */
+/* Sci-fi, the default. UiThemes.SciFi: gunmetal hull plates with a cyan light strip, backlit console keys, scanline screens, deep
+   space behind the page; cyan accent, violet chrome, amber warnings. */
 :root, :root[data-theme='scifi'] {
   color-scheme: dark;
-  --bg: #0A0F14; --panel: #0D1620D9; --panel-solid: #0C141C; --panel-border: #3FD0E0;
-  --text: #DCEBF2; --dim: #7A8C96; --button-text: #DCEBF2;
+  --bg: #070B10; --panel: #0F1720F2; --panel-solid: #0F1720; --panel-border: #4F5BA8; --chrome: #8C9CFF;
+  --text: #DCEBF2; --dim: #8A9CA6; --button-text: #DCEBF2;
   --accent: #3FD0E0; --success: #4BE08A; --failure: #FF4D5E; --warning: #FFB020;
-  --link: #3FD0E0; --link-hover: #DCEBF2; --focus: #3FD0E0; --rule: #3FD0E026;
+  --link: #3FD0E0; --link-hover: #DCEBF2; --focus: #3FD0E0; --rule: #8C9CFF2E;
+  --field-text: #DCEBF2; --field-dim: #8A9CA6; --field-bg: #04080C; --caret: #3FD0E0;
   --font-display: 'Orbitron', 'Segoe UI', system-ui, sans-serif; --display-weight: 600; --display-case: uppercase; --display-tracking: .08em;
   --font-body: 'Rajdhani', 'Segoe UI', system-ui, sans-serif; --body-weight: 600; --body-size: 1.125rem;
   --font-num: 'JetBrains Mono', ui-monospace, monospace; --num-weight: 500;
-  --btn-bg: #0A0F14; --btn-hover: #12303A; --btn-line: #3FD0E0; --btn-pressed-bg: #3FD0E0; --btn-pressed-text: #0A0F14;
-  --primary-bg: #3FD0E0; --primary-hover: #7FE3EE; --primary-text: #0A0F14;
-  --danger-bg: #0A0F14; --danger-hover: #2A1218; --danger-text: #FF4D5E; --danger-line: #FF4D5E;
-  --input-bg: #0A0F14; --input-line: #3FD0E080;
-  --header-bg: #0A0F14EB; --header-text: #DCEBF2; --header-current: #3FD0E0; --header-line: #3FD0E066;
+  --frame-inset: 6px;
+  --mat-panel: url('/themes/scifi/panel@2x.png') 32 fill / 16px / 0 round;
+  --mat-button: url('/themes/scifi/button@2x.png') 20 fill / 10px / 0 round stretch;
+  --mat-button-hover: url('/themes/scifi/button-hover@2x.png') 20 fill / 10px / 0 round stretch;
+  --mat-button-pressed: url('/themes/scifi/button-pressed@2x.png') 20 fill / 10px / 0 round stretch;
+  --mat-button-disabled: url('/themes/scifi/button-disabled@2x.png') 20 fill / 10px / 0 round stretch;
+  --mat-primary: url('/themes/scifi/button-primary@2x.png') 20 fill / 10px / 0 round stretch;
+  --mat-input: url('/themes/scifi/input@2x.png') 16 fill / 8px / 0 round;
+  --danger-text: #FF4D5E;
+  --header-bg: #070B10E6; --header-text: #DCEBF2; --header-current: #3FD0E0; --header-line: #8C9CFF4D;
   --icon-stroke: 2; --icon-glow: 4.5; --icon-glow-opacity: .35;
-  --view-bg: radial-gradient(ellipse at 50% 40%, #12303A 0%, #0A0F14 70%);
+  --view-bg: radial-gradient(ellipse at 50% 40%, #12303A 0%, #070B10 70%);
   --page-bg:
-    radial-gradient(ellipse 80rem 30rem at 50% -10rem, #3FD0E01F, transparent 70%),
-    linear-gradient(#3FD0E00D 1px, transparent 1px) 0 0 / 2rem 2rem,
-    linear-gradient(90deg, #3FD0E00D 1px, transparent 1px) 0 0 / 2rem 2rem,
-    #0A0F14;
+    url('/themes/scifi/backdrop-tile@2x.png') 0 0 / 512px 512px repeat,
+    url('/themes/scifi/backdrop@2x.png') center / cover no-repeat,
+    #070B10;
 }
 
-/* Fantasy. UiThemes.Fantasy: parchment panels in a dark wood frame with a brass line (panel.svg), wooden buttons (button.svg). */
+/* Fantasy. UiThemes.Fantasy: a war table: dark walnut panels framed in pitted iron with brass brackets, brass-rimmed wooden plaques
+   (the primary red lacquer), parchment fields cut into the wood, a green leather table top under a lamp behind the page. */
 :root[data-theme='fantasy'] {
-  color-scheme: light;
-  --bg: #C9B68E; --panel: #E9DBB8; --panel-solid: #E9DBB8; --panel-border: #4A2F1B;
-  --text: #2B2118; --dim: #6E5E48; --button-text: #F3EAD3;
-  --accent: #8C6A2F; --success: #3F6B2A; --failure: #8E2A1E; --warning: #8A4512;   /* warning darkened from #A3561A for text contrast */
-  --link: #553A12; --link-hover: #8E2A1E; --focus: #2B2118; --rule: #4A2F1B33;
+  color-scheme: dark;
+  --bg: #170F09; --panel: #21150C; --panel-solid: #21150C; --panel-border: #9C7A3C; --chrome: #9C7A3C;
+  --text: #EADCB8; --dim: #B3A07E; --button-text: #F3EAD3;
+  --accent: #C9A04E; --success: #79A84F; --failure: #E0634F; --warning: #E08A3A;
+  --link: #D9B872; --link-hover: #F3EAD3; --focus: #EADCB8; --rule: #C9A04E33;
+  --field-text: #2B2118; --field-dim: #6E5E48; --field-bg: #E0D1AC; --caret: #2B2118;
   --font-display: 'Cinzel', Georgia, serif; --display-weight: 700; --display-case: none; --display-tracking: .03em;
   --font-body: 'EB Garamond', Georgia, serif; --body-weight: 500; --body-size: 1.125rem;
   --font-num: 'Cinzel', Georgia, serif; --num-weight: 700;
-  --btn-bg: #5E3B21; --btn-hover: #6E4728; --btn-line: #B08D57; --btn-edge: #3A2414; --btn-pressed-bg: #B08D57; --btn-pressed-text: #2B2118;
-  --primary-bg: #B08D57; --primary-hover: #C29E66; --primary-text: #2B2118;
-  --danger-bg: #8E2A1E; --danger-hover: #A3352A; --danger-text: #F3EAD3; --danger-line: #E9C98A;
-  --input-bg: #F6EEDA; --input-line: #6E5E48;
-  --header-bg: #4A2F1B; --header-text: #F3EAD3; --header-current: #E9C98A; --header-line: #B08D57;
-  --wood: #4A2F1B; --wood-band: #6B4426; --brass: #B08D57;
+  --frame-inset: 8px;
+  --mat-panel: url('/themes/fantasy/panel@2x.png') 48 fill / 24px / 0 round;
+  --mat-button: url('/themes/fantasy/button@2x.png') 24 fill / 12px / 0 round;
+  --mat-button-hover: url('/themes/fantasy/button-hover@2x.png') 24 fill / 12px / 0 round;
+  --mat-button-pressed: url('/themes/fantasy/button-pressed@2x.png') 24 fill / 12px / 0 round;
+  --mat-button-disabled: url('/themes/fantasy/button-disabled@2x.png') 24 fill / 12px / 0 round;
+  --mat-primary: url('/themes/fantasy/button-primary@2x.png') 24 fill / 12px / 0 round;
+  --mat-input: url('/themes/fantasy/input@2x.png') 16 fill / 8px / 0 round;
+  --danger-text: #F08A78;
+  --header-bg: #120B06EB; --header-text: #F3EAD3; --header-current: #E9C98A; --header-line: #9C7A3C;
+  /* The accent on the wood: headings, legends, chips and icons that drew in the old wood brown. */
+  --wood: #D9B872; --brass: #B08D57;
   --icon-stroke: 2.5; --icon-glow: 0; --icon-glow-opacity: 0;
-  --view-bg: radial-gradient(ellipse at 50% 40%, #F3EAD3 0%, #D9C79E 75%);
+  --view-bg: radial-gradient(ellipse at 50% 40%, #3A2A1A 0%, #170F09 75%);
   --page-bg:
-    radial-gradient(ellipse at 50% 30%, transparent 40%, #4A2F1B38 100%),
-    url('/themes/fantasy/paper.svg') 0 0 / 240px 240px,
-    #C9B68E;
+    url('/themes/fantasy/backdrop@2x.png') center / cover no-repeat,
+    url('/themes/fantasy/backdrop-tile@2x.png') 0 0 / 256px 256px repeat,
+    #170F09;
 }

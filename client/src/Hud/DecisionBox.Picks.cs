@@ -1,5 +1,6 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Panels;
 using Tabletop.Client.Table;
 using Tabletop.Client.Theming;
 using Tabletop.Protocol;
@@ -28,6 +29,7 @@ public partial class DecisionBox
     partial void UnhookPicks()
     {
         if (Targets is not null) { Targets = null; TargetsChanged?.Invoke(); }
+        PickHovered?.Invoke(null);                                                   // a freed tile hears no exit
         ClearMarks();
     }
 
@@ -40,7 +42,7 @@ public partial class DecisionBox
         var count = new Label { ThemeTypeVariation = Variation.Numerals, Visible = sel.Max > 1 }; Add(count);
         Button? done = null;
         void Done() { if (pick.Answer() is { } answer) Send(ask, answer); }
-        void Refresh() { count.Text = pick.Count(names); if (done is not null) done.Disabled = !pick.Ready; }
+        void Refresh() { count.Text = pick.Count(names); if (done is not null) { done.Disabled = !pick.Ready; done.TooltipText = done.Disabled ? count.Text : ""; } }
         void Toggle(Guid id)
         {
             switch (pick.Toggle(id))
@@ -56,7 +58,15 @@ public partial class DecisionBox
         foreach (var shelved in offTable)
         {
             var key = _numbered.FirstOrDefault(n => n.OptionId == shelved.ToString()).Key;
-            Add(Row(shelved, key, names, () => Toggle(shelved)));
+            var tile = Row(shelved, key, names, () => Toggle(shelved));
+            // The roster menu's Set aside beside a unit the server names (SetAsideView), so the unit is held from here too.
+            if (_s.IsWatching || SetAsideView.SetAside(p, shelved, _s.MaySetAside) is not { } aside) { Add(tile); continue; }
+            var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", Space.S);
+            line.AddChild(tile);
+            var b = DecisionTiles.Action("Set aside", "", () => SendAside(aside), icon: "wait");
+            b.TooltipText = _s.SetAsideRules.GetValueOrDefault(shelved)?.Text ?? "";
+            line.AddChild(b);
+            Add(line);
         }
         // A unit on the table (a charge's target, a spell's): a tile with its name and team band beside the glowing unit, so the card is
         // never an empty box (UX redesign part 2 → Pick a unit).
@@ -66,11 +76,17 @@ public partial class DecisionBox
         _input.Eligible = eligible.ToHashSet();
         _onTarget = clicked => { if (AskAnswers.Resolve(p, clicked, eligible) is { } id) { _input.CancelDrag(); Toggle(id); } };
         _onEnter = Done;
-        if (sel.Max > 1) Foot(done = Act("Done", DecisionCard.Enter, Done, primary: true, icon: "ready"));
+        if (sel.Max > 1) Foot(done = Act(CardActions.Done, Done));
         Refresh();
     }
 
-    /// <summary>A shelved unit as a wide tile: the army icon, its name, its pips in its team's colour, its key cap.</summary>
+    /// <summary>The deploy pick's Set aside: the roster menu's command; a refusal shows on the card.</summary>
+    void SendAside(Command aside) => Guarded.Run(() => _s.SendCommandAsync(aside), message => { _refusal = $"Could not set aside: {message}"; _refusalAsk = _renderedAsk; Render(); });
+
+    /// <summary>The unit under the pointer in a deploy pick's tiles, for the unit card; null when the pointer leaves.</summary>
+    public event Action<Guid?>? PickHovered;
+
+    /// <summary>A shelved unit as a wide tile: the army icon, its name, its set-aside chip during deployment, its pips in its team's colour, its key cap.</summary>
     Button Row(Guid unit, int key, Names names, Action pressed)
     {
         var b = new Button { FocusMode = FocusModeEnum.None, ThemeTypeVariation = Variation.Tile, SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -78,10 +94,11 @@ public partial class DecisionBox
         var ordinal = names.TeamOfUnit(unit) is { } t ? _s.Game?.Teams.FirstOrDefault(x => x.Id == t)?.Ordinal ?? 0 : 0;
         row.AddChild(DecisionTiles.Icon("army", 20, ordinal > 0 ? Ui.Team(ordinal) : null));
         row.AddChild(new Label { Text = names.Piece(unit), SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
+        if (_s.Projection is { } q && SetAsideView.Of(q, unit, _s.SetAsideRules) is { } chip) { var c = HudBits.AsideChip(); HudBits.FillAside(c, chip); row.AddChild(c); }
         if (_s.Projection is { } p && p.Units.ContainsKey(unit)) { var pips = DecisionTiles.Pips(DecisionCard.UnitPips(p, unit, _s.MaxWounds), ordinal); pips.MouseFilter = MouseFilterEnum.Ignore; row.AddChild(pips); }
         row.AddChild(DecisionTiles.Cap(DecisionCard.KeyCap(key)));
         b.Pressed += pressed;
-        b.MouseEntered += () => Light([unit]); b.MouseExited += () => Light(null);
+        b.MouseEntered += () => { Light([unit]); PickHovered?.Invoke(unit); }; b.MouseExited += () => { Light(null); PickHovered?.Invoke(null); };
         return DecisionTiles.Holding(b, row, Space.S, Space.S);
     }
 
@@ -94,8 +111,8 @@ public partial class DecisionBox
         var chips = new HFlowContainer(); chips.AddThemeConstantOverride("h_separation", Space.S); chips.AddThemeConstantOverride("v_separation", Space.S); Add(chips);
         void Fire() { if (t.Answer() is { } answer) Send(ask, answer); }
         bool ClearTargets() { if (!t.CanClear) return false; t.Clear(); Show(); return true; }
-        Button fire = Act("Fire", DecisionCard.Enter, Fire, primary: true, icon: "shoot"), clear = null!;
-        clear = Act("Clear", DecisionCard.Esc, () => ClearTargets());
+        Button fire = Act(CardActions.Fire, Fire), clear = null!;
+        clear = Act(CardActions.Clear, () => ClearTargets());
         void Show()
         {
             if (Targets != t || !IsInstanceValid(chips)) return;                       // the Ask ended before a deferred refresh ran
@@ -118,12 +135,12 @@ public partial class DecisionBox
                 }
                 else row.AddChild(new Label { Text = "holds fire", ThemeTypeVariation = Variation.Dim, MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
                 chip.Pressed += () => { t.PickOnly(id); Callable.From(Show).CallDeferred(); };   // not inside the chip's own signal: Show frees it
-                chip.Ready += () => chip.CustomMinimumSize = new Vector2(row.GetCombinedMinimumSize().X + 20, 0);
-                chips.AddChild(DecisionTiles.Holding(chip, row, Space.S, Space.XS));
+                chip.Ready += () => chip.CustomMinimumSize = new Vector2(row.GetParent<Control>().GetCombinedMinimumSize().X, 0);   // the row and its padding
+                chips.AddChild(DecisionTiles.Holding(chip, row, Space.S, Space.S));
             }
             _input.Eligible = t.Candidates.ToHashSet(); Glow(t.Candidates);          // only units a picked group can shoot; two targets taken (p.8): nothing else glows
-            fire.Disabled = t.Answer() is null;
-            clear.Disabled = !t.CanClear;
+            fire.Disabled = t.Answer() is null; fire.TooltipText = fire.Disabled ? "No target" : "";
+            clear.Disabled = !t.CanClear; clear.TooltipText = clear.Disabled ? "No target" : "";
             TargetsChanged?.Invoke();
         }
         _onTarget = clicked => { if (_s.Projection is { } p && AskAnswers.Resolve(p, clicked, legal.Targets) is { } unit && t.Aim(unit)) Show(); };
@@ -146,12 +163,12 @@ public partial class DecisionBox
         var pips = new Label { VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.Arbitrary, SizeFlagsHorizontal = SizeFlags.ExpandFill };
         pips.AddThemeColorOverride("font_color", Ui.Failure); row.AddChild(pips);
         void Confirm() { if (pick.Answer() is { } answer) Send(ask, answer); }
-        var confirm = Act("Confirm", DecisionCard.Enter, Confirm, primary: true, icon: "ready");
+        var confirm = Act(CardActions.Confirm, Confirm);
         void Show()
         {
             count.Text = $"{pick.Chosen} of {pick.Required}";
             pips.Text = new string('●', pick.Chosen) + new string('○', Math.Max(0, pick.Required - pick.Chosen));
-            confirm.Disabled = !pick.Complete;
+            confirm.Disabled = !pick.Complete; confirm.TooltipText = confirm.Disabled ? count.Text : "";
             ClearMarks();
             foreach (var (id, n) in pick.Counts)
                 if (n > 0 && _view.PieceAt(id) is { } node && IsInstanceValid(node) && p.Models.GetValueOrDefault(id) is { } model)
@@ -164,7 +181,7 @@ public partial class DecisionBox
         _input.Eligible = legal.Targets.ToHashSet();
         _onModel = (id, right) => { if (!left.ContainsKey(id)) return; if (right) pick.Remove(id); else pick.Click(id); Show(); };
         _onEnter = Confirm;
-        Foot(confirm); Foot(Act("Auto", "", () => { pick.Auto(); Show(); })); Foot(Act("Clear", "", () => { pick.Clear(); Show(); })); Show();
+        Foot(confirm); Foot(Act(CardActions.Auto, () => { pick.Auto(); Show(); })); Foot(Act(CardActions.Clear, () => { pick.Clear(); Show(); })); Show();
     }
 
     void ClearMarks() { foreach (var m in _marks) if (IsInstanceValid(m)) m.QueueFree(); _marks.Clear(); }

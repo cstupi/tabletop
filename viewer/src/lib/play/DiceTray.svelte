@@ -26,7 +26,7 @@
 <style>
   /* The latest roll, a line of the log's footer: text, not a themed button. */
   .tray { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); align-items: center; flex: 1; min-width: 0; min-height: 2rem; padding: var(--space-1) var(--space-1);
-    border: 0; border-radius: 0; clip-path: none; box-shadow: none; background: none; color: var(--text); text-align: left; white-space: normal; font-size: .9rem; }
+    border: 0; border-radius: 0; clip-path: none; border-image: none; box-shadow: none; background: none; color: var(--text); text-align: left; white-space: normal; font-size: .9rem; }
   .tray:hover:not(:disabled) { background: var(--rule); color: var(--text); }
   .title { flex-basis: 100%; display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text); }
   .title :global(.hud-icon) { color: var(--accent); }

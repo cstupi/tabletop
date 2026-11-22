@@ -44,12 +44,12 @@ public partial class GameScreen
         _logDrawer.CombatLog.FocusUnit = _card.UnitId;
         _hud.AddChild(_banner = new TurnBanner()); _banner.Bind(_session);
         _hud.AddChild(_end = new EndMessage()); _end.Bind(_session, Table, Input);
-        _hud.AddChild(_keys = new KeyOverlay()); _keys.Bind(_session, Table, Input);
+        _hud.AddChild(_keys = new KeyOverlay()); _keys.Bind(_session, Table, Input); _keys.Actions = () => IsInstanceValid(_decision) ? _decision!.Actions : [];
         _decision.KeysRequested += () => { if (IsInstanceValid(_keys) && _keys.Visible) _keys.Visible = false; else KeyOverlay.Request(); };   // the card's ⌨
 
         // Table overlays: Node3D children of the table, and the markers and floating text in a canvas layer of the table's own viewport.
         Table.AddChild(_hover = new HoverLabels()); _hover.Bind(_session, Table, Input);
-        Table.AddChild(_violations = new ViolationMarks()); _violations.Bind(Table, Input);
+        Table.AddChild(_violations = new ViolationMarks()); _violations.Bind(Table, Input); _violations.Covered = Covered;
         Table.AddChild(_sight = new SightLines()); _sight.Bind(_session, Table, Input);
         Table.AddChild(_targets = new TargetLines()); _targets.Bind(_session, Table, Input);
         Table.AddChild(_rings = new RangeRingNode()); _rings.Bind(_session, Input); _rings.Covered = Covered;
@@ -76,6 +76,7 @@ public partial class GameScreen
         _header.GameOverPressed += _end.Open;
         _header.MenuRequested += _gameMenu.Open;
         _card.ModelPicked += SelectModel;
+        _decision.PickHovered += id => { if (_card is { } c && IsInstanceValid(c)) c.Preview(id); };   // a deploy pick's tile under the pointer shows in the card
         _card.Lit += pieces => { if (_decision is { } d && IsInstanceValid(d)) d.Light(pieces); };   // a weapon or group row under the pointer lights its models
         _decision.TargetsChanged += ShowTargets;
         _logDrawer.Reported += Toast;
@@ -100,7 +101,7 @@ public partial class GameScreen
         _session.EventsApplied += _onFollow;
         foreach (var part in new Control?[] { _header, _roster, _card, _decision, _dice, _replay }) if (part is not null) { part.MinimumSizeChanged += QueueLayout; part.VisibilityChanged += QueueLayout; }
         _logDrawer.OpenChanged += QueueLayout;
-        foreach (var button in new Control[] { _undo, _logDrawer.Toggle }) button.MinimumSizeChanged += QueueLayout;   // a theme's taller button face moves the column's foot
+        foreach (var button in new Control[] { _undo, _logDrawer.Toggle }) button.MinimumSizeChanged += QueueLayout;   // a theme's larger button face moves the toasts and the column's top
         QueueLayout();
     }
 
@@ -146,14 +147,16 @@ public partial class GameScreen
         if (IsInstanceValid(_tableBox)) HudPlacement.Fill(_tableBox, new HudRect(0, 0, _hud.Size.X, _hud.Size.Y));   // play: the table to the edges
         var w = _hud.Size.X;
         var logOpen = _logDrawer is { } l && IsInstanceValid(l) && l.Open;
-        var buttonH = _undo is { } u && IsInstanceValid(u) ? Math.Max(u.GetCombinedMinimumSize().Y, _logDrawer?.Toggle.GetCombinedMinimumSize().Y ?? 0) : HudLayout.LogButtonH;
+        // The corner buttons are square: the larger side of either face.
+        var buttonSize = _undo is { } u && IsInstanceValid(u) && _logDrawer is { } ld && IsInstanceValid(ld)
+            ? new[] { u.GetCombinedMinimumSize(), ld.Toggle.GetCombinedMinimumSize() }.Max(s => Math.Max(s.X, s.Y)) : HudLayout.CornerButton;
         var replayH = Shows(_replay) ? _replay!.GetCombinedMinimumSize().Y : HudLayout.ReplayH;   // its three rows in the theme's font: the left column ends above it
         // The unit card and the terrain card share the slot: SheetFocus names no unit while terrain is selected.
         var visible = new HudVisible(Shows(_roster), Shows(_card) || Shows(_terrainCard), Shows(_decision) || Shows(_waiting), Shows(_dice), logOpen, Shows(_replay));
         // The header draws the fullest fit for its slot's width, then its slot takes the height that fit draws at: the right column starts below it.
-        if (Shows(_header)) _header!.FitTo(HudLayout.Of(w, _hud.Size.Y, visible, buttonH, replayH)[HudPart.Header].W);
+        if (Shows(_header)) _header!.FitTo(HudLayout.Of(w, _hud.Size.Y, visible, buttonSize, replayH)[HudPart.Header].W);
         var headerH = Shows(_header) ? _header!.GetCombinedMinimumSize().Y : HudLayout.HeaderH;
-        var r = HudLayout.Of(w, _hud.Size.Y, visible, buttonH, replayH, headerH);
+        var r = HudLayout.Of(w, _hud.Size.Y, visible, buttonSize, replayH, headerH);
         if (_dice is { } tray && IsInstanceValid(tray)) tray.Covered = logOpen;   // the open log holds the latest roll: the tray gives its slot up
         PlaceCorner(r[HudPart.Corner]);
         HudPlacement.Top(_toasts, r[HudPart.Toasts]);
@@ -176,7 +179,7 @@ public partial class GameScreen
         }
         if (_logDrawer is { } log && IsInstanceValid(log))
             log.Place(r[HudPart.LogButton], r.TryGetValue(HudPart.LogPanel, out var panel) ? AboveBottomStack(BelowHeader(panel)) : null);
-        if (_undo is { } undo && IsInstanceValid(undo)) HudPlacement.Bottom(undo, r[HudPart.UndoButton]);
+        if (_undo is { } undo && IsInstanceValid(undo)) HudPlacement.Fill(undo, r[HudPart.UndoButton]);
         // Placed while hidden too: the banner shows itself between layouts, and nothing queues one when it does.
         if (_banner is { } banner && IsInstanceValid(banner)) HudPlacement.Fill(banner, r[HudPart.Banner]);
         NoteLayout();
@@ -201,7 +204,7 @@ public partial class GameScreen
         if (r.TryGetValue(SetupPart.Rail, out var rail)) HudPlacement.Fill(_rail!, rail);
         if (r.TryGetValue(SetupPart.Panel, out var panel)) HudPlacement.Fill(_toolPanel!, panel);
         if (r.TryGetValue(SetupPart.Hints, out var hints) && _hints is { } h && IsInstanceValid(h)) HudPlacement.Fill(h, hints);
-        if (setup) HudPlacement.Fill(_tableBox, r[SetupPart.Body]);
+        if (setup) { HudPlacement.Fill(_tableBox, r[SetupPart.Body]); HudPlacement.Fill(_veil, r[SetupPart.Body]); }
         else
         {
             HudPlacement.Fill(_sideColumn, r[SetupPart.Body]);
@@ -242,7 +245,7 @@ public partial class GameScreen
 
     /// <summary>The log panel ends HudLayout.M above the decision box and dice tray as they are, not as their slots assume: either
     /// may grow upward past its slot, and a short decision box leaves the log the room above it, up to HudLayout.LogMaxH. Only
-    /// when the panel's columns span theirs.</summary>
+    /// when the panel's columns span theirs. The panel keeps its top, below the corner buttons.</summary>
     HudRect AboveBottomStack(HudRect panel)
     {
         float? top = null;

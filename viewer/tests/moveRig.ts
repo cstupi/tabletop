@@ -51,7 +51,7 @@ export function moveRig(over: { enforcement?: Enforcement; squad?: number; parti
   const routeOf = (m: { id: string; start: { placement: { position: { x: number; y: number } } }; to: { x: number; y: number } }) => {
     const from = m.start.placement.position, mid = { x: (from.x + m.to.x) / 2 + 1, y: (from.y + m.to.y) / 2 };
     return { id: m.id, points: [{ x: from.x, y: from.y }, mid, m.to], distance: Math.hypot(mid.x - from.x, mid.y - from.y) + Math.hypot(m.to.x - mid.x, m.to.y - mid.y),
-      entersDifficult: m.to.x > 30 };
+      entersDifficult: m.to.x > 30, footprints: [{ at: { x: from.x, y: from.y }, dangerous: false }, { at: m.to, dangerous: m.to.x > 40 }], dangerous: m.to.x > 40 ? ['smog'] : [] };
   };
   const geometry = {
     contacts: (...args: unknown[]) => { contactCalls.push(args); return found; },
@@ -63,7 +63,7 @@ export function moveRig(over: { enforcement?: Enforcement; squad?: number; parti
   let enforcement = game.enforcement;
   const state = (): ConnectionState => (reconnecting
     ? { phase: 'reconnecting', game: null, participantId: me, board: null, projection: null, log: [], maxWounds: new Map() }
-    : { phase: 'connected', game, participantId: me, board: applier.projection.board, projection: applier.projection, log: applier.log, maxWounds: new Map() }) as unknown as ConnectionState;
+    : { phase: 'connected', game, participantId: me, board: applier.projection.board, projection: applier.projection, log: applier.log, maxWounds: new Map(), maySetAside: new Set(), setAsideRules: new Map() }) as unknown as ConnectionState;
   const hooks = moveHooks({ geometry: () => geometry, violations, enforcement: () => enforcement, drops });
   const box = new DecisionBox({
     state, myTeams: () => teamsOf(game, me), acting: () => acting(applier.projection, teamsOf(game, me), applier.log),

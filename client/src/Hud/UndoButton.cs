@@ -7,7 +7,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>Lower right, left of the log button (client UX spec → Undo), drawn `↶ Undo ⌃Z`: undoes the last action in the game, whoever took it (UndoPlan).
+/// <summary>Top right, left of the log button (client UX spec → Undo), the theme's `undo` icon alone, its word and key cap in the tooltip: undoes the last action in the game, whoever took it (UndoPlan).
 /// Disabled only when nothing is undoable; the tooltip names the action. When the undo would take dice rolls with it, a dialog lists
 /// them first. Ctrl+Z presses it. GameScreen.Layout places it.</summary>
 public partial class UndoButton : Button
@@ -22,12 +22,12 @@ public partial class UndoButton : Button
     public void Bind(Session session, TableInput input)
     {
         _s = session; _input = input;
-        HudBits.Fill(this, "undo", "Undo", "⌃Z"); FocusMode = FocusModeEnum.None;
+        HudBits.IconFace(this, "undo"); FocusMode = FocusModeEnum.None;
         Pressed += Press;
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board | RenderCause.Game)) != 0) Render(); };
         _onIntent = intent => { if (intent == Intent.Undo && Visible && !Disabled) Press(); };
         session.Frame.Render += _onFrame; input.IntentPressed += _onIntent;
-        _onTheme = () => HudBits.Fill(this, "undo", "Undo", "⌃Z"); Ui.Changed += _onTheme;
+        _onTheme = () => HudBits.IconFace(this, "undo"); Ui.Changed += _onTheme;
         Render();
     }
 
@@ -46,7 +46,7 @@ public partial class UndoButton : Button
         _plan = _s.CombatLog?.Undo;
         Disabled = _plan is null;
         Modulate = Disabled ? Ui.Faded : HudBits.Plain;   // the drawn row does not follow the button's disabled colours
-        TooltipText = _plan?.Tooltip ?? "Nothing to undo";
+        TooltipText = $"Undo ({Hotkeys.Bindings.Cap(Intent.Undo)})\n{_plan?.Tooltip ?? "Nothing to undo"}";
     }
 
     void Press()

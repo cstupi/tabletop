@@ -28,13 +28,12 @@ public partial class MoveRegionNode : Node3D
 
     /// <summary>The area's vertices per band (MoveBandLook.Layers), wound for Godot; no Godot object is made, so any thread may build them.</summary>
     public static BandMeshes MeshesOf(MoveBands area) =>
-        new([.. MoveBandLook.Layers([area]).Select(l => (l.Band, Vertices(l.Areas)))]);
+        new([.. MoveBandLook.Layers([area]).Select(l => (l.Band, Vertices(l.Areas, MoveBandLook.Lift(l.Band))))]);
 
     /// <summary>The held models' area in its bands, one mesh each, in its look for the moving team's colour.</summary>
     public void ShowBands(MoveBands area, Color team) => ShowBands(MeshesOf(area), team);
 
-    /// <summary>Built band meshes drawn, one mesh each: one array handed to Godot per band, each band sorted over the one before (clear,
-    /// difficult, dangerous on top) whatever the depth order of the meshes' centres.</summary>
+    /// <summary>Built band meshes drawn, one mesh each: one array handed to Godot per band.</summary>
     public void ShowBands(BandMeshes meshes, Color team)
     {
         Hide();
@@ -43,7 +42,8 @@ public partial class MoveRegionNode : Node3D
         {
             var c = MoveBandLook.Colour(band, rgba);
             var colour = new Color(c.R, c.G, c.B, c.A);
-            Add(vertices, MoveBandLook.Striped(band) ? Striped(colour) : Palette.Translucent(colour), (int)band);
+            // The dangerous band draws over every model's clear and difficult bands (MoveBandLook.Priority, and Lift in MeshesOf).
+            Add(vertices, MoveBandLook.Striped(band) ? Striped(colour) : Palette.Translucent(colour));
         }
     }
 
@@ -54,14 +54,14 @@ public partial class MoveRegionNode : Node3D
         Add(Vertices(areas), Palette.Translucent(colour with { A = 0.25f }));
     }
 
-    static Vector3[] Vertices(IReadOnlyList<IReadOnlyList<Point2>> areas)
+    static Vector3[] Vertices(IReadOnlyList<IReadOnlyList<Point2>> areas, double lift = 0.03)
     {
         var vertices = new Vector3[areas.Sum(a => a.Count / 3 * 3)];
         var n = 0;
         foreach (var area in areas)
             for (var i = 0; i + 2 < area.Count; i += 3)
             {
-                Vector3 a = At(area[i]), b = At(area[i + 1]), c = At(area[i + 2]);
+                Vector3 a = At(area[i], lift), b = At(area[i + 1], lift), c = At(area[i + 2], lift);
                 // Godot culls clockwise-from-above back faces: wind each triangle one way whatever order the geometry gave it.
                 vertices[n++] = a;
                 if ((area[i + 1] - area[i]).Cross(area[i + 2] - area[i]) > 0) { vertices[n++] = c; vertices[n++] = b; }
@@ -70,7 +70,7 @@ public partial class MoveRegionNode : Node3D
         return vertices;
     }
 
-    void Add(Vector3[] vertices, Material material, int layer = 0)
+    void Add(Vector3[] vertices, Material material)
     {
         if (vertices.Length < 3) return;
         var arrays = new Godot.Collections.Array();
@@ -78,7 +78,7 @@ public partial class MoveRegionNode : Node3D
         arrays[(int)Mesh.ArrayType.Vertex] = vertices;
         var mesh = new ArrayMesh();
         mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
-        var instance = new MeshInstance3D { Mesh = mesh, MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, SortingOffset = layer * 100 };
+        var instance = new MeshInstance3D { Mesh = mesh, MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
         AddChild(instance);
         _meshes.Add(instance);
     }
@@ -106,10 +106,11 @@ public partial class MoveRegionNode : Node3D
         {
             AlbedoColor = c, AlbedoTexture = _stripes, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, CullMode = BaseMaterial3D.CullModeEnum.Disabled,
             Uv1Triplanar = true, Uv1WorldTriplanar = true, Uv1Scale = new Vector3(scale, scale, scale),
+            RenderPriority = MoveBandLook.Priority(MoveBand.Dangerous),
         };
     }
 
-    static Vector3 At(Point2 p) => WorldFrame.ToGodot(new Point3(p.X, p.Y, 0.03));
+    static Vector3 At(Point2 p, double lift) => WorldFrame.ToGodot(new Point3(p.X, p.Y, lift));
 
     public new void Hide()
     {

@@ -25,8 +25,8 @@ public partial class GameScreen : Control
     /// <summary>The open setup tool, remembered for the session (spec 2026-11-21-setup-screen-layout-design.md → Tool rail).</summary>
     static readonly SetupTools Tools = new();
     SetupTopBar? _topBar; SetupRail? _rail; SetupToolPanel? _toolPanel; KeyHintBar? _hints; GameMenu _gameMenu = null!; SetupPieceKeys? _pieceKeys;
-    SubViewportContainer _tableBox = null!; Control _hud = null!; TerrainCard? _terrainCard; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
-    LoadingCurtain _curtain = null!; LoadingPanel _strip = null!; readonly LoadingGate _stripGate = new(TimeSpan.FromMilliseconds(200)); bool _entered;
+    SubViewportContainer _tableBox = null!; Control _hud = null!; Backdrop _backdrop = null!; TerrainCard? _terrainCard; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
+    LoadingCurtain _curtain = null!; LoadingPanel _strip = null!; readonly LoadingVeil _veil = new(); readonly LoadingGate _stripGate = new(TimeSpan.FromMilliseconds(200)); bool _entered;
     Action<RenderCause>? _onFrame; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme, _onLayout;
 
     public override void _Ready()
@@ -34,9 +34,11 @@ public partial class GameScreen : Control
         _session = Main.Instance.Session;
         // The table's box and the lobby's page, each placed by Layout: the table fills play, setup's frame slot (HudLayout.Setup's Body) in setup.
         var root = new Control { MouseFilter = MouseFilterEnum.Ignore }; root.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(root);
+        root.AddChild(_backdrop = new Backdrop { Visible = false });   // behind the lobby's page only: never over the table
         var viewportContainer = _tableBox = new SubViewportContainer { Stretch = true, MouseTarget = true };
         viewportContainer.SetAnchorsPreset(LayoutPreset.FullRect);
         var viewport = new SubViewport { HandleInputLocally = true }; viewportContainer.AddChild(viewport); root.AddChild(viewportContainer);
+        root.AddChild(_veil);   // setup's loading state over the table's box (UpdateLoading), placed with it
         Table = GD.Load<PackedScene>("res://scenes/TableView.tscn").Instantiate<TableView>(); viewport.AddChild(Table);
         Input = new TableInput(); Table.AddChild(Input);
         viewportContainer.MouseExited += () => Input.ClearHover();   // the pointer over a Hud part is off the table: no hovered unit, no enemy strip
@@ -98,7 +100,7 @@ public partial class GameScreen : Control
         _gameMenu.Opened += Input.ClearHover;
         // A late army arrives as a board after the game info: the waiting panel follows the board, and goes when the board ends the wait.
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) { ShowStatus(); if (_wasWaiting != _session.WaitingTeams.Count > 0) Rebuild(); else { _waiting?.Refresh(); Callable.From(ShowSelection).CallDeferred(); } } };
-        _onRefused = r => { if (Feedback.Refusal(r) is { } text) Toast(text); };
+        _onRefused = r => { if (Feedback.Refusal(r, IsInstanceValid(_decision) ? _decision!.LastCommand : null) is { } text) Toast(text); };
         // The status line once the session has counted this attempt: the phase stays Reconnecting, so Rebuild does not run for it.
         _onLost = (c, will) => { Toast(Feedback.Closed(c, will)); Callable.From(() => { if (IsInstanceValid(_status)) ShowStatus(); }).CallDeferred(); };
         _session.GameChanged += Rebuild; _session.PhaseChanged += Rebuild; _session.Frame.Render += _onFrame;
@@ -125,20 +127,38 @@ public partial class GameScreen : Control
     SetupTerrainTool? Terrain => _toolPanel is { } p && IsInstanceValid(p) && p.Body is SetupTerrainTool t && IsInstanceValid(t) ? t : null;
 
     readonly LoadSettled _settled = new();
-    /// <summary>The curtain while entering the game, then the strip over the table: a reconnect, the models still loading.</summary>
+    readonly TableLoad _tableLoad = new(TimeSpan.FromMilliseconds(150));
+
+    /// <summary>A setup request that replaces the table (a Random table, a loaded layout): the veil covers its round trip and its meshes.</summary>
+    public void BeginTableLoad() => _tableLoad.Begin(_session.Draft, TimeSpan.FromMilliseconds(Time.GetTicksMsec()));
+    /// <summary>That request failed.</summary>
+    public void CancelTableLoad() => _tableLoad.Cancel();
+
+    /// <summary>The curtain while entering the game, then the strip over the table: a reconnect, the models still loading; in setup the veil
+    /// while the table is laid out.</summary>
     void UpdateLoading()
     {
-        var entry = LoadingView.Entry(new EntryState(_session.Phase, _session.Game?.Status, _session.Draft is not null, _session.Projection is not null,
+        var now = TimeSpan.FromMilliseconds(Time.GetTicksMsec());
+        var meshes = _session.GameId is null ? null : Table.MeshProgress;
+        var (done, total) = (meshes?.Done ?? 0, meshes?.Total ?? 0);
+        var table = LoadingView.Entry(new EntryState(_session.Phase, _session.Game?.Status, _session.Draft is not null, _session.Projection is not null,
             _session.CatchingUp, _session.GameId is null || Table.SlabReady, _entered));
+        // The table stands with its meshes in: behind the curtain the unit card makes its controls (UnitCard.Prebuild), a move is measured once
+        // (MoveWarmup), so the first selection and the first move Ask neither make controls nor compile code, and the loading's garbage (tens of
+        // megabytes) is collected; the curtain lifts LoadSettled's frames later, once the new meshes have drawn.
+        if (_session.GameId is not null && _settled.Update(table is null && _session.Phase == SessionPhase.Connected, done, total, now))
+        {
+            _card?.Prebuild();
+            if (_session.Projection is { } p) MoveWarmup.Run(p, Table.Volumes, Table.Size);
+            GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+        }
+        var entry = LoadingView.Curtain(table, _entered || _session.GameId is null || _settled.Done, done, total);
         if (entry is null && _session.Phase == SessionPhase.Connected) _entered = true;
         _curtain.Set(entry, CurtainHead.Of(_session.Game));
-        var meshes = _session.GameId is null ? null : Table.MeshProgress;
-        var strip = LoadingView.Strip(_session.Phase, _entered, meshes?.Done ?? 0, meshes?.Total ?? 0);
-        // The table stands with its models: the loading's garbage (tens of megabytes) is collected now, not in a later frame of play.
-        // First the unit card makes its controls (UnitCard.Prebuild) and a move is measured once (MoveWarmup), so the first selection and the
-        // first move Ask of the session neither make controls nor compile code.
-        if (_session.GameId is not null && _settled.Update(_entered, meshes?.Done ?? 0, meshes?.Total ?? 0)) { _card?.Prebuild(); if (_session.Projection is { } p) MoveWarmup.Run(p, Table.Volumes, Table.Size); GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true); }
-        var shown = _stripGate.Update(strip is not null, TimeSpan.FromMilliseconds(Time.GetTicksMsec()));
+        var setup = _entered && _session.Game?.Status == GameStatus.Setup;
+        _veil.Set(setup ? _tableLoad.Update(_session.Draft, done, total, now) : null);
+        var strip = _veil.Visible ? null : LoadingView.Strip(_session.Phase, _entered, done, total);
+        var shown = _stripGate.Update(strip is not null, now);
         if (strip is not null) _strip.Set(strip);
         if (shown != _strip.Visible) { _strip.Visible = shown; QueueLayout(); }
     }
@@ -184,7 +204,7 @@ public partial class GameScreen : Control
         var playing = game.Status is GameStatus.Playing or GameStatus.Ended;
         // The lobby has no table to edit: its page takes the window under the top bar; setup puts the table back in its frame.
         var lobbyOnly = game.Status == GameStatus.Lobby;
-        _sideColumn.Visible = lobbyOnly;
+        _sideColumn.Visible = lobbyOnly; _backdrop.Visible = lobbyOnly;
         _tableBox.Visible = !lobbyOnly;
         if (_wasWaiting)
         {

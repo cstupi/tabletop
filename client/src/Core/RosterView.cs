@@ -2,16 +2,16 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Core;
 
 /// <summary>Inside: the name of the unit whose model holds this one (passengers spec: the roster's "in {Transport}"), else null. Reserve: the unit is
-/// held off the table until a property places it (ReserveOf), else null.</summary>
+/// held off the table until a property places it (ReserveOf), else null. SetAside: during deployment, the rule that lets the unit be held off the table (SetAsideView), else null.</summary>
 public sealed record RosterRow(Guid UnitId, string Name, bool Activated, int Left, int Max, bool OffTable, IReadOnlyList<string> Conditions, string? Inside = null, string? Reserve = null,
-    bool Acting = false)
+    bool Acting = false, SetAsideChip? SetAside = null)
 {
     /// <summary>The row's mark: ○ may still act, ✓ activated, — off the table.</summary>
     public RosterMark Mark => OffTable ? RosterMark.OffTable : Activated ? RosterMark.Activated : RosterMark.MayAct;
 
     /// <summary>By value, the conditions in order: the roster redraws a row only when what it shows changed.</summary>
     public bool Equals(RosterRow? other) => other is not null && UnitId == other.UnitId && Name == other.Name && Activated == other.Activated && Left == other.Left
-        && Max == other.Max && OffTable == other.OffTable && Acting == other.Acting && Inside == other.Inside && Reserve == other.Reserve && Conditions.SequenceEqual(other.Conditions);
+        && Max == other.Max && OffTable == other.OffTable && Acting == other.Acting && Inside == other.Inside && Reserve == other.Reserve && SetAside == other.SetAside && Conditions.SequenceEqual(other.Conditions);
     public override int GetHashCode() => HashCode.Combine(UnitId, Activated, Left, Conditions.Count);
 }
 public enum RosterMark { MayAct, Activated, OffTable }
@@ -24,11 +24,13 @@ public sealed record RosterTeam(Guid TeamId, string Name, int Ordinal, IReadOnly
 public static class RosterView
 {
     /// <summary>mine: every team the account holds, each marked Mine; absent, the acted-for team alone.</summary>
-    public static IReadOnlyList<RosterTeam> Of(Projection p, GameInfo game, Names n, Guid? myTeam, IReadOnlyDictionary<Guid, int> maxWounds, IReadOnlyCollection<Guid>? mine = null)
+    public static IReadOnlyList<RosterTeam> Of(Projection p, GameInfo game, Names n, Guid? myTeam, IReadOnlyDictionary<Guid, int> maxWounds, IReadOnlyCollection<Guid>? mine = null,
+        IReadOnlyDictionary<Guid, SetAsideRule>? setAsideRules = null)
     {
         var acting = HeaderView.ActionFrame(p)?.Context.ActorUnitId;
+        var rules = setAsideRules ?? new Dictionary<Guid, SetAsideRule>();
         return game.Teams.OrderBy(t => t.Id == myTeam ? 0 : 1).ThenBy(t => t.Ordinal).Select(t => new RosterTeam(t.Id, n.Team(t.Id), t.Ordinal,
-            Sorted(p.Units.Values.Where(u => game.Participants.Any(x => x.Id == u.ParticipantId && x.TeamId == t.Id)).Select(u => Row(p, u, maxWounds, acting))),
+            Sorted(p.Units.Values.Where(u => game.Participants.Any(x => x.Id == u.ParticipantId && x.TeamId == t.Id)).Select(u => Row(p, u, maxWounds, acting, rules))),
             mine?.Contains(t.Id) ?? t.Id == myTeam)).ToList();
     }
 
@@ -36,7 +38,7 @@ public static class RosterView
     public static IReadOnlyList<RosterRow> Sorted(IEnumerable<RosterRow> rows) =>
         rows.OrderBy(r => r.Mark).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
 
-    static RosterRow Row(Projection p, UnitInPlay u, IReadOnlyDictionary<Guid, int> maxWounds, Guid? acting)
+    static RosterRow Row(Projection p, UnitInPlay u, IReadOnlyDictionary<Guid, int> maxWounds, Guid? acting, IReadOnlyDictionary<Guid, SetAsideRule> rules)
     {
         var models = p.Models.Values.Where(m => m.UnitId == u.Id).Select(m => (M: m, Max: maxWounds.GetValueOrDefault(m.Id, 1))).ToList();
         var left = models.Where(x => !(x.M.Location is OnShelf && x.M.Wounds >= x.Max)).Sum(x => Math.Max(0, x.Max - x.M.Wounds));
@@ -44,7 +46,7 @@ public static class RosterView
         bool OnTable(ModelInPlay m) => m.Location is OnTable || (m.Location is Inside i && p.Models.GetValueOrDefault(i.ContainerId)?.Location is OnTable);
         return new(u.Id, u.Definition.Name, u.Actions.Count > 0, left, models.Sum(x => x.Max), !models.Any(x => OnTable(x.M)),
             u.Conditions.Concat(models.SelectMany(x => x.M.Conditions)).Where(Bookkeeping.Shown).Distinct().Order(StringComparer.Ordinal).ToList(),
-            holder is not null && p.Units.GetValueOrDefault(holder.UnitId) is { } h ? h.Definition.Name : null, ReserveOf(p, u), u.Id == acting);
+            holder is not null && p.Units.GetValueOrDefault(holder.UnitId) is { } h ? h.Definition.Name : null, ReserveOf(p, u), u.Id == acting, SetAsideView.Of(p, u.Id, rules));
     }
 
     /// <summary>"Reserve: {property} ({unit})" for a unit the army holds off the table (every model on the shelf) until that property, held at a model or a unit of the same army,

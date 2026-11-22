@@ -18,6 +18,6 @@
   .swatch { flex-direction: column; gap: var(--space-1); min-height: 4rem; padding: var(--space-2); font-size: .9rem; }
   .sample { display: flex; width: 100%; height: 1.1rem; border: 1px solid #0006; }
   .sample i { flex: 1; }
-  .scifi .sample i:nth-child(1) { background: #0A0F14 } .scifi .sample i:nth-child(2) { background: #3FD0E0 } .scifi .sample i:nth-child(3) { background: #DCEBF2 }
-  .fantasy .sample i:nth-child(1) { background: #4A2F1B } .fantasy .sample i:nth-child(2) { background: #B08D57 } .fantasy .sample i:nth-child(3) { background: #E9DBB8 }
+  .scifi .sample i:nth-child(1) { background: #070B10 } .scifi .sample i:nth-child(2) { background: #3FD0E0 } .scifi .sample i:nth-child(3) { background: #8C9CFF }
+  .fantasy .sample i:nth-child(1) { background: #21150C } .fantasy .sample i:nth-child(2) { background: #C9A04E } .fantasy .sample i:nth-child(3) { background: #8E2A1E }
 </style>

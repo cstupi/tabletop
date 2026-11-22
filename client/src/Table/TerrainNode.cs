@@ -16,6 +16,10 @@ public partial class TerrainNode : Node3D, IDrawn<TerrainPlacement>
     bool _show = true, _editing;
     readonly List<Color> _colours = new();
 
+    /// <summary>Every proxy draws one of two unit meshes scaled to its volume: a new mesh per proxy cost a mesh upload each, 2 ms a piece
+    /// when a Random table lays twenty at once.</summary>
+    static readonly Mesh UnitBox = new BoxMesh { Size = Vector3.One }, UnitCylinder = new CylinderMesh { TopRadius = 0.5f, BottomRadius = 0.5f, Height = 1 };
+
     /// <summary>Once per node: the proxies come from the volumes. A placement whose volumes or mesh change gets a new node.</summary>
     public void Build(TerrainPlacement p)
     {
@@ -23,11 +27,11 @@ public partial class TerrainNode : Node3D, IDrawn<TerrainPlacement>
         foreach (var tv in p.Volumes)
         {
             var v = tv.Volume; var height = (float)(v.Top - v.Bottom);
-            Mesh mesh = v.Footprint.Kind == FootprintKind.Circle
-                ? new CylinderMesh { TopRadius = (float)v.Footprint.A, BottomRadius = (float)v.Footprint.A, Height = height }
-                : new BoxMesh { Size = new Vector3((float)v.Footprint.A, height, (float)v.Footprint.B) };
-            var node = new MeshInstance3D { Mesh = mesh, MaterialOverride = Palette.Translucent(Palette.ForDeclarations(v.Declarations)),
-                Position = new Vector3((float)v.Offset.X, (float)v.Bottom + height / 2, (float)-v.Offset.Y), Rotation = new Vector3(0, WorldFrame.Radians(v.Yaw), 0) };
+            var circle = v.Footprint.Kind == FootprintKind.Circle;
+            var size = circle ? new Vector3((float)v.Footprint.A * 2, height, (float)v.Footprint.A * 2) : new Vector3((float)v.Footprint.A, height, (float)v.Footprint.B);
+            var node = new MeshInstance3D { Mesh = circle ? UnitCylinder : UnitBox, MaterialOverride = Palette.Translucent(Palette.ForDeclarations(v.Declarations)),
+                Position = new Vector3((float)v.Offset.X, (float)v.Bottom + height / 2, (float)-v.Offset.Y), Rotation = new Vector3(0, WorldFrame.Radians(v.Yaw), 0),
+                Scale = new Vector3(Math.Max(size.X, 0.001f), Math.Max(size.Y, 0.001f), Math.Max(size.Z, 0.001f)) };
             _proxies.Add(node); _colours.Add(Palette.ForDeclarations(v.Declarations)); AddChild(node);
         }
         Apply();

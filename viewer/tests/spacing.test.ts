@@ -1,6 +1,6 @@
 // Spacing rules (docs/superpowers/specs/2026-11-21-spacing-rules-design.md): every padding, margin and gap names a step of the
 // scale, var(--space-1) … var(--space-6) (web/src/themes.css, which src/main.ts imports). 0, auto and the CSS keywords stay; anything else is a defect.
-// var(--frame-inset) is the Fantasy panel's drawn band, a border a padding adds to, not a step.
+// var(--frame-inset) and var(--control-inset) are a material's drawn frame (panel; button and input), a border a padding adds to, not a step.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -23,7 +23,7 @@ function named(value: string): boolean {
   if (value.trim() === '-1px') return true; // a 1px border laid over its neighbour's, not a gap
   const rest = value
     .replace(/\{[^}]*\}/g, 'N')
-    .replace(/var\(--(?:space-[1-6]|frame-inset)\)/g, ' ')
+    .replace(/var\(--(?:space-[1-6]|frame-inset|control-inset)\)/g, ' ')
     .replace(/env\([^)]*\)/g, ' ')
     .replace(/[*/]\s*-?(?:\d+(?:\.\d+)?|N)(?![\w%])/g, ' ')
     .replace(/(?<![\w.])-?(?:\d+(?:\.\d+)?|N)\s*\*/g, ' ')

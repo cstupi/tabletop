@@ -14,14 +14,16 @@ import type { AskView } from './askView';
 import { allWords, move as contactsOfMove, placement as contactsOfPlacement } from './contactCheck';
 import { withKeepAway } from './keepAwayArea';
 import { CommitHold } from './commitHold';
-import { button, type Control, type DecisionBox, type MoveHooks } from './decisionBox';
-import { barOf, ENTER, inches, STOP } from './decisionCard';
+import { button, dim, type Control, type DecisionBox, type MoveHooks } from './decisionBox';
+import { barOf, inches } from './decisionCard';
+import { PLACING } from './cardActions';
 import { stopLabel } from './decisionView';
 import { around, layout, type MidDeploy } from './deployView';
 import { stationary } from './modelDrag';
 import { GhostStash } from './ghostStash';
 import type { Held } from './modelDrag';
 import { gate as gateOf, isDisembark, isShelfPlacement, read, readDistance, type MoveGate, type RulerReadout } from './moveRuler';
+import { lines as warningLines, marks as warningMarks, pathOf, type ModelPath } from './movePaths';
 import type { Names } from './names';
 import type { PendingDrops } from './pendingDrops';
 import type { Violations } from './violations';
@@ -33,6 +35,8 @@ export interface MoveDeps {
   /** A commit's drops, drawn where they were dropped until the move's step or the answer's settling (the box unhooks on send, which clears
    *  its ghosts). */
   drops?: PendingDrops;
+  /** The terrain piece a volume belongs to, by name (movePaths' volumeName), for the dangerous terrain gate line; "terrain" without it. */
+  terrainName?(volumeId: string): string;
 }
 
 export type MoveBoxHooks = MoveHooks & {
@@ -46,6 +50,8 @@ export type MoveBoxHooks = MoveHooks & {
   picked(ids: readonly string[]): void;
   /** TableInput.Region: the open move's Ask, null outside one. */
   region(): MoveRegion | null;
+  /** The open move's paths and footprints (MovePaths.Proposed), read again on every gate; empty outside one. */
+  paths(): readonly ModelPath[];
 };
 
 const xy = (p: { x: number; y: number }): XY => ({ x: p.x, y: p.y });
@@ -69,6 +75,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
   let minimum: number | null = null;
   let moving: { legal: MoveRegion; p: Projection; allowance: number | null } | null = null;
   let built: { legal: MoveRegion; byId: Map<string, MoveBands | null> } | null = null;
+  let paths: readonly ModelPath[] = [];
 
   /** MoveRegions.Allowance and Route: each moved model's path from where it stands to its target, as the server measures it, and the unit's allowance
    *  (the Ask's, or its cap once any path goes in or through difficult ground; then each path is the shortest within it). The last answer is kept
@@ -136,7 +143,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
 
   /** The commit's disabled state and the reason line, read again after every gate. */
   const show = (box: DecisionBox, gate: MoveGate, ids: readonly string[]): void => {
-    for (const id of ids) box.replace(id, (c) => (c.kind === 'button' ? { ...c, disabled: !gate.allowed } : c));
+    for (const id of ids) box.replace(id, (c) => { if (c.kind !== 'button') return c; const { tooltip: _t, ...rest } = c; return { ...rest, ...dim(!gate.allowed, gate.reason ?? null) }; });
     box.replace('reason', reasonOf(gate.reason));
   };
 
@@ -159,7 +166,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
 
   function renderMove(box: DecisionBox, mine: AskView, p: Projection, n: Names): void {
     const ask = mine.ask, legal = ask.legal as MoveRegion;
-    rings = null; moving = null; minimum = null;
+    rings = null; moving = null; minimum = null; paths = [];
     if (legal.modelIds.length === 0) return;                               // nothing to move; the server closes the Ask
     const lead = p.models.get(legal.modelIds[0]!);
     if (lead === undefined) return;
@@ -221,12 +228,12 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
     };
     box.handlers.onEnter = () => relocate(false);
     box.add(reasonOf(null));
-    box.add(button('commit', 'Commit', ENTER, true, 'ready'), () => relocate(false));
+    box.add(button('commit', 'Commit', undefined, true, 'ready'), () => relocate(false));
     const ids = ['commit'];
     const stop = legal.stoppable && !isDisembark(legal) ? stopLabel(p, legal) : null;
     if (stop !== null) {
       box.handlers.onStop = () => relocate(true);
-      box.add(button('stop', stop, STOP, false, stop.startsWith('Cast') ? 'cast' : 'hold'), () => relocate(true));
+      box.add(button('stop', stop, undefined, false, stop.startsWith('Cast') ? 'cast' : 'hold'), () => relocate(true));
       ids.push('stop');
     }
     // Any ghost out of range is counted and each contact named; under strict the commit and the stop wait until none is.
@@ -238,6 +245,11 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       if (allowance !== null) {
         const measured = g === null ? null : routesOf(g, p, legal, new Map([...box.ghosts].map(([id, ghost]) => [id, xy(ghost.position)])));
         if (measured !== null) unit = measured.allowance;
+        // Each moved model's path and footprints, and a warning where its swept base crosses dangerous ground: never holding the commit.
+        paths = measured === null ? [] : legal.modelIds.flatMap((id) => {
+          const m = p.models.get(id), route = measured.routes.get(id);
+          return m === undefined || m.location.kind !== 'table' || route === undefined ? [] : [pathOf(placed(m.slot, m.location.placement), route)];
+        });
         for (const id of legal.modelIds) {
           const l = p.models.get(id)?.location, ghost = box.ghosts.get(id);
           if (l?.kind !== 'table' || ghost === undefined) continue;
@@ -248,7 +260,9 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       if (g !== null)
         deps.violations.measure(legal.modelIds, withKeepAway(allWords(contactsOfMove(g, p, legal, new Map(box.ghosts), size), legal.separation, n.unit.bind(n)),
           g, p, legal.keepAway ?? null, new Map(box.ghosts), n.unit.bind(n)));
-      current = gateOf(readouts, deps.enforcement(), marked(legal.modelIds));
+      deps.violations.warn(legal.modelIds, warningMarks(paths));
+      const warnings = warningLines(paths, (id) => p.models.get(id)?.slot.name ?? n.model(id), (v) => deps.terrainName?.(v) ?? 'terrain');
+      current = gateOf(readouts, deps.enforcement(), marked(legal.modelIds), warnings);
       if (unit !== null) box.replace('bar', { kind: 'bar', id: 'bar', bar: barOf(readouts, unit, minimum) });
       show(box, current, ids);
     };
@@ -340,7 +354,8 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
     box.handlers.onEnter = place;
     box.handlers.onCancel = () => { box.rebuild(); return true; };          // the rebuild drops the deploy unit, so the render arms a fresh click
     box.add(reasonOf(null));
-    box.add(button('place', 'Place', ENTER, true, 'ready'), place);
+    box.cardActions = PLACING;
+    box.add(button('place', 'Place', undefined, true, 'ready'), place);
     // A ghost on another model's base is named; under strict Place waits until none is.
     regate = () => {
       const st = box.host.state();
@@ -381,7 +396,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       regate?.();
     },
     unhook() {
-      regate = null; rings = null; moving = null; minimum = null;
+      regate = null; rings = null; moving = null; minimum = null; paths = [];
       deps.violations.clear();                                              // a refused commit's marks come back with its ghosts (applyVerdict)
     },
     allowance() {
@@ -419,6 +434,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       });
     },
     region() { return moving?.legal ?? null; },
+    paths() { return moving === null ? [] : paths; },
     picked(ids) {
       if (rings !== null) rings = { ...rings, ids: [...new Set([...rings.ids.slice(0, 1), ...ids])].filter((id) => rings!.legal.modelIds.includes(id)) };
     },

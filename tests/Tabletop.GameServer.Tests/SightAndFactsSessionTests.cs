@@ -174,6 +174,24 @@ public class SightAndFactsSessionTests
     }
 
     [Fact]
+    public async Task Facts_carry_SetAsideRules_and_are_broadcast_when_they_change()
+    {
+        var rules = FakeRules.Gf();
+        rules.SetAsideRulesHook = s => s.Projection.Scores.Values.Sum() > 0
+            ? new Dictionary<Guid, SetAsideRule> { [Samples.Unit] = new("Ambush", "May be set aside before deployment.") } : new Dictionary<Guid, SetAsideRule>();
+        var (session, _, _, _, _) = await PlayingAsync(rules: rules);
+        var clay = new RecordingClient(Samples.P1);
+        await session.ConnectAsync(clay);
+        Assert.Empty(clay.Received.OfType<ModelFacts>().Single().SetAsideRules!);
+        clay.Received.Clear();
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 2)));
+        Assert.Equal(new SetAsideRule("Ambush", "May be set aside before deployment."), clay.Received.OfType<ModelFacts>().Single().SetAsideRules![Samples.Unit]);
+        clay.Received.Clear();
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 3)));
+        Assert.DoesNotContain(clay.Received, m => m is ModelFacts);
+    }
+
+    [Fact]
     public async Task Facts_carry_InCover_and_are_broadcast_when_it_changes()
     {
         var rules = FakeRules.Gf();

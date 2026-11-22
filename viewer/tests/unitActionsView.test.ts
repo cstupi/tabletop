@@ -1,6 +1,6 @@
 // UnitActionsViewTests' placement cases, through the port (the view itself agrees with Godot in unitActions.agreement.test.ts).
 import { expect, it } from 'vitest';
-import { placeRect, tipOf } from '../src/lib/play/unitActionsView';
+import { placeRect, tipOf, UnitActionsHold } from '../src/lib/play/unitActionsView';
 
 const view = { x: 0, y: 0, w: 1280, h: 720 };
 
@@ -25,4 +25,32 @@ it('the tooltip is the word and its key cap', () => {
   const tile = { optionId: 'a', key: 2, word: 'Advance', icon: 'advance', pieces: [], label: 'Squad: Advance' };
   expect(tipOf(tile)).toBe('Advance  2');
   expect(tipOf({ ...tile, key: 0 })).toBe('Advance');
+});
+
+// UnitActionsHoldTests' cases.
+it('the first place is taken at once and a held bar keeps its place', () => {
+  const hold = new UnitActionsHold();
+  expect(hold.step('a', { x: 100, y: 200, w: 120, h: 40 }, false, 0.016)).toEqual({ x: 100, y: 200, w: 120, h: 40 });
+  expect(hold.step('a', { x: 100, y: 180, w: 120, h: 40 }, true, 0.016)).toEqual({ x: 100, y: 200, w: 120, h: 40 });
+  expect(hold.step('a', { x: 100, y: 180, w: 160, h: 40 }, true, 0.016)).toEqual({ x: 100, y: 200, w: 160, h: 40 });
+});
+
+it('let go it eases to the new place without a jump', () => {
+  const hold = new UnitActionsHold();
+  hold.step('a', { x: 100, y: 200, w: 120, h: 40 }, false, 0.016);
+  const want = { x: 100, y: 180, w: 120, h: 40 };
+  const first = hold.step('a', want, false, 0.016);
+  expect(first.y).toBeLessThan(200);
+  expect(first.y).toBeGreaterThan(195);
+  let at = first;
+  for (let i = 0; i < 60; i++) at = hold.step('a', want, false, 0.016);
+  expect(at).toEqual(want);
+});
+
+it('another unit or a hidden bar takes its place at once', () => {
+  const hold = new UnitActionsHold();
+  hold.step('a', { x: 100, y: 200, w: 120, h: 40 }, false, 0.016);
+  expect(hold.step('b', { x: 600, y: 300, w: 120, h: 40 }, false, 0.016)).toEqual({ x: 600, y: 300, w: 120, h: 40 });
+  hold.reset();
+  expect(hold.step('b', { x: 10, y: 10, w: 120, h: 40 }, true, 0.016)).toEqual({ x: 10, y: 10, w: 120, h: 40 });
 });

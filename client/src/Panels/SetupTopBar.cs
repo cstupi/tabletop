@@ -21,7 +21,7 @@ public partial class SetupTopBar : PanelContainer
     public override void _Ready()
     {
         _s = Main.Instance.Session;
-        var box = SetupRail.Band(); box.ContentMarginTop = box.ContentMarginBottom = Space.S; box.ContentMarginLeft = box.ContentMarginRight = Space.S;
+        var box = ThemeBuilder.Nine(Ui.Current.Materials.Panel, Space.S, Space.S);   // the theme's panel material, S inside its frame
         AddThemeStyleboxOverride("panel", box);
         _row = new HBoxContainer(); _row.AddThemeConstantOverride("separation", Space.M); AddChild(_row);
         _onBoard = ShowView; _s.BoardChanged += _onBoard;

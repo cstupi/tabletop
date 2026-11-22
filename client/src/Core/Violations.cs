@@ -45,16 +45,39 @@ public sealed class Violations
         Update();
     }
 
-    public void Clear() { _measured.Clear(); _order.Clear(); _refused.Clear(); _refusal = null; Update(); }
+    /// <summary>A move's warnings over these models (MovePaths.Marks: a dangerous terrain test the path owes): drawn and labelled like a mark, never
+    /// holding the commit; other models' are kept.</summary>
+    public IReadOnlyDictionary<Guid, string> Warned => _warned;
+    readonly Dictionary<Guid, string> _warned = new();
+
+    public void Warn(IEnumerable<Guid> over, IReadOnlyDictionary<Guid, string> found)
+    {
+        var next = new Dictionary<Guid, string>(_warned);
+        foreach (var id in over) next.Remove(id);
+        foreach (var (id, words) in found) next[id] = words;
+        if (Same(next, _warned)) return;
+        _warned.Clear(); foreach (var (id, words) in next) _warned[id] = words;
+        Changed?.Invoke();
+    }
+
+    public void Clear()
+    {
+        var warned = _warned.Count > 0; _warned.Clear();
+        _measured.Clear(); _order.Clear(); _refused.Clear(); _refusal = null;
+        if (!Update() && warned) Changed?.Invoke();
+    }
 
     /// <summary>Under strict a marked model holds the commit; under warn and silent it goes and the server judges.</summary>
     public bool Blocks(Enforcement enforcement) => enforcement == Enforcement.Strict && _marked.Count > 0;
 
-    /// <summary>One label per reason, over the first model in this order that has it: the words, since the label stands over the model.</summary>
+    /// <summary>One label per reason, over the first model in this order that has it, in its short words (MarkWords.Short: the full sentence is the
+    /// decision box's); a model with a mark and a warning carries both, the mark first.</summary>
     public IReadOnlyList<(Guid ModelId, string Reason)> Labels(IEnumerable<Guid> order) =>
-        order.Where(_words.ContainsKey).Select(id => (id, _words[id])).DistinctBy(x => x.Item2).ToList();
+        order.SelectMany(id => new[] { _words.GetValueOrDefault(id), _warned.GetValueOrDefault(id) }.OfType<string>().Select(w => (id, MarkWords.Short(w))))
+            .DistinctBy(x => x.Item2).ToList();
 
-    void Update()
+    /// <summary>Recomputes the marks; true when they changed (and Changed was raised).</summary>
+    bool Update()
     {
         var words = new Dictionary<Guid, string>(_measured);
         if (_refusal is { } r) foreach (var id in _refused) words.TryAdd(id, r);
@@ -65,9 +88,10 @@ public sealed class Violations
             if (!said.ContainsKey(w)) said[w] = Subject?.Invoke(id) is { } name ? ContactCheck.Sentence(w, name) : w;
         }
         var marked = words.ToDictionary(kv => kv.Key, kv => _measured.ContainsKey(kv.Key) ? said[kv.Value] : kv.Value);
-        if (Same(words, _words) && Same(marked, _marked)) return;
+        if (Same(words, _words) && Same(marked, _marked)) return false;
         _words = words; _marked = marked;
         Changed?.Invoke();
+        return true;
     }
 
     static bool Same(Dictionary<Guid, string> a, Dictionary<Guid, string> b) => a.Count == b.Count && a.All(kv => b.TryGetValue(kv.Key, out var v) && v == kv.Value);

@@ -78,7 +78,7 @@ public partial class SetupToolBody : VBoxContainer
     protected static StyleBoxFlat Framed()
     {
         var b = new StyleBoxFlat { BgColor = Ui.Accent with { A = 0.18f }, BorderColor = Ui.Accent };
-        b.SetBorderWidthAll(2); b.SetCornerRadiusAll(Math.Min(Ui.Current.Shape.CornerRadius, 4)); b.SetContentMarginAll(Space.XS);
+        b.SetBorderWidthAll(2); b.SetCornerRadiusAll(Math.Min(Ui.Current.Shape.CornerRadius, 4)); b.SetContentMarginAll(Space.S);
         return b;
     }
 

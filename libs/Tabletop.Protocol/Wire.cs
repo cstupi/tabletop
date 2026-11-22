@@ -100,9 +100,14 @@ public sealed record SightLine(Guid FromModelId, Guid ToModelId, bool Clear, boo
 /// inside a Transport now, before either deploys, the Transport models it may go in (passengers spec); null from a server that does not send it. MaySetAside: the units a player may set aside before
 /// deployment now, or return to deployment (Ambush, Scout and what counts as having them); null from a server that does not send it. Threats: per unit
 /// with a living model on the table, how far its next activation reaches (threat range plan); null from a server that does not send it. InCover: the
-/// units in cover where they stand, the rules' terrain test needing no shooter (the unit card's shield); null from a server that does not send it.</summary>
+/// units in cover where they stand, the rules' terrain test needing no shooter (the unit card's shield); null from a server that does not send it.
+/// SetAsideRules: per unit MaySetAside names, the rule that lets it be set aside as the unit carries it (Ambush, Scout, Infiltrate…) and that rule's
+/// text, for the deployment chip; null from a server that does not send it.</summary>
 public sealed record ModelFacts(IReadOnlyDictionary<Guid, int> MaxWounds, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? DeployInside = null,
-    IReadOnlyList<Guid>? MaySetAside = null, IReadOnlyDictionary<Guid, UnitThreat>? Threats = null, IReadOnlyList<Guid>? InCover = null) : SocketMessage;
+    IReadOnlyList<Guid>? MaySetAside = null, IReadOnlyDictionary<Guid, UnitThreat>? Threats = null, IReadOnlyList<Guid>? InCover = null,
+    IReadOnlyDictionary<Guid, SetAsideRule>? SetAsideRules = null) : SocketMessage;
+/// <summary>A rule that lets a unit be set aside before deployment: its name as the army book prints it, and its rule text.</summary>
+public sealed record SetAsideRule(string Name, string Text);
 /// <summary>A unit's reach in its next activation, in inches from each model's base edge. Charge: its charge move, null when it may not charge.
 /// ShootMove: the move it may shoot after (0 when it shoots only standing), null when it may not shoot. Ranges: per living model on the table with a
 /// ranged weapon, its longest range as its rules leave it.</summary>

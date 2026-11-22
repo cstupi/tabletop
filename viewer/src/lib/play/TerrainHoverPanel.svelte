@@ -32,7 +32,7 @@
   .head strong { font-family: var(--font-display, inherit); font-size: 1.1rem; }
   .dim { color: var(--dim); font-size: .9rem; }
   .chips { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
-  .effect { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2) var(--space-1) var(--space-2); border-radius: 6px; font-size: .95rem;
+  .effect { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border-radius: 6px; font-size: .95rem;
     border: 1px solid var(--effect); background: color-mix(in srgb, var(--effect) 20%, transparent); color: var(--text); }
   .effect :global(.icon) { color: var(--effect); }
 </style>

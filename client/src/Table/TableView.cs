@@ -14,6 +14,8 @@ public partial class TableView : Node3D
     Session _session = null!; MeshLoader _meshes = null!;
     readonly SlabNode _slab = new(); readonly Node3D _pieces = new(), _terrain = new(), _markers = new(), _zones = new(), _ghosts = new();
     public OrbitCamera Camera { get; } = new();
+    /// <summary>The open move Ask's paths and footprints (MovePaths.Proposed), drawn by the decision box; the last move's are LastMovePath's.</summary>
+    public MovePathNode Paths { get; } = new();
     public TableSize Size { get; private set; } = new(72, 48);
     VisualRef _texture;   // the print the slab draws: a new size or print rebuilds it
     Task? _slabDrawn;     // the slab's last Set: null before the first
@@ -33,7 +35,7 @@ public partial class TableView : Node3D
 
     public override void _Ready()
     {
-        foreach (var n in new Node[] { _slab, _pieces, _terrain, _markers, _zones, _ghosts, Camera }) AddChild(n);
+        foreach (var n in new Node[] { _slab, _pieces, _terrain, _markers, _zones, _ghosts, Camera, Paths }) AddChild(n);
         (_key, _environment) = TableLighting.AddTo(this);
         ApplyGraphics();
         Camera.Current = true;
@@ -73,6 +75,7 @@ public partial class TableView : Node3D
         _onSettings = () => { RefreshLooks(); ApplyGraphics(); }; session.SettingsChanged += _onSettings;
         _onTheme = Redraw; Ui.Changed += _onTheme;   // team colours (the colour-blind palette) tint pieces, zones and markers
         Redraw(); Camera.FocusOn(Size);
+        var last = new LastMovePath(); AddChild(last); last.Bind(session, this);
     }
 
     /// <summary>Settings → Graphics on the table's SubViewport (MSAA, Render scale, LOD threshold), the environment (SSAO) and the key light (shadow splits, distance, softness); the Hud is in the root viewport.</summary>

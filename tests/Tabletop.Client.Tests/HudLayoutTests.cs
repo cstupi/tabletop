@@ -26,7 +26,7 @@ public class HudLayoutTests
             if (r.TryGetValue(HudPart.LogPanel, out var log)) Assert.True(log.W == 640 && log.H >= 240, $"{v}: log {log}");
             if (v.Decision && v.Dice && !v.LogOpen)
                 Assert.True(r[HudPart.Dice].Bottom + 8 == r[HudPart.Decision].Y && r[HudPart.Dice].X == r[HudPart.Decision].X);
-            Assert.True(r[HudPart.Loading] is { W: 280 } strip && strip.Y == r[HudPart.LogButton].Y && strip.H == r[HudPart.LogButton].H, $"{v}: loading {r[HudPart.Loading]}");
+            Assert.True(r[HudPart.Loading] is { W: 280, H: 36 } strip && strip.Bottom == h - 8, $"{v}: loading {r[HudPart.Loading]}");
             if (v.Roster && v.UnitCard)
                 Assert.True(r[HudPart.Roster].Bottom + 8 == r[HudPart.UnitCard].Y && r[HudPart.Roster].H == r[HudPart.UnitCard].H);
         }
@@ -46,7 +46,7 @@ public class HudLayoutTests
     {
         var r = HudLayout.Of(1280, 720, new HudVisible(Roster: true, UnitCard: true, Decision: true, Dice: true, LogOpen: true));
         Assert.Equal(
-            (new HudRect(792, 406, 480, 262), new HudRect(632, 136, 640, 262), new HudRect(8, 56, 420, 324)),
+            (new HudRect(792, 416, 480, 296), new HudRect(632, 112, 640, 296), new HudRect(8, 56, 420, 324)),
             (r[HudPart.Decision], r[HudPart.LogPanel], r[HudPart.Roster]));
     }
 
@@ -57,29 +57,56 @@ public class HudLayoutTests
         foreach (var v in All().Where(v => v.LogOpen && v.Dice)) Assert.False(HudLayout.Of(w, h, v).ContainsKey(HudPart.Dice), $"{v}");
     }
 
-    /// <summary>A theme whose buttons are taller than 36 px: the button row is as tall as they are and the right column ends above it.</summary>
+    /// <summary>Undo and Log are square icon buttons in the top right corner; a theme's taller button face makes them that size.</summary>
     [Fact]
-    public void The_button_row_takes_the_buttons_actual_height()
+    public void The_corner_buttons_take_the_buttons_actual_size()
     {
-        var r = HudLayout.Of(1280, 720, new HudVisible(true, true, true, true, false), buttonH: 46);
-        Assert.Equal(new HudRect(1132, 666, 140, 46), r[HudPart.LogButton]);
-        Assert.Equal(r[HudPart.LogButton].Y, r[HudPart.UndoButton].Y);
-        Assert.Equal(r[HudPart.LogButton].Y - 8, r[HudPart.Decision].Bottom);
-        Assert.Equal(new HudRect(1132, 676, 140, 36), HudLayout.Of(1280, 720, new HudVisible(true, true, true, true, false), buttonH: 20)[HudPart.LogButton]);   // never below 36
+        var r = HudLayout.Of(1280, 720, new HudVisible(true, true, true, true, false), buttonSize: 46);
+        Assert.Equal(new HudRect(1226, 8, 46, 46), r[HudPart.LogButton]);
+        Assert.Equal(new HudRect(1172, 8, 46, 46), r[HudPart.UndoButton]);
+        Assert.Equal(62, r[HudPart.Toasts].Y);
+        Assert.Equal(new HudRect(1234, 8, 38, 38), HudLayout.Of(1280, 720, new HudVisible(true, true, true, true, false), buttonSize: 20)[HudPart.LogButton]);   // never below 38
     }
 
-    /// <summary>The decision box leaves the table's centre clear: the right column, from below the toasts down to the undo and log buttons.</summary>
+    /// <summary>The right column's top: M below the corner buttons and the header where it spans the column. The toasts come and go over it.</summary>
+    static float ColumnTop(IReadOnlyDictionary<HudPart, HudRect> r)
+    {
+        var column = new HudRect(r[HudPart.LogButton].Right - 640, 0, 640, 1);   // the log's width, the column's widest part
+        return Math.Max(r[HudPart.LogButton].Bottom, r[HudPart.Header].SpansX(column) ? r[HudPart.Header].Bottom : 0) + 8;
+    }
+
+    [Fact]
+    public void The_toasts_come_and_go_over_the_other_parts()
+    {
+        Assert.Contains(HudPart.Toasts, HudLayout.Overlays);
+    }
+
+    /// <summary>The decision box leaves the table's centre clear: the right column, from below the corner buttons and the header down to the screen's margin.</summary>
     [Theory, MemberData(nameof(Sizes))]
-    public void The_decision_box_takes_the_right_column_above_the_buttons(int w, int h)
+    public void The_decision_box_sits_flush_at_the_bottom_right(int w, int h)
     {
         foreach (var v in All().Where(v => v.Decision))
         {
             var r = HudLayout.Of(w, h, v);
             var d = r[HudPart.Decision];
             Assert.Equal(w - 8, d.Right);
-            Assert.Equal(r[HudPart.LogButton].Y - 8, d.Bottom);
-            Assert.True(d.Y >= r[HudPart.Toasts].Bottom + 8, $"{v}: {d}");
-            if (!v.LogOpen) Assert.Equal(r[HudPart.Toasts].Bottom + 8, v.Dice ? r[HudPart.Dice].Y : d.Y);
+            Assert.Equal(h - 8, d.Bottom);
+            Assert.True(d.Y >= ColumnTop(r), $"{v}: {d}");
+            if (!v.LogOpen) Assert.Equal(ColumnTop(r), v.Dice ? r[HudPart.Dice].Y : d.Y);
+        }
+    }
+
+    /// <summary>The open log hangs from the top of the right column, below the corner buttons, down the right side.</summary>
+    [Theory, MemberData(nameof(Sizes))]
+    public void The_open_log_opens_from_the_top_right(int w, int h)
+    {
+        foreach (var v in All().Where(v => v.LogOpen))
+        {
+            var r = HudLayout.Of(w, h, v);
+            var log = r[HudPart.LogPanel];
+            Assert.Equal(w - 8, log.Right);
+            Assert.Equal(ColumnTop(r), log.Y);
+            if (v.Decision) Assert.Equal(r[HudPart.Decision].Y - 8, log.Bottom);
         }
     }
 
@@ -121,13 +148,16 @@ public class HudLayoutTests
     }
 
     [Theory, MemberData(nameof(Sizes))]
-    public void The_undo_button_sits_left_of_the_log_button_in_its_row(int w, int h)
+    public void Undo_and_log_sit_in_the_top_right_corner_above_the_toasts(int w, int h)
     {
         foreach (var v in All())
         {
             var r = HudLayout.Of(w, h, v);
-            Assert.Equal(r[HudPart.LogButton].Y, r[HudPart.UndoButton].Y);
-            Assert.Equal(r[HudPart.LogButton].X - 8, r[HudPart.UndoButton].Right);
+            var (log, undo) = (r[HudPart.LogButton], r[HudPart.UndoButton]);
+            Assert.True(log is { Y: 8, W: 38, H: 38 } && log.Right == w - 8, $"{v}: log {log}");
+            Assert.True(undo is { Y: 8, W: 38, H: 38 } && undo.Right == log.X - 8, $"{v}: undo {undo}");
+            Assert.Equal(log.Bottom + 8, r[HudPart.Toasts].Y);
+            Assert.True(r[HudPart.Header].Right <= undo.X - 8, $"{v}: header {r[HudPart.Header]}");
         }
     }
 

@@ -21,7 +21,7 @@
   import Banner from './Banner.svelte';
   import { WoundFloats, WoundNumbers } from './woundNumbers';
   import UnitActions from './UnitActions.svelte';
-  import { unitActionsOf } from './unitActionsView';
+  import { targetsOf, unitActionsOf } from './unitActionsView';
   import { hoverOf, woundsLine } from './hoverView';
   import HeaderBar from './HeaderBar.svelte';
   import InfoColumn from './InfoColumn.svelte';
@@ -38,6 +38,7 @@
   import { RangeRingCache, ringsOverlay, type RingLayer } from './rangeRings';
   import { sheetFocusOf, teamOf } from './sheetFocus';
   import { midDeploy } from './deployView';
+  import { PlacingFocus } from './setAsideView';
   import { KeepAwayCache, keepAwayFor, SHADE, SHADE_WORDS } from './keepAwayArea';
   import { AllThreatCache, ThreatRingCache, pinnedThreat, shownThreats, threatsWanted } from './threatRings';
   import { SightCheck, sightOverlay } from './sightCheck';
@@ -58,6 +59,8 @@
   import { relocations } from './relocations';
   import { PlayDrags } from './playDrag';
   import { Violations } from './violations';
+  import { KeptPathCache, volumeName } from './movePaths';
+  import { pathsOverlay } from './moveOverlays';
 
   let { connection, api, view = $bindable(null) }: { connection: GameConnection; api: Api; view?: View | null } = $props();
 
@@ -110,7 +113,8 @@
   const violations = new Violations((id) => connection.state.projection?.models.get(id)?.slot.name ?? null);   // the box names the model, as the server does
   const drops = new PendingDrops();
   const locks = new MarkerLocks();
-  const moves = moveHooks({ geometry: () => geometry, violations, enforcement: () => connection.state.game?.enforcement ?? 'strict', drops });
+  const moves = moveHooks({ geometry: () => geometry, violations, enforcement: () => connection.state.game?.enforcement ?? 'strict', drops,
+    terrainName: (v) => { const p = connection.state.projection; return p == null ? 'terrain' : volumeName(p.board.table, v, catalog); } });
   const drags = new PlayDrags({
     state: () => connection.state, box: () => box, hooks: () => moves, geometry: () => geometry, violations, drops, locks,
     send: (command) => connection.sendCommand(command),
@@ -204,7 +208,7 @@
   const marks = $derived.by(() => { void panel; return box?.marks; });
   const teams = $derived(snap === null ? [] : myTeams(snap));
   const actingTeam = $derived(snap?.projection != null ? acting(snap.projection, teams, snap.log) : null);
-  // The action buttons over the selected unit on my activation (UnitActionsNode): the box's options for it, gone once the answer is sent.
+  // The bar over the acting unit on every step of my activation (UnitActionsNode): the box's options and foot actions, gone once the answer is sent.
   const unitActions = $derived.by(() => {
     void panel;
     const s = snap, b = box, p = snap?.projection;
@@ -212,6 +216,13 @@
     const v = unitActionsOf(p, s.game, actingTeam, selection?.pieceId ?? null, isWatching(s), b.numbered);
     return v !== null && b.answering(v.askId) ? v : null;
   });
+  // While I pick shooting targets, a target icon over each enemy unit the box's assignment may aim at now.
+  const unitTargets = $derived.by(() => {
+    void panel;
+    const p = snap?.projection, t = box?.targets;
+    return unitActions === null || p == null || t == null ? [] : targetsOf(p, t.candidates);
+  });
+  const unitName = (id: string): string => { const s = snap; return s?.projection != null && s.game !== null ? new Names(s.game, s.projection).unit(id) : ''; };
   // Whether the unit's name label carries a wounds line under the name (hoverOverlay), for the room the buttons leave it.
   const actionWoundLine = $derived.by(() => {
     const s = snap, p = snap?.projection, v = unitActions;
@@ -221,7 +232,7 @@
   });
 
   // D2: the board's overlays (allowance rings, rulers, landing rings, violation labels) and the models in breach.
-  const warned = $derived.by(() => { void version; return new Set(violations.marked.keys()); });
+  const warned = $derived.by(() => { void version; return new Set([...violations.marked.keys(), ...violations.warned.keys()]); });
   const overlays = $derived.by(() => {
     void panel; void version;
     if (scene === null) return [];
@@ -253,6 +264,18 @@
     selected = new Set(p == null ? sel.modelIds : selectedModels(p, sel));
     box?.unit(sel.pieceId);
   }
+
+  // LastMovePath: the last activation's move path, kept for every player until the next activation starts.
+  const keptPaths = new KeptPathCache();
+  const keptDrawn = $derived.by((): Overlay | null => {
+    const p = shown, s = snap, game = snap?.game;
+    if (geometry === null || p === null || s === null || game == null) return null;
+    const paths = keptPaths.of(geometry, s.log, p);
+    if (paths.length === 0) return null;
+    const unit = p.models.get(paths[0]!.modelId)?.unitId;
+    const ordinal = unit === undefined ? 1 : teamOf(p, game, unit)?.ordinal ?? 1;
+    return pathsOverlay(paths, teamColour(ordinal));
+  });
 
   // D4: range rings for my selected unit when V has them on (RangeRingNode).
   const ringCache = new RangeRingCache();
@@ -297,6 +320,15 @@
   });
   // RangeRingNode's keep-away layer: while I place a unit held over a distance from enemy units (my deploy pick's or my open move Ask's KeepAway),
   // the area it may not reach, in a dark shade; rebuilt when a listed unit's models move.
+  // The unit card while I place a unit (UnitCard.Placing): the unit a team of mine picked, held while the selection stands as it was at the pick.
+  const placingFocus = new PlacingFocus();
+  const placingUnit = $derived.by((): string | null => {
+    const p = shown, s = snap;
+    if (p === null || s === null || isWatching(s)) return null;
+    const mid = [actingTeam, ...teams].map((t) => midDeploy(p, s.log, t)).find((m) => m !== null) ?? null;
+    return placingFocus.placing(mid?.unitId ?? null, selection?.pieceId ?? null);
+  });
+  const pickHovered = $derived.by(() => { void panel; return box?.pickHovered ?? null; });
   const keepAwayCache = new KeepAwayCache();
   const keepAwayLayer = $derived.by((): RingLayer | null => {
     const p = shown, s = snap;
@@ -470,9 +502,10 @@
     {#if scene === null || snap === null}
       <Loading text={waitText(snap)} />
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} floating={woundFloats}>
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...(keptDrawn === null ? [] : [keptDrawn]), ...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} floating={woundFloats}>
         {#snippet above(project, scale, size)}
-          {#if unitActions !== null && box !== null}<UnitActions actions={unitActions} {box} {panel} {scene} woundLine={actionWoundLine} {project} {scale} {size} />{/if}
+          {#if unitActions !== null && box !== null}<UnitActions actions={unitActions} targets={unitTargets} {box} {panel} {scene} woundLine={actionWoundLine} {project} {scale} {size}
+            names={unitName} onHoverUnit={(u) => { pointedUnit = u; }} />{/if}
         {/snippet}
       </Board>
     {/if}
@@ -493,7 +526,7 @@
       <InfoColumn
         {connection} {snap} {shown} {scene} {prediction} pendingUndoTo={pendingUndo} {rules} {geometry}
         {selection} {hoveredUnit} {catalog} myTeam={actingTeam} eligible={infoEligible} getSettings={() => settings} updateSettings={changeSettings}
-        onPickModel={pickModel} onTouch={(ids) => { touchedIds = new Set(ids); }} bind:overlay={infoOverlay}
+        onPickModel={pickModel} onTouch={(ids) => { touchedIds = new Set(ids); }} bind:overlay={infoOverlay} {pickHovered} placing={placingUnit}
       />
     {/if}
   </aside>
@@ -504,7 +537,7 @@
 </div>
 
 <style>
-  /* The top bar over the roster and the board; the right column the full height. Nothing floats over the board but the banner and the
+  /* The top bar over the roster and the board; the right column the full height, Undo and Log at its top right. Nothing floats over the board but the banner and the
      pick hint or refusal at its foot. */
   .play { display: grid; height: 100%; min-height: 0; grid-template-columns: auto minmax(0, 1fr) 23rem; grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas: 'top top side' 'roster stage side'; }
@@ -517,12 +550,14 @@
   .float.foot p { margin: 0; box-shadow: 0 2px 10px #0000004d; }
   .side { grid-area: side; display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; overflow: hidden; padding: var(--space-2);
     border-left: 1px solid var(--rule); background: color-mix(in srgb, var(--panel-solid) 60%, transparent); }
+  /* The column's order (InfoColumn's parts are its items): Undo and Log in the top right corner, the open log under them, the cards, then
+     the latest roll and the decision box (or the waiting teams) flush at the foot. */
+  .side > :global(:is(.decision, .quiet-bands, .waiting)) { order: 5; }
   @media (max-width: 75rem) { .play { grid-template-columns: auto minmax(0, 1fr) 20rem; } }
-  /* A short window: the column scrolls as a whole, each part at its own height, the log at least 24rem. */
+  /* A short window: the decision box stays whole at the foot; the cards and the log give way above it, and the column scrolls only past that. */
   @media (max-height: 52rem) {
     .side { overflow-y: auto; }
-    .side :global(:is(.decision, .card)) { flex: none; max-height: none; }
-    .side :global(.info) { flex: 1 0 auto; }
-    .side :global(.log.open) { flex: 1 0 24rem; height: 24rem; }
+    .side :global(.decision) { max-height: none; }
+    .side :global(.log) { min-height: 8rem; }
   }
 </style>

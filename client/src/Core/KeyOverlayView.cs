@@ -51,12 +51,14 @@ public static class KeyOverlayView
         ]);
     }
 
-    /// <summary>The overlay's groups: the open Ask's keys first when there is one, ending with T for every enemy threat (deployment
-    /// and play), then Camera, Measure and Table. Caps come from <paramref name="keys"/>, else the current bindings.</summary>
-    public static IReadOnlyList<KeyGroup> Of(AskMode? mode, string? title, bool stoppable, KeyBindings? keys = null)
+    /// <summary>The overlay's groups: the open Ask's keys first when there is one (the card's actions by their numbers, CardActions.Numbered,
+    /// then its gestures), ending with T for every enemy threat (deployment and play), then Camera, Measure and Table. Caps come from
+    /// <paramref name="keys"/>, else the current bindings.</summary>
+    public static IReadOnlyList<KeyGroup> Of(AskMode? mode, string? title, IReadOnlyList<CardAction> actions, KeyBindings? keys = null)
     {
         var k = keys ?? Hotkeys.Bindings;
-        IReadOnlyList<KeyRow> rows = mode is { } m ? Now(m, stoppable, k) : [];
+        IReadOnlyList<KeyRow> rows = mode is { } m
+            ? [.. actions.Where(a => a.Key > 0).Select(a => R(a.Word.ToLowerInvariant(), DecisionCard.KeyCap(a.Key))), .. Now(m, k)] : [];
         KeyRow[] now = rows.Count == 0 ? [] : [.. rows, AllThreats(k)];
         KeyGroup[] rest = [Camera(k), Measure(k), Table(k)];
         return now.Length == 0 ? rest : [new KeyGroup($"Now · {title}", "key", now), .. rest];
@@ -64,21 +66,19 @@ public static class KeyOverlayView
 
     static KeyRow AllThreats(KeyBindings k) => R("all enemy threats", k.CapsOf(Intent.ToggleAllThreats));
 
-    static IReadOnlyList<KeyRow> Now(AskMode mode, bool stoppable, KeyBindings k) => mode switch
+    static IReadOnlyList<KeyRow> Now(AskMode mode, KeyBindings k) => mode switch
     {
         AskMode.Choose => [R("pick an option", "1–9")],
-        AskMode.Confirm => [R("confirm", "⏎")],
         AskMode.Move =>
         [
-            R("commit the move", "⏎"), .. stoppable ? [R("stop here", k.CapsOf(Intent.StopHere))] : Array.Empty<KeyRow>(), R("reset", "Esc"),
+            R("reset", "Esc"),
             R("rows while holding", "1–5"), R("turn the held unit", [.. k.CapsOf(Intent.TurnLeft), .. k.CapsOf(Intent.TurnRight)]),
             R("turn each held model", ["⇧", .. k.CapsOf(Intent.TurnLeft), .. k.CapsOf(Intent.TurnRight)]), R("pick a model", "⇧", "Click"), R("box models", "⇧", "Drag"),
             R("place freely", "Alt"), R("lower or raise held", [.. k.CapsOf(Intent.Lower), .. k.CapsOf(Intent.Raise)]),
         ],
-        AskMode.Assign => [R("aim at a target", "Click"), R("fire", "⏎"), R("clear", "Esc")],
-        AskMode.Allocate => [R("pick a model", "Click"), R("confirm", "⏎")],
-        AskMode.PickPieces => [R("pick a unit", "Click"), R("pick by number", "1–9"), R("confirm", "⏎"), R("place freely", "Alt")],
-        AskMode.TokenSpend => [R("confirm", "⏎")],
+        AskMode.Assign => [R("aim at a target", "Click")],
+        AskMode.Allocate => [R("pick a model", "Click")],
+        AskMode.PickPieces => [R("pick a unit", "Click"), R("pick by number", "1–9"), R("place freely", "Alt")],
         _ => [],
     };
 }

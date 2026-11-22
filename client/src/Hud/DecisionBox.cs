@@ -25,13 +25,17 @@ public partial class DecisionBox : PanelContainer
     readonly Button _keys = new() { FocusMode = FocusModeEnum.None, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Keys", ExpandIcon = true, CustomMinimumSize = new Vector2(28, 28) };
     readonly Label _prompt = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _note = new() { ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart },
         _refusalLabel = new() { ThemeTypeVariation = Variation.Failure, AutowrapMode = TextServer.AutowrapMode.WordSmart };
-    readonly HFlowContainer _reveal = new(), _foot = new();
+    readonly HFlowContainer _reveal = new(), _footRow = new();
     readonly VBoxContainer _quiet = new(), _body = new();
     readonly MarginContainer _inset = new();
     MoveRegionNode? _region;
     readonly ScrollContainer _scroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
     HudRect? _slot; bool _fitQueued;
     Guid? _renderedAsk, _answering, _lastCommand, _refusalAsk; string? _refusal, _refusalDetail; readonly SealedReveals _reveals = new();
+    /// <summary>The command the box sent last: its refusal shows in the box's refusal line, so the screen does not toast it too.</summary>
+    public Guid? LastCommand => _lastCommand;
+    /// <summary>The set-aside facts the drawn Ask was drawn with (SetAsideView.DrawnKey): facts that arrive after it draw it again.</summary>
+    string _asideDrawn = "";
     IReadOnlyList<IReadOnlyList<RevealChip>>? _revealed; IReadOnlyList<IReadOnlyList<RevealChip>>? _revealDrawn;
     /// <summary>The card's head as drawn, and the quiet bands' key: a render redraws them only on a change.</summary>
     (CardHead? Head, int Ordinal) _head; string _quietKey = "";
@@ -70,12 +74,12 @@ public partial class DecisionBox : PanelContainer
         // The controls keep clear of the scroll bar: a margin between their right edge and the bar's.
         var inset = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; inset.AddThemeConstantOverride("margin_right", ScrollGap);
         _controls.SizeFlagsHorizontal = SizeFlags.ExpandFill; _controls.AddThemeConstantOverride("separation", Space.S); inset.AddChild(_controls); _scroll.AddChild(inset);
-        foreach (var side in new[] { "left", "right", "top", "bottom" }) _inset.AddThemeConstantOverride($"margin_{side}", Space.S);
+        foreach (var side in new[] { "left", "right", "top", "bottom" }) _inset.AddThemeConstantOverride($"margin_{side}", Space.M);   // a box of a title and several lines: M (spacing rule 5)
         _body.AddThemeConstantOverride("separation", Space.M); _inset.AddChild(_body);
-        _foot.AddThemeConstantOverride("h_separation", Space.S); _foot.AddThemeConstantOverride("v_separation", Space.S);
+        _footRow.AddThemeConstantOverride("h_separation", Space.S); _footRow.AddThemeConstantOverride("v_separation", Space.S);
         _reveal.AddThemeConstantOverride("h_separation", Space.S); _reveal.AddThemeConstantOverride("v_separation", Space.XS);
         _choices.AddThemeConstantOverride("separation", Space.S);
-        foreach (var c in new Control[] { _reveal, _prompt, _note, _scroll, _refusalLabel, _foot }) _body.AddChild(c);
+        foreach (var c in new Control[] { _reveal, _prompt, _note, _scroll, _refusalLabel, _footRow }) _body.AddChild(c);
         _reveal.Visible = false;                                                    // an empty row still takes the body's separation: a gap above the first line
         _quiet.AddThemeConstantOverride("separation", Space.XS);
         foreach (var c in new Control[] { _band, _inset, _quiet }) box.AddChild(c);
@@ -145,7 +149,7 @@ public partial class DecisionBox : PanelContainer
         _scroll.CustomMinimumSize = new Vector2(0, MathF.Floor(Math.Max(0, Math.Min(_controls.GetCombinedMinimumSize().Y, slot.H - chrome))));
     }
 
-    /// <summary>The card's frame: the card's panel with no inset (the band runs edge to edge and the body takes its own 16 px), or nothing
+    /// <summary>The card's frame: the card's panel with no inset (the band runs edge to edge inside the frame and the body takes its own 16 px), or nothing
     /// while only quiet bands show.</summary>
     bool? _framed;
     void Frame(bool card)
@@ -153,7 +157,7 @@ public partial class DecisionBox : PanelContainer
         if (card == _framed) return;
         _framed = card;
         if (!card) { AddThemeStyleboxOverride("panel", new StyleBoxEmpty()); return; }
-        var b = (StyleBox)Ui.Theme.GetStylebox("panel", Variation.Card).Duplicate(); b.SetContentMarginAll(0);   // the theme's: this control's own override would answer first
+        var b = (StyleBox)Ui.Theme.GetStylebox("panel", Variation.Card).Duplicate(); b.SetContentMarginAll(Ui.Current.Materials.Panel.Inset);   // the theme's, inside its drawn frame: this control's own override would answer first
         AddThemeStyleboxOverride("panel", b);
     }
 
@@ -185,7 +189,7 @@ public partial class DecisionBox : PanelContainer
         _seat.Text = card ? Seats.PlayingAs(_s.Game!, _s.MyTeamIds, _s.MyTeamId) is not null ? $"Team {MyOrdinal}" : "" : "";
         _seat.Visible = _seat.Text != "";
         DrawReveal();
-        _foot.Visible = _foot.GetChildren().OfType<Control>().Any(c => c.Visible);
+        _footRow.Visible = _footRow.GetChildren().OfType<Control>().Any(c => c.Visible);
         SyncScroll();
         var body = card || _refusal is not null || _revealed is not null || _note.Text != "";
         _inset.Visible = body;
@@ -241,11 +245,14 @@ public partial class DecisionBox : PanelContainer
             return;
         }
         Quiet([]);
-        if (_renderedAsk == mine.Ask.Id) return;
+        var aside = SetAsideView.DrawnKey(_s.MaySetAside, _s.SetAsideRules);
+        if (_renderedAsk == mine.Ask.Id && aside == _asideDrawn) return;
+        _asideDrawn = aside;
         var model = DecisionView.Of(p, game, names, _s.MyTeamId);   // only for an Ask not yet drawn: most renders keep the box as it is
         Reset(); _renderedAsk = mine.Ask.Id; _answering = _s.MyTeamId; _note.Text = "";
         if (fresh.Count == 0) _revealed = null;                                 // a reveal is cleared only after a render has shown it
         _numbered = model.Numbered;
+        _cardActions = CardActions.Of(mine.Ask, mine.Mode, p);
         Head(DecisionCard.Head(mine.Ask, p, names), MyOrdinal);
         Glow(mine.Highlights);
         switch (mine.Mode)
@@ -255,17 +262,19 @@ public partial class DecisionBox : PanelContainer
             case AskMode.TokenSpend: RenderSpend(mine, p, names); break;
             case AskMode.Confirm:                                               // "Continue" for a step gate, "End the round" at the round boundary
                 _onEnter = () => Send(mine.Ask, new Confirmed());
-                Foot(Act(AskViewModel.ConfirmLabel(mine.Ask), DecisionCard.Enter, _onEnter, primary: true, icon: "ready"));
+                Foot(Act(CardActions.Confirm, _onEnter));
                 break;
             default: RenderPicks(mine, p, names); break;                       // PickPieces, Assign, Allocate
         }
-        if (mine.Ask.AllowPass) Foot(Act(mine.Ask.Question == AskQuestions.ActOrEndPhase ? "End phase" : "Pass", "", () => Send(mine.Ask, new Passed())));
+        if (mine.Ask.AllowPass) Foot(Act(CardActions.Pass, () => Send(mine.Ask, new Passed())));
+        Rekey();
         if (AskViewModel.AnsweredBy(_s.Log, mine.Ask.Id, _s.MyTeamId, _s.ParticipantId, names) is { } who) _note.Text = $"{who} answered for your team";
     }
 
     /// <summary>
     /// Option tiles. An activation's options are grouped by unit (DecisionCard.Groups), its pips and team edge, its note once under it; any other
-    /// Ask's options are one row of tiles. A click on a piece exactly one choice names picks that choice. A piece several choices name (activate:
+    /// Ask's options are one row of tiles. A click on the other team's piece exactly one choice names picks that choice (DecisionView.ClickAnswers);
+    /// a click on a unit of mine only selects it. A piece several choices name (activate:
     /// one option per unit and action) is not a pick: the click selects its unit as any click does, and the card narrows to that unit's group,
     /// renumbered from 1, until another unit is clicked, or Esc or Tab past the last unit clears the selection and widens it again.
     /// </summary>
@@ -295,13 +304,14 @@ public partial class DecisionBox : PanelContainer
                 tiles.End();
             }
             groups.End();
+            Rekey();                                                        // Pass follows the tiles shown, narrowed or not
         }
         Show(all, full);
         _onNumber = option => Send(mine.Ask, new Chosen(option));
-        _input.Eligible = DecisionView.ClickAnswers(options, mine.Ask.Question);
+        _input.Eligible = DecisionView.ClickAnswers(options, mine.Ask, p0, game);
         _onTarget = clicked =>
         {
-            if (_s.Projection is { } p && AskAnswers.ChosenByClick(options, p, clicked, mine.Ask.Question) is { } chosen) Send(mine.Ask, chosen);
+            if (_s.Projection is { } p && AskAnswers.ChosenByClick(mine.Ask, p, game, clicked) is { } chosen) Send(mine.Ask, chosen);
         };
         _onUnit = unit =>
         {
@@ -367,7 +377,7 @@ public partial class DecisionBox : PanelContainer
         }
         void Spend() => Send(mine.Ask, AskAnswers.Spent(spends.ToDictionary(kv => kv.Key, kv => (int)kv.Value.Value)));
         _onEnter = Spend;
-        Foot(Act("Spend", DecisionCard.Enter, Spend, primary: true, icon: "cast"));
+        Foot(Act(CardActions.Spend, Spend));
         if (mine.AnsweredTeams.Count > 0) _note.Text = string.Join(", ", mine.AnsweredTeams.Select(t => $"{t} has answered"));
     }
 
@@ -390,11 +400,11 @@ public partial class DecisionBox : PanelContainer
         if (used) GetViewport().SetInputAsHandled();
     }
 
+    /// <summary>A number key: the tile it caps, else the foot action it caps (CardActions.Numbered), when that can be pressed.</summary>
     bool Number(int key)
     {
-        if (_onNumber is not { } pick) return false;
-        foreach (var n in _numbered) if (n.Key == key) { pick(n.OptionId); return true; }
-        return false;
+        if (_onNumber is { } pick) foreach (var n in _numbered) if (n.Key == key) { pick(n.OptionId); return true; }
+        return Actions.FirstOrDefault(a => a.Key == key) is { Enabled: true } action && Press(action.Id);
     }
 
     static bool Run(Action a) { a(); return true; }
@@ -419,7 +429,7 @@ public partial class DecisionBox : PanelContainer
 
     async Task Answer(Ask ask, AskAnswer answer)
     {
-        SetButtons(true); Unhook();                                             // one answer per Ask: no second click or key can double-send
+        SetButtons(true); Unhook(); _sentAsk = ask.Id;                          // one answer per Ask: no second click or key can double-send
         _lastCommand = Guid.CreateVersion7();                                   // before the send, so a Refused that lands first still matches
         _sent.Sent(_lastCommand.Value);                                         // a move commit's ghosts go with it, else none are held
         _flight.Sent(ask.Id, _lastCommand.Value);
@@ -438,15 +448,15 @@ public partial class DecisionBox : PanelContainer
         if (_input is not null && IsInstanceValid(_input)) _input.DropProposed();   // before Proposing clears: a held ghost would otherwise drop as a hand move
         if (_input is not null && IsInstanceValid(_input)) { _input.Proposing.Clear(); _input.Allowance = null; _input.Proposed = null; _input.Region = null; _input.Reach = null; _input.Eligible = new HashSet<Guid>(); }
         if (_region is not null && IsInstanceValid(_region)) _region.Hide();
-        if (_view is not null && IsInstanceValid(_view)) _view.ClearExitGhosts();
+        if (_view is not null && IsInstanceValid(_view)) { _view.ClearExitGhosts(); _view.Paths.Hide(); }
     }
 
     /// <summary>Unhook, and the card's controls and the table's highlights with it.</summary>
     void Reset()
     {
-        Unhook(); _numbered = [];
+        Unhook(); _numbered = []; _foot.Clear(); _cardActions = []; _sentAsk = null;
         // The option tiles and the foot's actions stand for the next Ask, hidden; whatever else the Ask made goes.
-        foreach (var parent in new Node[] { _controls, _foot })
+        foreach (var parent in new Node[] { _controls, _footRow })
             foreach (var child in parent.GetChildren())
             {
                 if (child is not Control c) continue;
@@ -456,7 +466,7 @@ public partial class DecisionBox : PanelContainer
         if (_view is not null && IsInstanceValid(_view)) foreach (var n in _view.Pieces.OfType<PieceNode>()) n.SetHighlight(null);
     }
 
-    void SetButtons(bool disabled) { foreach (var parent in new Node[] { _controls, _foot }) foreach (var b in parent.FindChildren("*", "BaseButton", true, false).OfType<BaseButton>()) b.Disabled = disabled; }
+    void SetButtons(bool disabled) { foreach (var parent in new Node[] { _controls, _footRow }) foreach (var b in parent.FindChildren("*", "BaseButton", true, false).OfType<BaseButton>()) b.Disabled = disabled; }
     /// <summary>Into the card's body, which scrolls.</summary>
     /// <summary>A control added hidden (a gate line until a reason holds) shows or hides the scroll with it: an empty scroll still takes the
     /// body's separation, a gap above the foot.</summary>
@@ -487,18 +497,52 @@ public partial class DecisionBox : PanelContainer
     /// <summary>A card's action (DecisionTiles.Action), pooled by its look: the next Ask with the same action takes the same button, pressing this Ask's handler.</summary>
     readonly Dictionary<string, Button> _acts = new(); readonly Dictionary<Button, Action> _actPressed = new();
     readonly AnswerInFlight _flight = new();
-    Button Act(string text, string key, Action pressed, bool primary = false, string? icon = null)
+    /// <summary>The open Ask's foot actions (CardActions.Of), and the button each stands on in the order made.</summary>
+    IReadOnlyList<CardAction> _cardActions = [];
+    readonly List<(string Id, Button Button)> _foot = new();
+
+    /// <summary>The action <paramref name="id"/> of this Ask's card as a button, its key cap set by Rekey.</summary>
+    Button Act(string id, Action pressed)
     {
-        var id = $"{text}\u001f{key}\u001f{primary}\u001f{icon}";
-        if (!_acts.TryGetValue(id, out var b) || !IsInstanceValid(b))
+        var a = _cardActions.FirstOrDefault(x => x.Id == id) ?? CardActions.Placing.First(x => x.Id == id);
+        var look = $"{a.Word}\u001f{a.Primary}\u001f{a.Icon}";
+        if (!_acts.TryGetValue(look, out var b) || !IsInstanceValid(b))
         {
             Button made = null!;
-            made = DecisionTiles.Action(text, key, () => { if (_actPressed.TryGetValue(made, out var a)) a(); }, primary, icon);
-            _acts[id] = b = made;
+            made = DecisionTiles.Action(a.Word, "", () => { if (_actPressed.TryGetValue(made, out var act)) act(); }, a.Primary, a.Icon);
+            _acts[look] = b = made;
         }
         _actPressed[b] = pressed;
         b.Disabled = false; b.TooltipText = "";
+        _foot.RemoveAll(f => f.Id == id || f.Button == b); _foot.Add((id, b));
         return b;
+    }
+
+    /// <summary>The foot's key caps after the numbered tiles (CardActions.Numbered): again whenever the tiles are renumbered.</summary>
+    void Rekey()
+    {
+        var keyed = CardActions.Numbered(_cardActions, _numbered.Count);
+        foreach (var (id, b) in _foot) if (IsInstanceValid(b)) DecisionTiles.SetCap(b, DecisionCard.KeyCap(keyed.FirstOrDefault(a => a.Id == id)?.Key ?? 0));
+    }
+
+    /// <summary>The foot's actions as the card shows them now: their keys, and enabled as their buttons are (a dim one's tooltip its reason).</summary>
+    public IReadOnlyList<CardAction> Actions
+    {
+        get
+        {
+            var keyed = CardActions.Numbered(_cardActions, _numbered.Count);
+            return _foot.Where(f => IsInstanceValid(f.Button) && f.Button.Visible).Select(f => keyed.FirstOrDefault(a => a.Id == f.Id) is { } a
+                ? a with { Enabled = !f.Button.Disabled, Reason = f.Button.Disabled && f.Button.TooltipText != "" ? f.Button.TooltipText : null } : null)
+                .OfType<CardAction>().ToList();
+        }
+    }
+
+    /// <summary>Presses the foot action as its button does; false when it is not on the card or dim.</summary>
+    public bool Press(string id)
+    {
+        if (_foot.FirstOrDefault(f => f.Id == id).Button is not { } b || !IsInstanceValid(b) || !b.Visible || b.Disabled || !_actPressed.TryGetValue(b, out var act)) return false;
+        act();
+        return true;
     }
 
     void SyncScroll()
@@ -509,7 +553,7 @@ public partial class DecisionBox : PanelContainer
     /// <summary>Into the card's foot: its actions, the primary first.</summary>
     void Foot(Control c)
     {
-        if (c.GetParent() == _foot) _foot.MoveChild(c, -1); else _foot.AddChild(c);
+        if (c.GetParent() == _footRow) _footRow.MoveChild(c, -1); else _footRow.AddChild(c);
         c.Visible = true;
     }
 }

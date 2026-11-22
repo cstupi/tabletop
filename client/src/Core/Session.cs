@@ -31,6 +31,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     IReadOnlyDictionary<Guid, int> _maxWounds = new Dictionary<Guid, int>();
     IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> _deployInside = new Dictionary<Guid, IReadOnlyList<Guid>>();
     IReadOnlySet<Guid> _maySetAside = new HashSet<Guid>();
+    IReadOnlyDictionary<Guid, SetAsideRule> _setAsideRules = new Dictionary<Guid, SetAsideRule>();
     IReadOnlyDictionary<Guid, UnitThreat> _threats = new Dictionary<Guid, UnitThreat>();
     IReadOnlySet<Guid> _inCover = new HashSet<Guid>();
 
@@ -86,6 +87,8 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     public IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside => _deployInside;
     /// <summary>The units that may be set aside before deployment now, or returned to it, from the latest ModelFacts.</summary>
     public IReadOnlySet<Guid> MaySetAside => _maySetAside;
+    /// <summary>Per unit that may be set aside, the rule that lets it and its text (ModelFacts.SetAsideRules): the deployment chip.</summary>
+    public IReadOnlyDictionary<Guid, SetAsideRule> SetAsideRules => _setAsideRules;
     /// <summary>Each unit's reach in its next activation, from the latest ModelFacts (threat range plan); an absent unit has none.</summary>
     public IReadOnlyDictionary<Guid, UnitThreat> Threats => _threats;
     /// <summary>The units in cover where they stand, from the latest ModelFacts (the unit card's shield).</summary>
@@ -448,6 +451,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
                 _maxWounds = new Dictionary<Guid, int>(f.MaxWounds);
                 _deployInside = f.DeployInside is { } inside ? new Dictionary<Guid, IReadOnlyList<Guid>>(inside) : new Dictionary<Guid, IReadOnlyList<Guid>>();
                 _maySetAside = new HashSet<Guid>(f.MaySetAside ?? []);
+                _setAsideRules = f.SetAsideRules is { } rules ? new Dictionary<Guid, SetAsideRule>(rules) : new Dictionary<Guid, SetAsideRule>();
                 _threats = f.Threats is { } threats ? new Dictionary<Guid, UnitThreat>(threats) : new Dictionary<Guid, UnitThreat>();
                 _inCover = new HashSet<Guid>(f.InCover ?? []);
                 CatchingUp = false;
@@ -564,6 +568,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
         _maxWounds = new Dictionary<Guid, int>();
         _deployInside = new Dictionary<Guid, IReadOnlyList<Guid>>();
         _maySetAside = new HashSet<Guid>();
+        _setAsideRules = new Dictionary<Guid, SetAsideRule>();
         _threats = new Dictionary<Guid, UnitThreat>();
         _inCover = new HashSet<Guid>();
         CatchingUp = true;

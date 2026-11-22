@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Held } from '../src/lib/play/modelDrag';
-import { labelOverlay, landingOverlay, landingRings, rulerLines, rulerOverlay, violationLabels, allowanceOverlay } from '../src/lib/play/moveOverlays';
+import { labelOverlay, landingOverlay, landingRings, pathsOverlay, rulerLines, rulerOverlay, violationLabels, allowanceOverlay } from '../src/lib/play/moveOverlays';
+import { footprintColour, lineColour } from '../src/lib/play/movePaths';
 import { read } from '../src/lib/play/moveRuler';
 import { Violations } from '../src/lib/play/violations';
 
@@ -43,10 +44,10 @@ describe('move overlays', () => {
     v.measure(['a', 'b', 'c'], new Map([['a', 'overlaps a base'], ['b', 'overlaps a base'], ['c', 'path crosses a model']]));
     const centres: Record<string, { x: number; y: number }> = { a: { x: 1, y: 1 }, b: { x: 2, y: 2 }, c: { x: 3, y: 3 } };
     expect(violationLabels(v, ['a', 'b', 'c'], (id) => centres[id] ?? null)).toEqual([
-      { at: { x: 1, y: 1 }, text: 'overlaps a base' }, { at: { x: 3, y: 3 }, text: 'path crosses a model' },
+      { modelId: 'a', at: { x: 1, y: 1 }, text: 'On a base' }, { modelId: 'c', at: { x: 3, y: 3 }, text: 'Through a model' },
     ]);
-    expect(violationLabels(v, ['b', 'c', 'a'], (id) => centres[id] ?? null)[0]).toEqual({ at: { x: 2, y: 2 }, text: 'overlaps a base' });
-    expect(violationLabels(v, ['a', 'c'], (id) => (id === 'a' ? null : centres[id]!))).toEqual([{ at: { x: 3, y: 3 }, text: 'path crosses a model' }]);
+    expect(violationLabels(v, ['b', 'c', 'a'], (id) => centres[id] ?? null)[0]).toEqual({ modelId: 'b', at: { x: 2, y: 2 }, text: 'On a base' });
+    expect(violationLabels(v, ['a', 'c'], (id) => (id === 'a' ? null : centres[id]!))).toEqual([{ modelId: 'c', at: { x: 3, y: 3 }, text: 'Through a model' }]);
   });
 
   it('the overlays draw in table inches through the projection', () => {
@@ -56,10 +57,37 @@ describe('move overlays', () => {
     allowanceOverlay([{ centre: { x: 1, y: 2 }, radius: 3 }], '#fff')(ctx, project, 10);
     rulerOverlay([{ from: O, to: { x: 4, y: 0 }, text: '4.0"', outOfRange: false }])(ctx, project, 10);
     landingOverlay([{ centre: { x: 1, y: 1 }, radius: 1 }])(ctx, project, 10);
-    labelOverlay([{ at: { x: 2, y: 2 }, text: 'x' }], '#fff')(ctx, project, 10);
     expect(calls).toContain('arc:10,20,30,0,6.283185307179586');
     expect(calls).toContain('lineTo:40,0');
     expect(calls).toContain('fillText:4.0",20,-6');
-    expect(calls).toContain('fillText:x,20,4');
+  });
+
+  it("a model's labels stack a step apart over it, and two models' labels never meet", () => {
+    const texts: { text: string; x: number; y: number }[] = [];
+    const ctx = new Proxy({}, {
+      get: (_t, k) => (k === 'fillText' ? (text: string, x: number, y: number) => texts.push({ text, x, y }) : k === 'measureText' ? (t: string) => ({ width: t.length * 7 }) : () => {}),
+      set: () => true,
+    }) as unknown as CanvasRenderingContext2D;
+    labelOverlay([
+      { modelId: 'a', at: { x: 20, y: 20 }, text: 'Out of coherency' }, { modelId: 'a', at: { x: 20, y: 20 }, text: 'Dangerous terrain test' },
+      { modelId: 'b', at: { x: 21, y: 20 }, text: 'On a base' },
+    ], '#fff')(ctx, (p) => ({ x: p.x * 10, y: p.y * 10 }), 10);
+    const [first, second, other] = texts;
+    expect(first!.x).toBe(second!.x);
+    expect(second!.y - first!.y).toBe(13 + 4);
+    expect(Math.abs(other!.y - first!.y) >= 13 || Math.abs(other!.y - second!.y) >= 13).toBe(true);
+    expect([first, second].every((t) => Math.abs(other!.y - t!.y) >= 13 || Math.abs(other!.x - t!.x) * 2 >= (t!.text.length + other!.text.length) * 7)).toBe(true);
+  });
+
+  it('a path draws its route and each footprint, a dangerous one in the dangerous colour', () => {
+    const strokes: string[] = []; let style = '';
+    const ctx = new Proxy({}, {
+      get: (_t, k) => (k === 'stroke' ? () => strokes.push(style) : () => {}),
+      set: (_t, k, v) => { if (k === 'strokeStyle') style = String(v); return true; },
+    }) as unknown as CanvasRenderingContext2D;
+    const start = { body: { base: { shape: 'circle' as const, a: 1, b: 1 }, height: 1 }, placement: { position: { x: 0, y: 0, z: 0 }, yaw: { degrees: 0 } } };
+    pathsOverlay([{ modelId: 'm', start, route: [O, { x: 2, y: 0 }], footprints: [{ at: O, dangerous: false }, { at: { x: 2, y: 0 }, dangerous: true }], dangerous: ['v'] }],
+      '#3366e6')((ctx), (p) => p, 10);
+    expect(strokes).toEqual([lineColour('#3366e6'), footprintColour({ at: O, dangerous: false }, '#3366e6'), footprintColour({ at: O, dangerous: true }, '#3366e6')]);
   });
 });

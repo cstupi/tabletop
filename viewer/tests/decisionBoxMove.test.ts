@@ -24,7 +24,7 @@ describe('the move Ask', () => {
     expect(r.hooks.allowance()).toEqual([{ centre: { x: 10, y: 10 }, radius: 6 }]);
     r.hooks.picked([b]);
     expect(r.hooks.allowance()).toEqual([{ centre: { x: 10, y: 10 }, radius: 6 }, { centre: { x: 12, y: 10 }, radius: 6 }]);
-    expect(r.control('commit')).toMatchObject({ label: 'Commit', key: '⏎', primary: true });
+    expect(r.control('commit')).toMatchObject({ label: 'Commit', key: '1', primary: true });
   });
 
   it('each listed model\'s area is asked of the geometry once per Ask, with the Ask\'s dangerous and unstable volumes', () => {
@@ -142,6 +142,20 @@ describe('the move Ask', () => {
     expect(r.disabled('commit')).toBe(false);
   });
 
+  it('a path crossing dangerous ground warns, marks its model and never holds the commit, even under strict', () => {
+    const r = moveRig({ enforcement: 'strict' });
+    const [a] = r.ids as [string, string];
+    r.openMove(region({ modelIds: r.ids, allowance: 100 }));
+    r.box.dragged(a, at(45, 10));
+    expect(r.disabled('commit')).toBe(false);
+    expect(r.reason()).toMatch(/^.+ crosses terrain: Dangerous terrain test\.$/);
+    expect(r.violations.warned.get(a)).toBe('Dangerous terrain test');
+    expect(r.hooks.paths().find((p) => p.modelId === a)?.footprints.some((f) => f.dangerous)).toBe(true);
+    r.box.dragged(a, at(12, 10));
+    expect(r.reason()).toBe('');
+    expect(r.violations.warned.size).toBe(0);
+  });
+
   it('under warn the reason shows and Commit sends', () => {
     const r = moveRig({ enforcement: 'warn' });
     const [a] = r.ids as [string, string];
@@ -187,7 +201,7 @@ describe('the move Ask', () => {
   it('the stop sends continues true', () => {
     const r = moveRig();
     r.openMove(region({ modelIds: r.ids, stoppable: true }));
-    expect(r.control('stop')).toMatchObject({ label: 'Stop here', key: 'C' });
+    expect(r.control('stop')).toMatchObject({ label: 'Stop here', key: '2' });
     expect(r.box.stop()).toBe(true);
     expect(answerOf(r.sent[0]).continues).toBe(true);
   });

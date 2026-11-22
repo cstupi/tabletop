@@ -97,15 +97,15 @@ public partial class DecisionBox
         _onEnter = Commit;
         // Any ghost out of range is counted and each contact named, only while it holds; under strict the commit and the stop wait until none is.
         var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false }; Add(reason);
-        var commit = Act("Commit", DecisionCard.Enter, Commit, primary: true, icon: "ready"); Foot(commit);
+        var commit = Act(CardActions.Commit, Commit); Foot(commit);
         Button? stop = null;
         if (legal.Stoppable && !MoveRuler.IsDisembark(legal))
         {
             void Stop() => Relocate(true);
             _onStop = Stop;
-            var word = DecisionView.StopLabel(p, legal)!;
-            Foot(stop = Act(word, DecisionCard.Stop, Stop, icon: word.StartsWith("Cast", StringComparison.Ordinal) ? "cast" : "hold"));
+            Foot(stop = Act(CardActions.Stop, Stop));
         }
+        var starts = MovePaths.Starts(p, legal);
         _regate = () =>
         {
             if (_proposed is not { } proposed || !IsInstanceValid(commit)) return;
@@ -116,9 +116,15 @@ public partial class DecisionBox
             var placed = proposed.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
             _input.Violations.Measure(legal.ModelIds, KeepAwayArea.With(ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit), legal.Separation, names.Unit),
                 p, legal.KeepAway, placed, names.Unit));
-            _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MarkedOf(legal.ModelIds));
+            // Each moved model's path and footprints, and a warning where its swept base crosses dangerous ground: never holding the commit.
+            var paths = _regions is null ? [] : MovePaths.Proposed(_regions, starts, legal, _view.Volumes, proposed.ToDictionary(kv => kv.Key, kv => kv.Value.Horizontal), unit < allowance);
+            _input.Violations.Warn(legal.ModelIds, MovePaths.Marks(paths));
+            _view.Paths.Show(paths, _regionColour);
+            var warnings = MovePaths.Lines(paths, id => _input.Violations.Subject?.Invoke(id) ?? names.Model(id), v => MovePaths.VolumeName(p.Board.Table, v));
+            _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MarkedOf(legal.ModelIds), warnings);
             if (unit is { } cap) setBar?.Invoke(DecisionCard.Bar(readouts, cap, minimum));
             commit.Disabled = !_gate.Allowed; if (stop is not null) stop.Disabled = !_gate.Allowed;
+            var why = _gate.Allowed ? "" : _gate.Reason ?? ""; commit.TooltipText = why; if (stop is not null) stop.TooltipText = why;
             reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null && !RepeatsRefusal(_gate.Reason);
         };
         _regate();
@@ -277,7 +283,8 @@ public partial class DecisionBox
         _onCancel = () => { Reset(); Render(); return true; };                    // Reset drops _deployUnit, so Render arms a fresh click
         // A ghost on another model's base is named, only while it holds; under strict Place waits until none is.
         var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false }; Add(reason);
-        var place = Act("Place", DecisionCard.Enter, PlaceDeploy, primary: true, icon: "ready"); Foot(place);
+        _cardActions = CardActions.Placing;
+        var place = Act(CardActions.Place, PlaceDeploy); Foot(place); Rekey();
         _regate = () =>
         {
             if (_deployAt is not { } at || _s.Projection is not { } p || _s.Game is not { } game || !IsInstanceValid(place)) return;
@@ -285,7 +292,7 @@ public partial class DecisionBox
             var unitName = new Names(game, p).Unit;
             _input.Violations.Measure(at.Keys, KeepAwayArea.With(ContactCheck.Words(ContactCheck.Placement(p, placed, _view.Volumes), null, unitName), p, _deployKeep, placed, unitName));
             _gate = MoveRuler.Gate([], game.Enforcement, MarkedOf(at.Keys));
-            place.Disabled = !_gate.Allowed;
+            place.Disabled = !_gate.Allowed; place.TooltipText = _gate.Allowed ? "" : _gate.Reason ?? "";
             reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null && !RepeatsRefusal(_gate.Reason);
         };
         _regate();

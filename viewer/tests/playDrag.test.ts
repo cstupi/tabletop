@@ -190,7 +190,7 @@ describe('PlayDrags', () => {
     expect(r.drags.overlays(() => null, 1)).toHaveLength(1);                                                 // the allowance ring
     r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS);
     r.drags.onDragMove({ x: 14, y: 10 }, NO_MODIFIERS);
-    expect(r.drags.overlays(() => null, 1).length).toBe(3);                                                  // ring, rulers, landing rings
+    expect(r.drags.overlays(() => null, 1).length).toBe(4);                                                  // ring, path and footprints, rulers, landing rings
   });
 
   describe('picking models', () => {

@@ -73,7 +73,7 @@ public partial class SetupRail : PanelContainer
     static StyleBoxFlat BadgeBox()
     {
         var b = new StyleBoxFlat { BgColor = Ui.Accent };
-        b.SetCornerRadiusAll(8); b.ContentMarginLeft = b.ContentMarginRight = Space.XS;
+        b.SetCornerRadiusAll(16); b.SetContentMarginAll(Space.S);   // S inside the pill (spacing rule 5); the radius rounds its taller ends
         return b;
     }
 

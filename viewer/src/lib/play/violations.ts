@@ -4,6 +4,7 @@
 
 import type { Enforcement } from '../protocol/wire.generated';
 import { sentence } from './contactCheck';
+import { shortWords } from './markLabels';
 
 export class Violations {
   readonly #measured = new Map<string, string>();
@@ -13,6 +14,7 @@ export class Violations {
   #refusal: string | null = null;
   #words: ReadonlyMap<string, string> = new Map();
   #marked: ReadonlyMap<string, string> = new Map();
+  #warned: ReadonlyMap<string, string> = new Map();
 
   /** `subject` names a model for the decision box's sentences (contactCheck's `sentence`); without it a mark is its words. */
   constructor(subject: ((modelId: string) => string | null) | null = null) { this.#subject = subject; }
@@ -49,24 +51,46 @@ export class Violations {
     this.#update();
   }
 
-  clear(): void { this.#measured.clear(); this.#refused.clear(); this.#refusal = null; this.#update(); }
+  /** A move's warnings over these models (movePaths' marks: a dangerous terrain test the path owes): drawn and labelled like a mark, never
+   *  holding the commit; other models' are kept. */
+  get warned(): ReadonlyMap<string, string> { return this.#warned; }
+
+  warn(over: Iterable<string>, found: ReadonlyMap<string, string>): void {
+    const next = new Map(this.#warned);
+    for (const id of over) next.delete(id);
+    for (const [id, words] of found) next.set(id, words);
+    if (same(next, this.#warned)) return;
+    this.#warned = next;
+    for (const l of [...this.#listeners]) l();
+  }
+
+  clear(): void {
+    const warned = this.#warned.size > 0;
+    this.#warned = new Map();
+    this.#measured.clear(); this.#refused.clear(); this.#refusal = null;
+    if (!this.#update() && warned) for (const l of [...this.#listeners]) l();
+  }
 
   /** Under strict a marked model holds the commit; under warn and silent it goes and the server judges. */
   blocks(enforcement: Enforcement): boolean { return enforcement === 'strict' && this.#marked.size > 0; }
 
-  /** One label per reason, over the first model in this order that has it: the words, since the label stands over the model. */
+  /** One label per reason, over the first model in this order that has it, in its short words (markLabels' shortWords: the full sentence is
+   *  the decision box's); a model with a mark and a warning carries both, the mark first. */
   labels(order: Iterable<string>): { modelId: string; reason: string }[] {
     const seen = new Set<string>();
     const out: { modelId: string; reason: string }[] = [];
-    for (const id of order) {
-      const reason = this.#words.get(id);
-      if (reason === undefined || seen.has(reason)) continue;
-      seen.add(reason); out.push({ modelId: id, reason });
-    }
+    for (const id of order)
+      for (const words of [this.#words.get(id), this.#warned.get(id)]) {
+        if (words === undefined) continue;
+        const reason = shortWords(words);
+        if (seen.has(reason)) continue;
+        seen.add(reason); out.push({ modelId: id, reason });
+      }
     return out;
   }
 
-  #update(): void {
+  /** Recomputes the marks; true when they changed (and the listeners heard it). */
+  #update(): boolean {
     const words = new Map(this.#measured);
     if (this.#refusal !== null) for (const id of this.#refused) if (!words.has(id)) words.set(id, this.#refusal);
     const said = new Map<string, string>();                               // each measured reason's sentence, about its first model
@@ -76,9 +100,10 @@ export class Violations {
       said.set(w, name === null ? w : sentence(w, name));
     }
     const marked = new Map([...words].map(([id, w]) => [id, this.#measured.has(id) ? said.get(w)! : w] as const));
-    if (same(words, this.#words) && same(marked, this.#marked)) return;
+    if (same(words, this.#words) && same(marked, this.#marked)) return false;
     this.#words = words; this.#marked = marked;
     for (const l of [...this.#listeners]) l();
+    return true;
   }
 }
 

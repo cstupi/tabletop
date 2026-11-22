@@ -6,16 +6,17 @@ using Tabletop.Client.Theming;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>Lower right: a button (`≡ Log G`, held down while open, the cap the log key's binding) that opens the log above it. The log key toggles it. GameScreen.Layout places both through Place.</summary>
+/// <summary>Top right: the theme's `log` icon as a button (held down while open; the tooltip its word and the log key's cap) that opens the log
+/// below it, down the right side. The log key toggles it. GameScreen.Layout places both through Place.</summary>
 public partial class LogDrawer : Control
 {
     Session _s = null!;
     readonly PanelContainer _drawer = new() { Visible = false };
     readonly CombatLogPanel _log = new();
     public CombatLogPanel CombatLog => _log;
-    readonly Button _toggle = HudBits.CapButton("log", "Log", Hotkeys.Bindings.Cap(Intent.ToggleLog), "Open or close the log");
+    readonly Button _toggle = new() { FocusMode = FocusModeEnum.None };
     string _cap = Hotkeys.Bindings.Cap(Intent.ToggleLog);
-    /// <summary>The Log button, whose height the Hud's button row takes.</summary>
+    /// <summary>The Log button, whose size the Hud's corner buttons take.</summary>
     public Control Toggle => _toggle;
     /// <summary>The open log panel; hidden while the drawer is closed.</summary>
     public Control Panel => _drawer;
@@ -33,13 +34,13 @@ public partial class LogDrawer : Control
         MouseFilter = MouseFilterEnum.Ignore;
         var inner = new VBoxContainer(); _drawer.AddChild(inner);
         inner.AddChild(_log); _log.Bind(session, view, message => Reported?.Invoke(message));
-        AddChild(_drawer); AddChild(_toggle);
+        AddChild(_drawer); AddChild(_toggle); Refill();
         _toggle.Pressed += Flip;
         Ui.Changed += Refill; session.SettingsChanged += OnSettings;
         SetOpen(session.Settings.LogOpen);
     }
 
-    void Refill() { _cap = Hotkeys.Bindings.Cap(Intent.ToggleLog); HudBits.Fill(_toggle, "log", "Log", _cap); }
+    void Refill() { _cap = Hotkeys.Bindings.Cap(Intent.ToggleLog); HudBits.IconFace(_toggle, "log"); _toggle.TooltipText = $"Log ({_cap})"; }
     /// <summary>A rebind of the log's key shows on the button.</summary>
     void OnSettings() { if (Hotkeys.Bindings.Cap(Intent.ToggleLog) != _cap) Refill(); }
     public override void _ExitTree() { Ui.Changed -= Refill; if (_s is not null) _s.SettingsChanged -= OnSettings; }
@@ -52,7 +53,7 @@ public partial class LogDrawer : Control
     /// <summary>The button into its slot, and the panel into its slot when it shows.</summary>
     public void Place(HudRect button, HudRect? panel)
     {
-        HudPlacement.Bottom(_toggle, button);
+        HudPlacement.Top(_toggle, button);
         if (panel is { } r && _drawer.Visible) HudPlacement.Fill(_drawer, r);
     }
 

@@ -13,6 +13,8 @@ xUnit projects, one per library, per server and for the client's Godot-free core
 - `Tabletop.Client.Tests`: compiles `client/src/Core/**/*.cs` from source, so a `using Godot` there breaks this project. `CombatLogViewerFixtureTests` writes `viewer/tests/fixtures/combatlog.json` (`TABLETOP_WRITE_FIXTURES=1`, `--filter CombatLogViewerFixture`) and `CallsViewerFixtureTests` writes `viewer/tests/fixtures/calls.json` (`--filter CallsViewerFixture`), what Godot's Core builders send for each choice over the recorded logs, and `UnitActionsViewerFixtureTests` writes `viewer/tests/fixtures/unitActions.json` (`--filter UnitActionsViewerFixture`); each fails when stale.
 - `Tabletop.Sim.Tests`: `sim/`; references `Tabletop.GameServer.Tests` for `GameServerFactory`, `InMemorySeeder` and `PostgresFixture`.
 - `Tabletop.ArmyBooks.Tests`: the generator, against `Fixtures/`.
+- `Tabletop.TableTextures.Tests`, `Tabletop.ThemeTextures.Tests`: the texture generators against their shipped images; the second also
+  compiles `client/src/Core/UiTheme.cs` and `UiThemes.cs` for the material margins and the 4.5:1 text contrast on every material.
 - `Tabletop.Viewer.Tests`: generates and checks the viewer's TypeScript types and fixtures, and the call logs `viewer/tests/fixtures/calls/` (`CallLogFixtureTests`, `--filter CallLogFixture`).
 - `Tabletop.Geometry.Wasm.Tests`: the browser facade in-process, and the agreement cases (`TABLETOP_WRITE_FIXTURES=1` writes `viewer/tests/fixtures/geometry.cases.json`, which the viewer replays through the WebAssembly).
 

@@ -3,17 +3,20 @@
 // and then as board Overlays.
 
 import type { Overlay } from '../board/interaction';
-import { drawLabel } from '../board/labelPlacement';
+import { drawLabel, measureOf, viewportWidthOf } from '../board/labelPlacement';
 import type { MoveBands, XY } from '../geometry';
 import { bandColour, layers, STRIPE_SPACING, striped } from './moveBandLook';
 import { readoutText, type RulerReadout } from './moveRuler';
 import type { Held } from './modelDrag';
+import { footprintColour, lineColour, outline, type ModelPath } from './movePaths';
 import type { Violations } from './violations';
+import { MARK_GAP, placeMarkLabels } from './markLabels';
 
 /** `path`: the bent path the move is measured along (from `from` to `to`), drawn instead of the straight line. */
 export interface RulerLine { readonly from: XY; readonly to: XY; readonly text: string; readonly outOfRange: boolean; readonly path?: readonly XY[] }
 export interface Ring { readonly centre: XY; readonly radius: number }
-export interface Label { readonly at: XY; readonly text: string }
+/** `modelId`: whose label it is, so one model's labels stack (placeMarkLabels); absent for a label of its own. */
+export interface Label { readonly at: XY; readonly text: string; readonly modelId?: string }
 
 /** RulerNode: the line from where each piece started to where it is. One reading for the drag: the model that moved farthest, which binds
  *  the allowance; the other lines carry none. */
@@ -40,7 +43,7 @@ export function landingRings(held: Held, radius: (modelId: string) => number): R
 export function violationLabels(v: Violations, order: readonly string[], centreOf: (id: string) => XY | null): Label[] {
   return v.labels(order).flatMap((l) => {
     const at = centreOf(l.modelId);
-    return at === null ? [] : [{ at, text: l.reason }];
+    return at === null ? [] : [{ modelId: l.modelId, at, text: l.reason }];
   });
 }
 
@@ -88,7 +91,35 @@ export const bandsOverlay = (areas: readonly MoveBands[], team: string): Overlay
   }
 };
 
-export const rulerOverlay = (lines: readonly RulerLine[]): Overlay => (ctx, project) => {
+/** MovePathNode: each model's route as a faint line and its base's outline at each footprint (the start's facing) in the team colour, a footprint
+ *  touching dangerous ground in the dangerous colour; one stroke per colour. */
+export const pathsOverlay = (paths: readonly ModelPath[], team: string): Overlay => (ctx, project) => {
+  if (paths.length === 0) return;
+  ctx.save();
+  ctx.lineWidth = 1.5; ctx.setLineDash([]);
+  ctx.strokeStyle = lineColour(team);
+  ctx.beginPath();
+  for (const path of paths) {
+    const points = path.route.map(project);
+    if (points.length < 2) continue;
+    ctx.moveTo(points[0]!.x, points[0]!.y);
+    for (const q of points.slice(1)) ctx.lineTo(q.x, q.y);
+  }
+  ctx.stroke();
+  for (const dangerous of [false, true]) {
+    const rings = paths.flatMap((path) => path.footprints.filter((f) => f.dangerous === dangerous)
+      .map((f) => outline(path.start.body.base, f.at, path.start.placement.yaw.degrees).map(project)));
+    if (rings.length === 0) continue;
+    ctx.strokeStyle = footprintColour({ at: { x: 0, y: 0 }, dangerous }, team);
+    ctx.lineWidth = dangerous ? 2 : 1.5;
+    ctx.beginPath();
+    for (const ring of rings) { ctx.moveTo(ring[0]!.x, ring[0]!.y); for (const q of ring.slice(1)) ctx.lineTo(q.x, q.y); ctx.closePath(); }
+    ctx.stroke();
+  }
+  ctx.restore();
+};
+
+export const rulerOverlay =(lines: readonly RulerLine[]): Overlay => (ctx, project) => {
   ctx.lineWidth = 1.5; ctx.font = '11px ui-monospace, monospace'; ctx.textAlign = 'center';
   for (const line of lines) {
     const points = (line.path ?? [line.from, line.to]).map(project);
@@ -121,7 +152,25 @@ export const boxOverlay = (from: XY, to: XY, colour = '#ffffff'): Overlay => (ct
   ctx.restore();
 };
 
-export const labelOverlay = (labels: readonly Label[], colour: string): Overlay => (ctx, project) => {
-  ctx.fillStyle = colour; ctx.font = 'bold 11px ui-monospace, monospace'; ctx.textAlign = 'center';
-  for (const label of labels) { const p = project(label.at); drawLabel(ctx, label.text, { x: p.x, y: p.y - 16 }, colour, { lineHeight: 13, grow: 'up' }); }
+/** ViolationMarks' labels: short words by each model, a model's stacked MARK_GAP apart under its base (the unit's name label stands over it),
+ *  no two meeting and none leaving the board's canvas (placeMarkLabels). */
+export const labelOverlay = (labels: readonly Label[], colour: string): Overlay => (ctx, project, ppi) => {
+  if (labels.length === 0) return;
+  ctx.fillStyle = colour; ctx.font = 'bold 11px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const lineHeight = 13, measure = measureOf(ctx);
+  const ids = labels.map((l, i) => l.modelId ?? `#${i}`);
+  const stack = (id: string): number => ids.filter((x) => x === id).length * (lineHeight + MARK_GAP) - MARK_GAP;
+  const below = 1.3 * (Number.isFinite(ppi) ? ppi : 10);                 // past a cavalry base's half-length
+  const wanted = labels.map((l, i) => {
+    const p = project(l.at);
+    return { modelId: ids[i]!, anchor: { x: p.x, y: p.y + below + stack(ids[i]!) }, w: measure(l.text) + 4, h: lineHeight };
+  });
+  const canvas = (ctx as { canvas?: { width?: unknown; height?: unknown } }).canvas;
+  const scale = typeof ctx.getTransform === 'function' ? ctx.getTransform()?.d : undefined;
+  const w = viewportWidthOf(ctx), h = typeof canvas?.height === 'number' ? canvas.height / (typeof scale === 'number' && scale > 0 ? scale : 1) : Infinity;
+  const view = Number.isFinite(w) && Number.isFinite(h) ? { x: 0, y: 0, w, h } : { x: -1e6, y: -1e6, w: 2e6, h: 2e6 };
+  const placed = placeMarkLabels(wanted, view);
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)'; ctx.lineWidth = 3; ctx.lineJoin = 'round';     // a halo, so the words read over the bands and paths
+  labels.forEach((l, i) => { const r = placed[i]!; ctx.strokeText(l.text, r.x + r.w / 2, r.y); ctx.fillText(l.text, r.x + r.w / 2, r.y); });
+  ctx.textBaseline = 'alphabetic';
 };
