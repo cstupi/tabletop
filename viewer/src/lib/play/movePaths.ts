@@ -14,7 +14,7 @@ import { effectOf } from './terrainEffects';
 export const TEST_WORDS = 'Dangerous terrain test';
 /** The path's look: the line and footprints in the moving team's colour at these opacities, a footprint touching dangerous ground in the
  *  terrain's dangerous colour at DANGEROUS_ALPHA. */
-export const LINE_ALPHA = 0.5, FOOTPRINT_ALPHA = 0.35, DANGEROUS_ALPHA = 0.9;
+export const LINE_ALPHA = 0.6, FOOTPRINT_ALPHA = 0.5, DANGEROUS_ALPHA = 0.9;
 
 /** One model's move path: where it stood (its base at the start's facing), the route, the footprints and the dangerous volumes crossed. */
 export interface ModelPath {
@@ -27,12 +27,14 @@ export interface MoveSegment { readonly legal: MoveRegion; readonly moves: reado
 
 const rgb = (hex: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
 const rgba = (hex: string, a: number): string => { const [r, g, b] = rgb(hex); return `rgba(${r}, ${g}, ${b}, ${a})`; };
+/** The team colour lifted halfway to white: the path is drawn over the move's clear band, which is the team colour itself. */
+const light = (hex: string, a: number): string => { const [r, g, b] = rgb(hex).map((c) => Math.round((c + 255) / 2)); return `rgba(${r}, ${g}, ${b}, ${a})`; };
 
 /** A footprint's colour as a CSS rgba(), for a team colour given as #rrggbb. */
 export const footprintColour = (f: PathFootprint, team: string): string =>
-  f.dangerous ? rgba(effectOf('dangerous').colour, DANGEROUS_ALPHA) : rgba(team, FOOTPRINT_ALPHA);
+  f.dangerous ? rgba(effectOf('dangerous').colour, DANGEROUS_ALPHA) : light(team, FOOTPRINT_ALPHA);
 /** The route line's colour. */
-export const lineColour = (team: string): string => rgba(team, LINE_ALPHA);
+export const lineColour = (team: string): string => light(team, LINE_ALPHA);
 
 /** A footprint's outline: the base at `at` turned to `yaw` degrees (length a along the facing, +Y at yaw 0, counter-clockwise), a circle or
  *  oval as `segments` points, a rectangle as its corners. */

@@ -6,7 +6,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { Geometry } from '../src/lib/geometry';
 import { Applier } from '../src/lib/live/apply';
 import {
-  footprintColour, KeptPathCache, kept, last, LINE_ALPHA, lines, marks, measured, outline, volumeName, type ModelPath,
+  footprintColour, lineColour, KeptPathCache, kept, last, LINE_ALPHA, lines, marks, measured, outline, volumeName, type ModelPath,
 } from '../src/lib/play/movePaths';
 import type { Base, Board, GameEvent, GameInfo, ModelRelocation, MoveRegion, TableSize, TerrainPlacement } from '../src/lib/protocol/wire.generated';
 import type { ModelBody } from '../src/lib/geometry';
@@ -21,7 +21,7 @@ interface Fixture {
   flayer: { terrain: TerrainPlacement[]; size: TableSize; legal: MoveRegion; moves: ModelRelocation[]; body: ModelBody; names: Record<string, string>;
     paths: PathCase[]; marks: Record<string, string>; lines: string[] };
   outlines: { base: Base; at: [number, number]; yaw: number; outline: [number, number][] }[];
-  colours: { team: number[]; footprint: number[]; dangerous: number[]; lineAlpha: number };
+  colours: { team: number[]; footprint: number[]; dangerous: number[]; line: number[]; lineAlpha: number };
 }
 
 const fixture = JSON.parse(readFileSync('tests/fixtures/movePaths.json', 'utf8')) as Fixture;
@@ -71,10 +71,17 @@ it('footprint outlines agree', () => {
 
 it('footprint colours agree', () => {
   const hex = (c: number[]): string => '#' + c.slice(0, 3).map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
-  const css = (c: number[]): string => `rgba(${c.slice(0, 3).map((v) => Math.round(v * 255)).join(', ')}, ${Math.round(c[3]! * 100) / 100})`;
+  // Godot's colours are floats, the browser's bytes from a #rrggbb team colour: each channel within one step of 255.
+  const parts = (s: string): number[] => s.slice(5, -1).split(',').map(Number);
+  const near = (css: string, c: number[]): void => {
+    const [r, g, b, a] = parts(css);
+    [r, g, b].forEach((v, i) => expect(Math.abs(v! - c[i]! * 255)).toBeLessThanOrEqual(1));
+    expect(a).toBeCloseTo(c[3]!, 6);
+  };
   const team = hex(fixture.colours.team);
-  expect(footprintColour({ at: { x: 0, y: 0 }, dangerous: false }, team)).toBe(css(fixture.colours.footprint));
-  expect(footprintColour({ at: { x: 0, y: 0 }, dangerous: true }, team)).toBe(css(fixture.colours.dangerous));
+  near(footprintColour({ at: { x: 0, y: 0 }, dangerous: false }, team), fixture.colours.footprint);
+  near(footprintColour({ at: { x: 0, y: 0 }, dangerous: true }, team), fixture.colours.dangerous);
+  near(lineColour(team), fixture.colours.line);
   expect(LINE_ALPHA).toBe(fixture.colours.lineAlpha);
 });
 

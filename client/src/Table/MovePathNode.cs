@@ -18,7 +18,8 @@ public partial class MovePathNode : Node3D
         var lines = new Dictionary<Color, List<(Vector3, Vector3)>>();
         void Add(Color c, Vector3 a, Vector3 b) { if (!lines.TryGetValue(c, out var l)) lines[c] = l = []; l.Add((a, b)); }
         var rgba = new Rgba(team.R, team.G, team.B, team.A);
-        var line = team with { A = MovePaths.LineAlpha };
+        var l = MovePaths.Line(rgba);
+        var line = new Color(l.R, l.G, l.B, l.A);
         foreach (var path in paths)
         {
             var z = path.Start.Placement.Position.Z + 0.05;
@@ -38,7 +39,7 @@ public partial class MovePathNode : Node3D
             if (!_layers.TryGetValue(colour, out var layer))
             {
                 var mesh = new ImmediateMesh();
-                var node = new MeshInstance3D { Mesh = mesh, MaterialOverride = Palette.Unshaded(colour), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+                var node = new MeshInstance3D { Mesh = mesh, MaterialOverride = Material(colour), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
                 AddChild(node); _layers[colour] = layer = (mesh, node);
             }
             layer.Mesh.ClearSurfaces(); layer.Mesh.SurfaceBegin(Mesh.PrimitiveType.Lines);
@@ -50,4 +51,14 @@ public partial class MovePathNode : Node3D
     }
 
     public new void Hide() => Visible = false;
+
+    static readonly Dictionary<Color, StandardMaterial3D> _materials = new();
+
+    /// <summary>An unlit see-through line material per colour, drawn after the move's bands (MoveBandLook.Priority) so the path reads over them; shared,
+    /// never changed.</summary>
+    static StandardMaterial3D Material(Color c) => _materials.TryGetValue(c, out var m) ? m : _materials[c] = new StandardMaterial3D
+    {
+        AlbedoColor = c, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+        RenderPriority = MoveBandLook.Priority(MoveBand.Dangerous) + 1,
+    };
 }

@@ -149,10 +149,13 @@ public class MovePathsTests
     public void Footprints_are_faint_in_the_team_colour_and_a_dangerous_one_in_the_dangerous_colour()
     {
         var team = new Rgba(0.2f, 0.4f, 0.9f);
-        Assert.Equal(team with { A = MovePaths.FootprintAlpha }, MovePaths.Colour(new PathFootprint(new Point2(0, 0), false), team));
+        // Over the move's clear band, which is the team colour itself, the path is the team colour lifted halfway to white.
+        var light = new Rgba(0.6f, 0.7f, 0.95f);
+        Assert.Equal(light with { A = MovePaths.FootprintAlpha }, MovePaths.Colour(new PathFootprint(new Point2(0, 0), false), team));
+        Assert.Equal(light with { A = MovePaths.LineAlpha }, MovePaths.Line(team));
         Assert.Equal(TerrainEffects.Of(TerrainDeclarations.Dangerous).Colour with { A = MovePaths.DangerousAlpha },
             MovePaths.Colour(new PathFootprint(new Point2(0, 0), true), team));
-        Assert.True(MovePaths.FootprintAlpha < 0.5f && MovePaths.LineAlpha <= 0.5f);
+        Assert.True(MovePaths.FootprintAlpha < 1 && MovePaths.LineAlpha < 1);
     }
 
     static GameEvent E(long seq, EventPayload payload) => new(seq, null, payload, null);

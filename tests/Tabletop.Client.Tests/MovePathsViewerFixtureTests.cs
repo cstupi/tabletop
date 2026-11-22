@@ -89,7 +89,7 @@ public class MovePathsViewerFixtureTests
             ["colours"] = new JsonObject
             {
                 ["team"] = Colour(team), ["footprint"] = Colour(MovePaths.Colour(new PathFootprint(new Point2(0, 0), false), team)),
-                ["dangerous"] = Colour(MovePaths.Colour(new PathFootprint(new Point2(0, 0), true), team)), ["lineAlpha"] = MovePaths.LineAlpha,
+                ["dangerous"] = Colour(MovePaths.Colour(new PathFootprint(new Point2(0, 0), true), team)), ["line"] = Colour(MovePaths.Line(team)), ["lineAlpha"] = MovePaths.LineAlpha,
             },
         };
     }

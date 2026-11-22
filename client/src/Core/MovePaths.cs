@@ -27,11 +27,17 @@ public static class MovePaths
     public const string TestWords = "Dangerous terrain test";
     /// <summary>The path's look: the line and footprints in the moving team's colour at these opacities, a footprint touching dangerous ground in the
     /// terrain's dangerous colour (TerrainEffects, the dangerous band's) at DangerousAlpha.</summary>
-    public const float LineAlpha = 0.5f, FootprintAlpha = 0.35f, DangerousAlpha = 0.9f;
+    public const float LineAlpha = 0.6f, FootprintAlpha = 0.5f, DangerousAlpha = 0.9f;
+
+    /// <summary>The team colour lifted halfway to white: the path is drawn over the move's clear band, which is the team colour itself.</summary>
+    static Rgba Light(Rgba team) => new((team.R + 1) / 2, (team.G + 1) / 2, (team.B + 1) / 2);
 
     /// <summary>A footprint's colour for the moving team's colour.</summary>
     public static Rgba Colour(PathFootprint f, Rgba team) =>
-        f.Dangerous ? TerrainEffects.Of(TerrainDeclarations.Dangerous).Colour with { A = DangerousAlpha } : team with { A = FootprintAlpha };
+        f.Dangerous ? TerrainEffects.Of(TerrainDeclarations.Dangerous).Colour with { A = DangerousAlpha } : Light(team) with { A = FootprintAlpha };
+
+    /// <summary>The route line's colour for the moving team's colour.</summary>
+    public static Rgba Line(Rgba team) => Light(team) with { A = LineAlpha };
 
     /// <summary>The Ask's models where they stand on the table, as MoveRegions.Of reads them.</summary>
     public static IReadOnlyDictionary<Guid, PlacedModel> Starts(Projection p, MoveRegion legal) =>
