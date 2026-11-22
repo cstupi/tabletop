@@ -10,7 +10,7 @@ import { readoutText, type RulerReadout } from './moveRuler';
 import type { Held } from './modelDrag';
 import { footprintColour, lineColour, outline, type ModelPath } from './movePaths';
 import type { Violations } from './violations';
-import { placeMarkLabels } from './markLabels';
+import { MARK_GAP, placeMarkLabels } from './markLabels';
 
 /** `path`: the bent path the move is measured along (from `from` to `to`), drawn instead of the straight line. */
 export interface RulerLine { readonly from: XY; readonly to: XY; readonly text: string; readonly outOfRange: boolean; readonly path?: readonly XY[] }
@@ -152,21 +152,25 @@ export const boxOverlay = (from: XY, to: XY, colour = '#ffffff'): Overlay => (ct
   ctx.restore();
 };
 
-/** ViolationMarks' labels: short words over each model, a model's stacked MARK_GAP apart, no two meeting and none leaving the board's canvas
- *  (placeMarkLabels). */
-export const labelOverlay = (labels: readonly Label[], colour: string): Overlay => (ctx, project) => {
+/** ViolationMarks' labels: short words by each model, a model's stacked MARK_GAP apart under its base (the unit's name label stands over it),
+ *  no two meeting and none leaving the board's canvas (placeMarkLabels). */
+export const labelOverlay = (labels: readonly Label[], colour: string): Overlay => (ctx, project, ppi) => {
   if (labels.length === 0) return;
   ctx.fillStyle = colour; ctx.font = 'bold 11px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   const lineHeight = 13, measure = measureOf(ctx);
+  const ids = labels.map((l, i) => l.modelId ?? `#${i}`);
+  const stack = (id: string): number => ids.filter((x) => x === id).length * (lineHeight + MARK_GAP) - MARK_GAP;
+  const below = 1.3 * (Number.isFinite(ppi) ? ppi : 10);                 // past a cavalry base's half-length
   const wanted = labels.map((l, i) => {
     const p = project(l.at);
-    return { modelId: l.modelId ?? `#${i}`, anchor: { x: p.x, y: p.y - 10 }, w: measure(l.text) + 4, h: lineHeight };
+    return { modelId: ids[i]!, anchor: { x: p.x, y: p.y + below + stack(ids[i]!) }, w: measure(l.text) + 4, h: lineHeight };
   });
   const canvas = (ctx as { canvas?: { width?: unknown; height?: unknown } }).canvas;
   const scale = typeof ctx.getTransform === 'function' ? ctx.getTransform()?.d : undefined;
   const w = viewportWidthOf(ctx), h = typeof canvas?.height === 'number' ? canvas.height / (typeof scale === 'number' && scale > 0 ? scale : 1) : Infinity;
   const view = Number.isFinite(w) && Number.isFinite(h) ? { x: 0, y: 0, w, h } : { x: -1e6, y: -1e6, w: 2e6, h: 2e6 };
   const placed = placeMarkLabels(wanted, view);
-  labels.forEach((l, i) => { const r = placed[i]!; ctx.fillText(l.text, r.x + r.w / 2, r.y); });
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)'; ctx.lineWidth = 3; ctx.lineJoin = 'round';     // a halo, so the words read over the bands and paths
+  labels.forEach((l, i) => { const r = placed[i]!; ctx.strokeText(l.text, r.x + r.w / 2, r.y); ctx.fillText(l.text, r.x + r.w / 2, r.y); });
   ctx.textBaseline = 'alphabetic';
 };
