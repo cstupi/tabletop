@@ -29,6 +29,19 @@ public partial class ViolationMarks : Node3D
         _onChanged = () => _dirty = true;
         _onTheme = () => { _look = null; _dirty = true; };
         input.Violations.Changed += _onChanged; input.PickedUp += OnPickedUp; Ui.Changed += _onTheme;
+        Warm();
+    }
+
+    /// <summary>One label in the marks' look drawn off screen for a frame with every letter and figure the short words use, so the font's glyphs at
+    /// that size and outline are made before the first mark shows (a pickup that breaks coherency), not in its frame.</summary>
+    async void Warm()
+    {
+        _look ??= new LabelSettings { FontSize = 18, FontColor = Ui.Warning, OutlineSize = 6, OutlineColor = Ui.Background };
+        var label = new Label { Text = "abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789 \".,-:()'", LabelSettings = _look,
+            MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(-4000, -4000) };
+        _layer.AddChild(label);
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        if (IsInstanceValid(label)) label.QueueFree();
     }
 
     /// <summary>The models now in hand come first, so a reason they share rides the cursor.</summary>
@@ -76,16 +89,28 @@ public partial class ViolationMarks : Node3D
         for (var i = 0; i < placed.Count; i++) { _order[i].Position = new Vector2(placed[i].X, placed[i].Y); _order[i].Visible = true; }
     }
 
+    /// <summary>Every label made once stands (hidden when not wanted) and is set in place: a pickup or drag frame that changes the marks makes no
+    /// control and sets a text only when it differs, so no label shapes its text or lays out again for nothing.</summary>
+    readonly List<Label> _pool = [];
+
     void Relabel()
     {
-        foreach (var (_, label) in _labels) label.QueueFree();
-        _labels.Clear();
         _look ??= new LabelSettings { FontSize = 18, FontColor = Ui.Warning, OutlineSize = 6, OutlineColor = Ui.Background };
         var order = _input.HeldModels.Concat(_input.Violations.Marked.Keys.Concat(_input.Violations.Warned.Keys).Distinct().OrderBy(k => k));
+        _labels.Clear();
+        var i = 0;
         foreach (var (id, words) in _input.Violations.Labels(order))
         {
-            var label = new Label { Text = words, LabelSettings = _look, MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
-            _layer.AddChild(label); _labels.Add((id, label));
+            if (i == _pool.Count)
+            {
+                var made = new Label { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
+                _layer.AddChild(made); _pool.Add(made);
+            }
+            var label = _pool[i++];
+            if (!ReferenceEquals(label.LabelSettings, _look)) label.LabelSettings = _look;
+            if (label.Text != words) label.Text = words;
+            _labels.Add((id, label));
         }
+        for (; i < _pool.Count; i++) _pool[i].Visible = false;
     }
 }

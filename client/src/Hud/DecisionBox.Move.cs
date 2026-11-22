@@ -174,11 +174,15 @@ public partial class DecisionBox
     void PrepareArea(MoveRegions regions, IReadOnlyList<Guid> ids, Guid lead)
     {
         _unitMeshes = null;
+        var colour = _regionColour;
         _ = Task.Run(async () =>
         {
             await regions.Prepare(lead).ConfigureAwait(false);
             var unit = ids.Where(regions.Has).ToHashSet();
-            _unitMeshes = new UnitMeshes(regions, unit, MoveRegionNode.MeshesOf(regions.Area([.. unit])));
+            var made = new UnitMeshes(regions, unit, MoveRegionNode.MeshesOf(regions.Area([.. unit])));
+            _unitMeshes = made;
+            // Uploaded into the area's hidden set on the main thread now, so the pickup only swaps it in.
+            Callable.From(() => { if (_unitMeshes == made && _region is not null && IsInstanceValid(_region)) _region.Stage(made.Meshes, colour); }).CallDeferred();
         });
     }
 

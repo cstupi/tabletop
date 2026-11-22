@@ -10,7 +10,10 @@ namespace Tabletop.Client.Table;
 public partial class MoveRegionNode : Node3D
 {
     readonly List<MeshInstance3D> _meshes = [];
-    readonly Dictionary<MoveBand, (ArrayMesh Mesh, MeshInstance3D Node)> _bands = new();
+    Dictionary<MoveBand, (ArrayMesh Mesh, MeshInstance3D Node)> _bands = new();
+    /// <summary>A second set of standing band meshes, filled hidden ahead of a pickup (Stage), swapped in when the pickup shows the same area.</summary>
+    Dictionary<MoveBand, (ArrayMesh Mesh, MeshInstance3D Node)> _staged = new();
+    BandMeshes? _stagedMeshes; Color _stagedTeam;
     readonly HashSet<MoveBand> _warming = [];
 
     /// <summary>One star-shaped region (the disembark region) as a fan about its centre.</summary>
@@ -40,19 +43,40 @@ public partial class MoveRegionNode : Node3D
     public void ShowBands(BandMeshes meshes, Color team)
     {
         Hide();
+        if (ReferenceEquals(meshes, _stagedMeshes) && team == _stagedTeam)
+        {
+            // Filled and uploaded ahead (Stage): the pickup only swaps which set is shown.
+            (_bands, _staged) = (_staged, _bands);
+            _stagedMeshes = null;
+            foreach (var (band, layer) in _bands) { _warming.Remove(band); layer.Node.Visible = layer.Mesh.GetSurfaceCount() > 0; }
+            return;
+        }
         foreach (var (band, vertices) in meshes.Layers) Fill(band, vertices, team);
+    }
+
+    /// <summary>An area a pickup is about to show (the whole unit's, built from the Ask's opening) filled now into the hidden set, so the
+    /// pickup's ShowBands of the same meshes hands Godot nothing.</summary>
+    public void Stage(BandMeshes meshes, Color team)
+    {
+        foreach (var (band, vertices) in meshes.Layers) Fill(_staged, band, vertices, team, visible: false);
+        _stagedMeshes = meshes; _stagedTeam = team;
     }
 
     /// <summary>A band's standing mesh (made on first use) refilled with these vertices in its look for the team's colour, hidden when it has none.</summary>
     void Fill(MoveBand band, Vector3[] vertices, Color team)
     {
         _warming.Remove(band);
-        if (!_bands.TryGetValue(band, out var layer))
+        Fill(_bands, band, vertices, team, visible: true);
+    }
+
+    void Fill(Dictionary<MoveBand, (ArrayMesh Mesh, MeshInstance3D Node)> set, MoveBand band, Vector3[] vertices, Color team, bool visible)
+    {
+        if (!set.TryGetValue(band, out var layer))
         {
             var mesh = new ArrayMesh();
             var node = new MeshInstance3D { Mesh = mesh, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, Visible = false };
             AddChild(node);
-            _bands[band] = layer = (mesh, node);
+            set[band] = layer = (mesh, node);
         }
         var c = MoveBandLook.Colour(band, new Rgba(team.R, team.G, team.B, team.A));
         var colour = new Color(c.R, c.G, c.B, c.A);
@@ -61,7 +85,7 @@ public partial class MoveRegionNode : Node3D
         if (layer.Node.MaterialOverride != material) layer.Node.MaterialOverride = material;
         layer.Mesh.ClearSurfaces();
         if (vertices.Length >= 3) layer.Mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, Arrays(vertices));
-        layer.Node.Visible = vertices.Length >= 3;
+        layer.Node.Visible = visible && vertices.Length >= 3;
     }
 
     /// <summary>Each band not showing drawn for one frame as a sliver under the slab at `at`, in the team's look, then hidden: its node, mesh and

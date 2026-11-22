@@ -195,13 +195,22 @@ public static partial class DecisionTiles
         var text = new Label { VerticalAlignment = VerticalAlignment.Center };
         row.AddChild(bar); row.AddChild(text);
         StyleBoxFlat? over = null;
+        bool? wasOver = null; double? wasMinimum = double.NaN;
+        // Set every drag frame: a theme override added or removed, or a mark moved, only when it changes, since each such change makes the box
+        // lay out again in that frame.
         set = b =>
         {
             if (!GodotObject.IsInstanceValid(bar)) return;
-            bar.Value = b.Fraction; text.Text = b.Text;
-            if (b.Over) { over ??= (StyleBoxFlat)((StyleBoxFlat)bar.GetThemeStylebox("fill")).Duplicate(); over.BgColor = Ui.Failure; bar.AddThemeStyleboxOverride("fill", over); }
-            else bar.RemoveThemeStyleboxOverride("fill");
-            text.RemoveThemeColorOverride("font_color"); if (b.Over) text.AddThemeColorOverride("font_color", Ui.Failure);
+            bar.Value = b.Fraction; if (text.Text != b.Text) text.Text = b.Text;
+            if (wasOver != b.Over)
+            {
+                wasOver = b.Over;
+                if (b.Over) { over ??= (StyleBoxFlat)((StyleBoxFlat)bar.GetThemeStylebox("fill")).Duplicate(); over.BgColor = Ui.Failure; bar.AddThemeStyleboxOverride("fill", over); }
+                else bar.RemoveThemeStyleboxOverride("fill");
+                text.RemoveThemeColorOverride("font_color"); if (b.Over) text.AddThemeColorOverride("font_color", Ui.Failure);
+            }
+            if (Nullable.Equals(wasMinimum, b.MinimumFraction)) return;
+            wasMinimum = b.MinimumFraction;
             mark.Visible = b.MinimumFraction is not null;
             if (b.MinimumFraction is { } f) { mark.AnchorLeft = mark.AnchorRight = (float)f; mark.AnchorTop = 0; mark.AnchorBottom = 1; mark.OffsetLeft = -1; mark.OffsetRight = 1; mark.OffsetTop = -3; mark.OffsetBottom = 3; }
         };
