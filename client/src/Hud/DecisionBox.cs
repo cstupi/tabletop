@@ -95,6 +95,7 @@ public partial class DecisionBox : PanelContainer
         _onSelection = () => { if (_input.Selected is null) _onDeselect?.Invoke(); };
         s.EventsApplied += _onEvents; s.Frame.Render += _onFrame; s.RefusedReceived += _onRefused;
         input.TargetClicked += _onTargetClicked; input.ModelClicked += _onModelClicked; input.ModelsDragged += _onDragged; input.UnitClicked += _onUnitClicked; input.PickedUp += _onPickedUp; input.SelectionChanged += _onSelection;
+        BindActions();
         Render();
     }
 
@@ -106,6 +107,7 @@ public partial class DecisionBox : PanelContainer
         if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelsDragged -= _onDragged; _input.UnitClicked -= _onUnitClicked; _input.PickedUp -= _onPickedUp; _input.SelectionChanged -= _onSelection; }
         Unhook();
         if (_region is not null && IsInstanceValid(_region)) _region.QueueFree();
+        UnbindActions();
     }
 
     /// <summary>
@@ -189,6 +191,7 @@ public partial class DecisionBox : PanelContainer
         Frame(card || body && _quiet.GetChildCount() == 0);
         _quiet.Visible = !card && _quiet.GetChildCount() > 0;
         Visible = card || body || _quiet.Visible;
+        Rendered?.Invoke();
     }
 
     /// <summary>Each team's choice in a sealed Ask's reveal: its band and the chip.</summary>
@@ -470,8 +473,8 @@ public partial class DecisionBox : PanelContainer
     {
         var b = new DecisionTiles.ChoiceTile();
         b.Pressed += () => { if (b.Option is { } o) _onTile?.Invoke(o.OptionId); };
-        b.MouseEntered += () => { if (b.Option is { } o) Light(o.Pieces); };
-        b.MouseExited += () => Light(null);
+        b.MouseEntered += () => { if (b.Option is { } o) { Light(o.Pieces); TileHovered?.Invoke(o.OptionId); } };
+        b.MouseExited += () => { Light(null); TileHovered?.Invoke(null); };
         return b;
     }
 

@@ -77,13 +77,23 @@ public static class ThemeBuilder
         LabelVariant(t, Variation.KeyCap, u.Numerals with { Size = Math.Max(11, u.Body.Size - 4) }, C(u.DimText)); t.SetStylebox("normal", Variation.KeyCap, cap);
         Variant(t, Variation.Card, "PanelContainer", "panel", Flat(s, C(u.Panel) with { A = 1 }, C(u.PanelBorder), Math.Max(1, s.BorderWidth), Space.S));
         Variant(t, Variation.Quiet, "PanelContainer", "panel", Pad(Flat(s, C(u.Panel) with { A = 0.8f }, C(u.PanelBorder) with { A = 0.5f }, 1, 0), Space.S, Space.S));
-        t.SetTypeVariation(Variation.Tile, "Button");
-        foreach (var (state, bg, edge) in new[] { ("normal", C(u.Background), C(u.PanelBorder)), ("hover", C(u.Background).Lerp(C(u.Accent), 0.18f), C(u.Accent)),
-                     ("pressed", C(u.Background).Lerp(C(u.Accent), 0.32f), C(u.Accent)), ("disabled", C(u.Background) with { A = 0.5f }, C(u.PanelBorder) with { A = 0.5f }) })
-            t.SetStylebox(state, Variation.Tile, Pad(Flat(s, bg with { A = Math.Max(bg.A, 0.5f) }, edge, 1, 0), Space.S, Space.S));
-        t.SetStylebox("focus", Variation.Tile, new StyleBoxEmpty());
-        foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color" }) t.SetColor(name, Variation.Tile, C(u.Text));
-        t.SetColor("font_disabled_color", Variation.Tile, C(u.DimText));
+        // A tile, and the same lit (its hover look at rest: the matching control under the pointer elsewhere) and round (an icon alone: the
+        // action buttons over the selected unit).
+        foreach (var (variation, lit, round) in new[] { (Variation.Tile, false, false), (Variation.TileLit, true, false), (Variation.RoundTile, false, true), (Variation.RoundTileLit, true, true) })
+        {
+            t.SetTypeVariation(variation, "Button");
+            var hover = (C(u.Background).Lerp(C(u.Accent), 0.18f), C(u.Accent));
+            foreach (var (state, bg, edge) in new[] { ("normal", lit ? hover.Item1 : C(u.Background), lit ? hover.Item2 : C(u.PanelBorder)), ("hover", hover.Item1, hover.Item2),
+                         ("pressed", C(u.Background).Lerp(C(u.Accent), 0.32f), C(u.Accent)), ("disabled", C(u.Background) with { A = 0.5f }, C(u.PanelBorder) with { A = 0.5f }) })
+            {
+                var box = Pad(Flat(s, bg with { A = Math.Max(bg.A, round ? 0.85f : 0.5f) }, edge, 1, 0), Space.S, Space.S);
+                if (round) box.SetCornerRadiusAll(64);
+                t.SetStylebox(state, variation, box);
+            }
+            t.SetStylebox("focus", variation, new StyleBoxEmpty());
+            foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color" }) t.SetColor(name, variation, C(u.Text));
+            t.SetColor("font_disabled_color", variation, C(u.DimText));
+        }
         t.SetTypeVariation(Variation.Primary, "Button");
         foreach (var (state, shade) in new[] { ("normal", 0f), ("hover", 0.15f), ("pressed", 0.3f) })
             t.SetStylebox(state, Variation.Primary, Pad(Flat(s, C(u.Accent).Lightened(shade), C(u.Accent).Lightened(shade), 1, 0), Space.M, Space.S));

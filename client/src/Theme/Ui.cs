@@ -12,6 +12,8 @@ public static class Variation
     /// <summary>The UX redesign's shared vocabulary (spec 2026-11-07-ux-redesign-design.md → Shared vocabulary): a key boxed in the numeral font,
     /// an icon-over-word button, a panel with a 16 px inset, a one-line dim band, and the one lit button of a card.</summary>
     public const string KeyCap = nameof(KeyCap), Tile = nameof(Tile), Card = nameof(Card), Quiet = nameof(Quiet), Primary = nameof(Primary);
+    /// <summary>A tile lit while its match elsewhere is under the pointer, and the round icon buttons over the selected unit, plain and lit.</summary>
+    public const string TileLit = nameof(TileLit), RoundTile = nameof(RoundTile), RoundTileLit = nameof(RoundTileLit);
 }
 
 /// <summary>The current UiTheme, its built Godot theme, and its colours and icons as Godot types.</summary>

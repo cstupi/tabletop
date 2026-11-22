@@ -25,6 +25,9 @@ public partial class UnitMarkerNodes : Control
         if (_s is null) return; _s.Frame.Render -= _onFrame;
     }
 
+    /// <summary>A unit's row as drawn this frame, in the table viewport's pixels; null when it has none or it is hidden.</summary>
+    public Rect2? RowRect(Guid unit) => _rows.TryGetValue(unit, out var r) && r.Row.Visible ? r.Row.GetRect() : null;
+
     void Clear() { foreach (var (_, _, row, _) in _rows.Values) row.QueueFree(); _rows.Clear(); }
 
     void Render()

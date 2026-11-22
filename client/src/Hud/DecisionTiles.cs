@@ -86,6 +86,7 @@ public static partial class DecisionTiles
     public static void Fill(ChoiceTile b, OptionTile tile)
     {
         b.Option = tile;
+        if (b.ThemeTypeVariation != Variation.Tile) b.ThemeTypeVariation = Variation.Tile;   // a tile lit from the buttons over the unit (DecisionBox.HoverOption) is plain again
         Look.Tip(b, tile.Label);
         var picture = tile.Icon is null ? null : Ui.Icon(tile.Icon);
         if (!ReferenceEquals(b.Picture.Texture, picture)) b.Picture.Texture = picture;
