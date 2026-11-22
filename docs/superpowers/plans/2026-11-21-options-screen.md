@@ -66,7 +66,7 @@
 - `OptionsModel(ClientSettings applied)`: `Rows`, `In(category)`, `Value(row)`, `Set(row, v)`, `Pending`, `Applied`, `Dirty`, `ResetTab(category)` (Controls: clears `KeyOverrides`), `Revert()`, `Apply()`,
   `static NeedsConfirm(before, after)` (display mode or window size changed), `Keys`, `Conflict(intent, binding)`, `Bind(intent, slot, binding, swap)`.
 - `UiThemes.Adjusted(UiTheme, int textSize, bool colourBlind)`: font sizes × textSize/100; `ColourBlindTeams` replaces `Teams`.
-- `OptionsModel.Resolutions`: 1280×720, 1366×768, 1600×900, 1920×1080, 2560×1440, 3840×2160.
+- `OptionsModel.Resolutions`: 1280×720, 1366×768, 1600×900, 1920×1080, 2560×1440, 3840×2160, 1280×800, 1440×900, 1680×1050, 1920×1200, 2560×1600; `Fitting(screen)` keeps those that fit plus the screen's own size; the row (`Choices`, `Value`, `Set`, `Enabled`, `Description`) marks it "(native)", adds "Custom (W×H)" for a hand-sized window, centres the window on a pick, and outside a window shows native, disabled, its description naming Render scale.
 
 - [ ] Tests: every category but Controls has rows; Set is pending until Apply; Revert restores; ResetTab touches only its tab; a conflicting Bind without swap reports, with swap gives the other intent the old key; Quality resets Render scale; NeedsConfirm on display/resolution only; colour-blind palette distinct under deuteranopia, protanopia and tritanopia simulation and ≥ 3:1 against both themes' panels, none within 40° hue of Success.
 - [ ] Implement; run tests; commit.

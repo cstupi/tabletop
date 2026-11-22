@@ -23,5 +23,19 @@ public static class UiThemes
     public static IReadOnlyList<UiTheme> All { get; } = [Fantasy, SciFi];
     /// <summary>The detailed log's monospace face, the same in every theme: its columns line up.</summary>
     public static ThemeFont Mono { get; } = new($"{S}/fonts/JetBrainsMono-Variable.ttf", 14, 400);
+    /// <summary>Team colours for colour-blind players (Options → Accessibility): each pair stays apart (CIE76 ΔE ≥ 15) under
+    /// deuteranopia, protanopia and tritanopia, each reads at 3:1 on both themes' panels, none near the success green.</summary>
+    public static IReadOnlyList<Rgba> ColourBlindTeams { get; } = [H("#C7490A"), H("#506EE6"), H("#D62BA9"), H("#7A6A3D"), H("#7632FC"), H("#B85C74")];
+
+    /// <summary>A size scaled by the Text size percent.</summary>
+    public static int Scaled(int size, int percent) => (int)Math.Round(size * percent / 100.0);
+
+    /// <summary>The theme with its fonts at the Text size (percent) and, when asked, the colour-blind team colours; the theme itself when neither changes it.</summary>
+    public static UiTheme Adjusted(UiTheme t, int textSize, bool colourBlind) => textSize == 100 && !colourBlind ? t : t with
+    {
+        Display = t.Display with { Size = Scaled(t.Display.Size, textSize) }, Body = t.Body with { Size = Scaled(t.Body.Size, textSize) },
+        Numerals = t.Numerals with { Size = Scaled(t.Numerals.Size, textSize) }, Teams = colourBlind ? ColourBlindTeams : t.Teams, TextSize = textSize,
+    };
+
     public static UiTheme Resolve(string? id) => All.FirstOrDefault(t => string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase)) ?? SciFi;
 }
