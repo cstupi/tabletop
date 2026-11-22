@@ -34,7 +34,7 @@ public static class MoveWarmup
         var ends = DragBodies.Models([held], stationary, volumes, legal, free: false, level: null, within: (id, at) => regions.Reaches(id, at));
         var proposed = legal.ModelIds.ToDictionary(id => id, id => id == lead.Id ? start with { Position = ends[id].Lands } : ((OnTable)p.Models[id].Location).Placement);
         var unit = regions.Allowance(proposed.ToDictionary(kv => kv.Key, kv => kv.Value.Position.Horizontal));
-        var contacts = ContactCheck.Move(p, legal, proposed, volumes, size, unit);
+        var contacts = ContactCheck.Move(p, legal, proposed, volumes, size, unit, regions);
         var readouts = legal.ModelIds.Select(id => MoveRuler.Read(regions.Route(id, proposed[id].Position.Horizontal)?.Distance ?? 0, unit,
             regions.Minimum(id, proposed[id].Position.Horizontal))).ToList();
         _ = DecisionCard.Bar(readouts, unit, regions.Minimum(lead.Id));

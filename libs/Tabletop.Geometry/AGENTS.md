@@ -16,7 +16,7 @@ Geometry values and computations: distance, line of sight, cover, collision (res
 - `BaseEdge.cs`: one placed base's outline built once for many point distances (`To` equals `Distance.EdgeToEdge` to a point), with the radii of the circles about its centre it contains (`Inner`) and lies in (`Outer`).
 - `RangeOutline.cs`: `Of`, the union outline of the rings at a range from each model's base edge (the client's range rings, and the browser's).
 - `Clearance.cs`: a placement held over a distance from models, base to base: `Breaks` (the first model a placed base comes within its distance of, -1 when none or when within `liftedWithin` of a lifted model) and `Outline` (the area a placed base's edge may not enter: `RangeOutline.Of` per model's distance, less the lifted area, its arcs cut where the two meet so the loops close). The server's keep-away breaches and both clients' keep-away area.
-- `Contacts.cs`: `Of`, each proposed model's first contact (`ContactKind`: on a base, a path through a model, too close, in impassable terrain) from `ContactBody` rows and `ContactTerms`.
+- `Contacts.cs`: `Of`, each proposed model's first contact (`ContactKind`: on a base, a path through a model, too close, in impassable terrain) from `ContactBody` rows and `ContactTerms`; `RoundModels`, a caller's answer that a path round the models reaches a landing (the client's per-Ask `MoveReach`), skips that landing's path search.
 - `Table.cs`: the slab, `Bounds`, `ContainsPoint`, `ContainsBase`, `ContainsVolume` (a footprint wholly on it), `IsValid` (edges at most `MaxEdge`, 144").
 - `ZoneStyles.cs`: the seven built-in deployment styles and `Resolve` against a `TableSize`.
 - `Tolerance.cs`: `1e-6` inches, internal.

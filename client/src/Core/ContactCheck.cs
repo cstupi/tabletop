@@ -15,8 +15,10 @@ public static class ContactCheck
     /// model unless the region passes models, within its Separation. A path stays on the `size` table (p.7); `unit` is the unit's allowance when the
     /// cap holds it (MoveRegions.Allowance, p.11), and then the way round the models is held to it.</summary>
     public static IReadOnlyDictionary<Guid, Contact> Move(Projection p, MoveRegion legal, IReadOnlyDictionary<Guid, Placement> proposed, IReadOnlyList<WorldVolume> volumes,
-        TableSize? size = null, double? unit = null) =>
-        Of(p, proposed, volumes, legal.Separation, legal.PassesModels, landing: !legal.IgnoresTerrain, legal, size, unit);
+        TableSize? size = null, double? unit = null, MoveRegions? regions = null) =>
+        Of(p, proposed, volumes, legal.Separation, legal.PassesModels, landing: !legal.IgnoresTerrain, legal, size, unit,
+            // The Ask's reaches (built once, round the same models) answer most landings: only one they do not reach is searched again, each drag frame.
+            regions is null ? null : (id, to) => regions.Reaches(id, to, unit is { } u && u < legal.Allowance ? u : null));
 
     /// <summary>A hand placement's landings (a deployment, a hand move): on a base only.</summary>
     public static IReadOnlyDictionary<Guid, Contact> Placement(Projection p, IReadOnlyDictionary<Guid, Placement> proposed, IReadOnlyList<WorldVolume> volumes) =>
@@ -47,7 +49,7 @@ public static class ContactCheck
         found.ToDictionary(kv => kv.Key, kv => Words(kv.Value, separation, unitName));
 
     static IReadOnlyDictionary<Guid, Contact> Of(Projection p, IReadOnlyDictionary<Guid, Placement> proposed, IReadOnlyList<WorldVolume> volumes, double? separation, bool passesModels, bool landing, MoveRegion? legal = null,
-        TableSize? size = null, double? unit = null) =>
+        TableSize? size = null, double? unit = null, Func<Guid, Point2, bool>? roundModels = null) =>
         Contacts.Of(p.Models.Values.Select(m => new ContactBody(m.Id, m.UnitId, new ModelBody(m.Slot.Base, m.Slot.Height), m.Location is OnTable t ? t.Placement : null)).ToList(), proposed, volumes,
-            new ContactTerms(separation, passesModels, landing, legal is null ? null : new ContactMove(legal.Allowance, legal.ImpassableVolumeIds.ToList(), legal.DifficultVolumeIds.ToList(), legal.DifficultCap, legal.SteepVolumeIds?.ToList()), size, unit));
+            new ContactTerms(separation, passesModels, landing, legal is null ? null : new ContactMove(legal.Allowance, legal.ImpassableVolumeIds.ToList(), legal.DifficultVolumeIds.ToList(), legal.DifficultCap, legal.SteepVolumeIds?.ToList()), size, unit, roundModels));
 }

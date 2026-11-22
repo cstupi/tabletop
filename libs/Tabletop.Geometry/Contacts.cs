@@ -13,8 +13,11 @@ public sealed record ContactBody(Guid Id, Guid UnitId, ModelBody Body, Placement
 /// <summary>A move Ask's measuring terms (MoveRegion's Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, SteepVolumeIds).</summary>
 public sealed record ContactMove(double Allowance, IReadOnlyList<Guid> Impassable, IReadOnlyList<Guid> Difficult, double? DifficultCap, IReadOnlyList<Guid>? Steep = null);
 
-/// <summary>Separation, PassesModels, whether a landing in Impassable terrain counts, the move (null for a placement), the table, the capped allowance.</summary>
-public sealed record ContactTerms(double? Separation, bool PassesModels, bool Landing, ContactMove? Move = null, TableSize? Size = null, double? Unit = null);
+/// <summary>Separation, PassesModels, whether a landing in Impassable terrain counts, the move (null for a placement), the table, the capped allowance.
+/// `RoundModels`: a destination it answers true for is reached within the allowance (the capped one, once the unit is capped) by a path round
+/// every model not proposed (the client's MoveReach, built once per Ask: MoveRegions.Reaches), so no path is searched for it to rule out Crosses.</summary>
+public sealed record ContactTerms(double? Separation, bool PassesModels, bool Landing, ContactMove? Move = null, TableSize? Size = null, double? Unit = null,
+    Func<Guid, Point2, bool>? RoundModels = null);
 
 public static class Contacts
 {
@@ -49,7 +52,7 @@ public static class Contacts
             { found[id] = new Contact(ContactKind.InImpassable, null); continue; }
             // A unit the cap holds measures the shortest way, whatever it enters (the server's DifficultCapBreach); else round difficult ground first.
             var capped = unit is { } u && u < legal?.Allowance;
-            if (!passesModels && legal is not null && start is { } from && Movement.Check(from, at.Placement.Position.Horizontal, Math.Max(0, capped ? unit!.Value : legal.Allowance),
+            if (!passesModels && legal is not null && start is { } from && terms.RoundModels?.Invoke(id, at.Placement.Position.Horizontal) != true && Movement.Check(from, at.Placement.Position.Horizontal, Math.Max(0, capped ? unit!.Value : legal.Allowance),
                     volumes.Where(v => legal.Impassable.Contains(v.Id)).ToList(), capped ? [] : volumes.Where(v => legal.Difficult.Contains(v.Id)).ToList(),
                     capped ? null : legal.DifficultCap, size, bodies, volumes,
                     steep: capped || legal.Steep is not { Count: > 0 } ? null : volumes.Where(v => legal.Steep.Contains(v.Id)).ToList()).CrossesModels)
