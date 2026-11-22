@@ -16,7 +16,7 @@
   }: {
     scene: Scene;
     /** Where Reset view stands (its top right, from the board's top right), clear of panels over the board; default its corner. */
-    resetAt?: { readonly top: number; readonly right: number } | null;
+    resetAt?: { readonly top: number; readonly right: number; readonly height?: number } | null;
     /** The parent holds the view, so setup and play share one pan and zoom; null fits the extent. */
     view?: View | null;
     /** A box in table inches for fitBox (the table, widened to hold terrain beside it); default the table. */
@@ -174,7 +174,7 @@
   ></canvas>
   {#if floating !== undefined}<canvas class="floating" bind:this={floatCanvas} aria-hidden="true"></canvas>{/if}
   {@render above?.((p) => toScreen(current, scene.table, p), current.scale, box)}
-  <button class="small reset" title="Fit the table to the window" style:top={resetAt === null ? null : `${resetAt.top}px`} style:right={resetAt === null ? null : `${resetAt.right}px`} onclick={() => (view = null)}>Reset view</button>
+  <button class="small reset" title="Fit the table to the window" style:top={resetAt === null ? null : `${resetAt.top}px`} style:right={resetAt === null ? null : `${resetAt.right}px`} style:height={resetAt?.height === undefined ? null : `${resetAt.height}px`} style:min-height={resetAt?.height === undefined ? null : '0'} onclick={() => (view = null)}>Reset view</button>
 </div>
 
 <style>

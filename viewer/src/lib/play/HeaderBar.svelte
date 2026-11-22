@@ -49,7 +49,8 @@
         <span class="round"><HudIcon name="round" size={18} />{v.round}</span>
         {#if v.as !== null}<span class="chip">{v.as}</span>{/if}
       </p>
-      <!-- Every line keeps its row, filled or not, so the bar's height never changes and the board under it never moves. -->
+      <!-- A line with nothing to say takes no row: the bar is as tall as what it draws, and the HUD frame measures it (Godot's header). -->
+      {#if model.result !== null || model.activeUnit !== null}
       <p class="activation">
         {#if model.result !== null}
           <button type="button" class="primary small" onclick={onGameOver}>✓ {model.result}</button>
@@ -60,14 +61,13 @@
           {/each}
         {/if}
       </p>
+      {/if}
       {#if v.quiet !== null}
         <p class="wait quiet" title={v.quiet}><HudIcon name={replaying || isWatching(snap) ? 'watch' : 'wait'} size={15} />{v.quiet}</p>
       {:else if v.wait?.mine}
         <p class="wait mine" style:--team={teamColour(v.wait.ordinal)}><HudIcon name="turn" size={15} />{v.wait.text}</p>
       {:else if v.wait}
         <p class="wait" title={v.wait.text}><span class="band" style:--team={teamColour(v.wait.ordinal)}></span><HudIcon name="wait" size={15} />{v.wait.text}</p>
-      {:else}
-        <p class="wait"></p>
       {/if}
     </div>
     <div class="score">
@@ -100,10 +100,10 @@
 {/if}
 
 <style>
-  /* Three single-line rows (the round, the activation, the wait), each cut short with an ellipsis, beside the score; in a slot too narrow
+  /* Up to three single-line rows (the round, the activation, the wait), each cut short with an ellipsis, beside the score; in a slot too narrow
      for both (the HUD frame's header between the corner and the toasts) the score takes a row above them, as Godot's header does. */
   .bar { --line: 1.6rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-4);
-    box-sizing: border-box; min-height: calc(3 * var(--line) + 2 * var(--space-1) + 2 * var(--space-2)); overflow: hidden;
+    box-sizing: border-box; overflow: hidden;
     padding: var(--space-2) var(--space-3); background: var(--panel-solid); border-bottom: 1px solid var(--rule); }
   p { margin: 0; height: var(--line); line-height: var(--line); min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
     display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-2); }

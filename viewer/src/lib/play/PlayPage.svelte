@@ -496,8 +496,8 @@
     const sized = PLAY.find((row) => row.part === part)?.h.kind === 'atLeast';   // as tall as it draws: its slot follows it
     return `left:${r.x}px;top:${r.y}px;width:${r.w}px;${fills ? `height:${r.h}px` : sized ? '' : `max-height:${slot.h}px`}`;
   }
-  /** Reset view left of Undo, on the corner buttons' row (the band between the header and them stays clear). */
-  const resetAt = $derived.by(() => { const u = frame.rects.get('undoButton'); return u === undefined ? null : { top: u.y, right: boxW - u.x + M }; });
+  /** Reset view left of Undo, on the corner buttons' row and as tall as they are, the frame's 8 px apart as Undo and Log are. */
+  const resetAt = $derived.by(() => { const u = frame.rects.get('undoButton'); return u === undefined ? null : { top: u.y, right: boxW - u.x + M, height: u.h }; });
   /** Reports the wrapper's laid-out size into `measured`, only on a change. */
   function measure(node: HTMLElement, part: HudPart) {
     const note = (): void => {
@@ -585,7 +585,8 @@
   .part { position: absolute; z-index: 2; display: flex; flex-direction: column; min-height: 0; overflow: hidden; box-sizing: border-box; }
   .part > :global(*) { flex: 0 1 auto; min-height: 0; max-height: none; margin: 0; }
   .part > :global(.roster:not(.collapsed)) { width: 100%; height: auto; }
-  .part > :global(.roster) { border: 1px solid var(--rule); }
+  /* The list scrolls inside the panel and is cut a step inside its frame, not at its edge. */
+  .part > :global(.roster) { border: 1px solid var(--rule); padding-bottom: var(--space-3); box-sizing: border-box; }
   .part > :global(.bar) { border: 1px solid var(--rule); }
   .header { container-type: inline-size; }
   .part > :global(:is(.decision, .waiting)) { overflow-y: auto; background: var(--panel-solid); }
