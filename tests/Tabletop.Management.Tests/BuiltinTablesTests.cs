@@ -56,10 +56,19 @@ internal static class BuiltinTablesWriter
             if (laid.Unplaced.Count > 0) continue;
             var markers = BuiltinTableChecks.Objectives.Select(o =>
                 new Marker(Id(ids), MarkerKind.Objective, new Point3(o.X, o.Y, 0), new Yaw(0), 3, null, VisualRef.OfBuiltin("objective-ring"))).ToList();
-            var state = new TableState(Id(ids), $"{planet} planet", Size, VisualRef.OfBuiltin(texture), laid.Pieces.Select(p => p.Placement).ToList(), markers, zones);
+            var state = new TableState(TableId(planet), $"{planet} planet", Size, VisualRef.OfBuiltin(texture), laid.Pieces.Select(p => p.Placement).ToList(), markers, zones);
             if (BuiltinTableChecks.Problem(state, BuiltinTableChecks.DifficultPercent(planet)) is null) return JsonSerializer.Serialize(state, Indented) + "\n";
         }
         throw new InvalidOperationException($"No seed from 1 to 100000 gives a {planet} table that passes the checks.");
+    }
+
+    /// <summary>A predefined table's id: stable, and its own per planet (a name-based UUID, version 5 layout, of the planet's name).</summary>
+    public static Guid TableId(Planet planet)
+    {
+        var b = System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes($"tabletop/builtin-table/{planet}"))[..16];
+        b[6] = (byte)((b[6] & 0x0F) | 0x50);
+        b[8] = (byte)((b[8] & 0x3F) | 0x80);
+        return new Guid(b, bigEndian: true);
     }
 
     static Guid Id(Random rng)
@@ -97,6 +106,14 @@ public class BuiltinTablesTests : IClassFixture<ManagementFactory>
             Assert.Equal(BuiltinTableChecks.Objectives, t.Markers.Where(m => m.Kind == MarkerKind.Objective).Select(m => (m.Position.X, m.Position.Y)));
             Assert.Equal([("frontline/1", 1), ("frontline/2", 2)], t.Zones.Select(z => (z.Shape, z.TeamOrdinal)));
         }
+    }
+
+    [Fact]
+    public void Each_committed_table_has_its_own_id()
+    {
+        var ids = BuiltinLayouts.Planets.Select(p => ContentJson.Deserialize<TableState>(Committed(p)).Id).ToList();
+        Assert.Equal(ids.Count, ids.Distinct().Count());
+        Assert.Equal(BuiltinLayouts.Planets.Select(BuiltinTablesWriter.TableId), ids);
     }
 
     [Fact]
