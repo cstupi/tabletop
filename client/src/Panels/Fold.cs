@@ -20,8 +20,8 @@ public partial class Fold : VBoxContainer
     {
         _title = title;
         var open = folds.IsOpen(fold, status);
-        AddThemeConstantOverride("separation", 6);
-        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 6); AddChild(row);
+        AddThemeConstantOverride("separation", Space.XS);
+        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S); AddChild(row);
         _head = new Button { Flat = true, ThemeTypeVariation = Variation.FlatButton, ToggleMode = true, ButtonPressed = open, Alignment = HorizontalAlignment.Left,
             FocusMode = FocusModeEnum.None, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis };
         if (SetupFolds.Icon(fold) is { } key)
@@ -33,10 +33,10 @@ public partial class Fold : VBoxContainer
         }
         _head.Toggled += on => { Body.Visible = on; folds.Set(fold, on, status); Refresh(); };
         row.AddChild(_head);
-        Actions.AddThemeConstantOverride("separation", 4); row.AddChild(Actions);
+        Actions.AddThemeConstantOverride("separation", Space.XS); row.AddChild(Actions);
         row.AddChild(_arrow = new Label { ThemeTypeVariation = Variation.Dim, MouseFilter = MouseFilterEnum.Ignore, SizeFlagsVertical = SizeFlags.ShrinkCenter });
         Body.Visible = open;
-        Body.AddThemeConstantOverride("separation", 8);
+        Body.AddThemeConstantOverride("separation", Space.S);
         AddChild(Body);
         Refresh();
     }

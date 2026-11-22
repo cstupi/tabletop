@@ -21,18 +21,17 @@ public partial class LoginScreen : Control
     {
         var session = Main.Instance.Session;
         var center = new CenterContainer(); center.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(center);
-        var card = new PanelContainer { CustomMinimumSize = new Vector2(440, 0) };
+        var card = new PanelContainer { CustomMinimumSize = new Vector2(CardWidth, 0) };
         var frame = new StyleBoxFlat { BgColor = Ui.Of(Ui.Current.Panel) with { A = 1 }, BorderColor = Ui.Accent with { A = 0.5f } };
-        frame.SetBorderWidthAll(1); frame.SetCornerRadiusAll(Ui.Current.Shape.CornerRadius); frame.SetContentMarginAll(28);
+        frame.SetBorderWidthAll(1); frame.SetCornerRadiusAll(Ui.Current.Shape.CornerRadius); frame.SetContentMarginAll(Space.XL);
         card.AddThemeStyleboxOverride("panel", frame);
         center.AddChild(card);
-        var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", 10); card.AddChild(box);
+        var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", Space.M); card.AddChild(box);
 
-        var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", 12); box.AddChild(title);
+        var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", Space.M); box.AddChild(title);
         title.AddChild(new TextureRect { Texture = Ui.Icon("objective"), Modulate = Ui.Accent, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered, CustomMinimumSize = new Vector2(30, 30) });
         title.AddChild(new Label { Text = "TABLETOP", ThemeTypeVariation = Variation.Display, VerticalAlignment = VerticalAlignment.Center });
-        box.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
 
         var modes = new HBoxContainer(); modes.AddThemeConstantOverride("separation", 0); box.AddChild(modes);
         var group = new ButtonGroup();
@@ -41,24 +40,22 @@ public partial class LoginScreen : Control
         _byPassword.Toggled += on => { if (on) ShowMode(code: false); };
         _byCode.Toggled += on => { if (on) ShowMode(code: true); };
 
-        box.AddChild(Caption("Email"));
-        box.AddChild(_email = new LineEdit { PlaceholderText = "you@example.com" });
-        box.AddChild(_emailProblem = Problem());
+        var email = Group(box, "Email");
+        email.AddChild(_email = new LineEdit { PlaceholderText = "you@example.com" });
+        email.AddChild(_emailProblem = Problem());
 
-        _passwordPart = new VBoxContainer(); _passwordPart.AddThemeConstantOverride("separation", 10); box.AddChild(_passwordPart);
-        _passwordPart.AddChild(Caption("Password"));
-        _passwordPart.AddChild(_password = new LineEdit { Secret = true });
+        _passwordPart = new VBoxContainer(); _passwordPart.AddThemeConstantOverride("separation", Space.M); box.AddChild(_passwordPart);
+        Group(_passwordPart, "Password").AddChild(_password = new LineEdit { Secret = true });
         _passwordPart.AddChild(_remember = new CheckBox { Text = "Remember me on this machine", ButtonPressed = session.Settings.RememberMe });
-        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 16); _passwordPart.AddChild(row);
+        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.M); _passwordPart.AddChild(row);
         row.AddChild(_signIn = Button("Sign in", SignIn, primary: true));
         row.AddChild(_create = Button("Create account", () => Run("Creating your account…", s => s.SignUpAsync(_email.Text.Trim(), _password.Text), _problem)));
         _create.Flat = true; _create.ThemeTypeVariation = Variation.FlatButton;
 
-        _codePart = new VBoxContainer { Visible = false }; _codePart.AddThemeConstantOverride("separation", 10); box.AddChild(_codePart);
+        _codePart = new VBoxContainer { Visible = false }; _codePart.AddThemeConstantOverride("separation", Space.M); box.AddChild(_codePart);
         _codePart.AddChild(_send = Button("Send code", SendCode, primary: true));
-        _codeEntry = new VBoxContainer { Visible = false }; _codeEntry.AddThemeConstantOverride("separation", 10); _codePart.AddChild(_codeEntry);
-        _codeEntry.AddChild(Caption("Code"));
-        _codeEntry.AddChild(_code = new LineEdit { PlaceholderText = "one-time code" });
+        _codeEntry = new VBoxContainer { Visible = false }; _codeEntry.AddThemeConstantOverride("separation", Space.M); _codePart.AddChild(_codeEntry);
+        Group(_codeEntry, "Code").AddChild(_code = new LineEdit { PlaceholderText = "one-time code" });
         _codeEntry.AddChild(_codeSignIn = Button("Sign in", VerifyCode, primary: true));
 
         box.AddChild(_problem = Problem());
@@ -77,8 +74,16 @@ public partial class LoginScreen : Control
         _email.CallDeferred(Control.MethodName.GrabFocus);
     }
 
-    static Label Caption(string text) => new() { Text = text, ThemeTypeVariation = Variation.Dim };
-    static Label Problem() => new() { ThemeTypeVariation = Variation.Failure, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false, CustomMinimumSize = new Vector2(380, 0) };
+    const int CardWidth = 440;
+
+    /// <summary>A field's group under its caption: the caption sits closer to its field than the groups do to each other.</summary>
+    static VBoxContainer Group(Control parent, string caption)
+    {
+        var group = new VBoxContainer(); group.AddThemeConstantOverride("separation", Space.XS); parent.AddChild(group);
+        group.AddChild(new Label { Text = caption, ThemeTypeVariation = Variation.Dim });
+        return group;
+    }
+    static Label Problem() => new() { ThemeTypeVariation = Variation.Failure, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false, CustomMinimumSize = new Vector2(CardWidth - 2 * Space.XL, 0) };
 
     static Button Mode(string text, ButtonGroup group, bool on)
     {

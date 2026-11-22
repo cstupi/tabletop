@@ -23,8 +23,8 @@ public partial class TeamColumnsPanel : HFlowContainer
     public TeamColumnsPanel(bool compact)
     {
         _compact = compact;
-        AddThemeConstantOverride("h_separation", compact ? 8 : 20);
-        AddThemeConstantOverride("v_separation", compact ? 8 : 20);
+        AddThemeConstantOverride("h_separation", compact ? Space.S : Space.L);
+        AddThemeConstantOverride("v_separation", compact ? Space.S : Space.L);
     }
 
     /// <summary>A watcher of an inline report: a failed army list goes to the panel that owns the columns.</summary>
@@ -76,9 +76,9 @@ public partial class TeamColumnsPanel : HFlowContainer
         var stack = new VBoxContainer(); stack.AddThemeConstantOverride("separation", 0); box.AddChild(stack);
         stack.AddChild(Band(column));
         var body = new MarginContainer();
-        foreach (var edge in new[] { "margin_left", "margin_right", "margin_top", "margin_bottom" }) body.AddThemeConstantOverride(edge, _compact ? 6 : 16);
+        foreach (var edge in new[] { "margin_left", "margin_right", "margin_top", "margin_bottom" }) body.AddThemeConstantOverride(edge, _compact ? Space.XS : Space.M);
         stack.AddChild(body);
-        var rows = new VBoxContainer(); rows.AddThemeConstantOverride("separation", _compact ? 4 : 14); body.AddChild(rows);
+        var rows = new VBoxContainer(); rows.AddThemeConstantOverride("separation", _compact ? Space.XS : Space.S); body.AddChild(rows);
         if (column.Members.Count == 0)
             rows.AddChild(new Label { Text = column.TeamId is null ? "No one" : "No players yet", ThemeTypeVariation = Variation.Dim });
         foreach (var m in column.Members) rows.AddChild(Member(box, column, m));
@@ -88,7 +88,7 @@ public partial class TeamColumnsPanel : HFlowContainer
             var b = new Button { Text = join.Text, Disabled = !join.Enabled, TooltipText = join.Why ?? "", SizeFlagsHorizontal = SizeFlags.ShrinkCenter,
                 CustomMinimumSize = new Vector2(140, 0) };
             if (join.Edit is { } edit) b.Pressed += () => Guarded.Send(_s, edit);
-            rows.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
+            rows.AddChild(new Control { CustomMinimumSize = new Vector2(0, Space.XS) });
             rows.AddChild(b);
             if (join.Why is { } why) rows.AddChild(Wrapping(why, Variation.Dim));
         }
@@ -99,7 +99,7 @@ public partial class TeamColumnsPanel : HFlowContainer
     Control Band(TeamColumn column)
     {
         var band = new PanelContainer { TooltipText = column.StateText }; band.AddThemeStyleboxOverride("panel", Ui.TeamBand(column.Ordinal, _compact));
-        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", 10); band.AddChild(line);
+        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", Space.S); band.AddChild(line);
         var ink = Ui.OnBand(column.Ordinal);
         line.AddChild(Icon(column.TeamId is null ? "watch" : "team", ink, _compact ? 18 : 28));
         var words = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; words.AddThemeConstantOverride("separation", 0); line.AddChild(words);
@@ -121,7 +121,7 @@ public partial class TeamColumnsPanel : HFlowContainer
         }
         else
         {
-            var state = new HBoxContainer(); state.AddThemeConstantOverride("separation", 6); words.AddChild(state);
+            var state = new HBoxContainer(); state.AddThemeConstantOverride("separation", Space.XS); words.AddChild(state);
             if (column.State is ColumnState.Ready or ColumnState.NeedsPlayer or ColumnState.NeedsArmy)
                 state.AddChild(Icon(column.State == ColumnState.Ready ? "ready" : "warning", ink, 16));
             var text = new Label { Text = column.StateText, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -135,8 +135,8 @@ public partial class TeamColumnsPanel : HFlowContainer
     {
         var row = new MemberRowBox(box, column, m) { TooltipText = m.Moves.Count > 0 ? "Drag to another column to move" : "" };
         row.AddThemeStyleboxOverride("panel", Ui.MemberRow(m.You));
-        var lines = new VBoxContainer(); lines.AddThemeConstantOverride("separation", _compact ? 0 : 4); row.AddChild(lines);
-        var top = new HBoxContainer(); top.AddThemeConstantOverride("separation", 8); lines.AddChild(top);
+        var lines = new VBoxContainer(); lines.AddThemeConstantOverride("separation", _compact ? 0 : Space.XS); row.AddChild(lines);
+        var top = new HBoxContainer(); top.AddThemeConstantOverride("separation", Space.S); lines.AddChild(top);
         top.AddChild(Icon("player", column.Ordinal > 0 ? Ui.Team(column.Ordinal) : Ui.DimText, _compact ? 16 : 22));
         top.AddChild(new Label { Text = m.Name, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
             TooltipText = m.Name, MouseFilter = MouseFilterEnum.Pass });
@@ -153,7 +153,7 @@ public partial class TeamColumnsPanel : HFlowContainer
         }
         // Watching rows name an army only when they have one, or on my row with its picker.
         if (column.TeamId is null && m.Army is null && m.MyArmy is null) return row;
-        var army = new HBoxContainer(); army.AddThemeConstantOverride("separation", 8); lines.AddChild(army);
+        var army = new HBoxContainer(); army.AddThemeConstantOverride("separation", Space.S); lines.AddChild(army);
         army.AddChild(new Control { CustomMinimumSize = new Vector2(_compact ? 4 : 14, 0) });
         var warn = m.Army is null && m.NoArmyWarns;
         army.AddChild(Icon(m.Army is null ? (warn ? "warning" : "army") : "army", warn ? Ui.Warning : m.Army is null ? Ui.DimText : Ui.Text, _compact ? 14 : 18));
