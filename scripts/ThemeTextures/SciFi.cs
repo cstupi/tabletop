@@ -46,11 +46,11 @@ public static class SciFi
         float lx = Mod(x - PM, Px), ly = Mod(y - PM, Py);
         var between = 0.35f * MathF.Max(Smooth(1.2f, 0.3f, MathF.Min(lx, Px - lx)), Smooth(1.2f, 0.3f, MathF.Min(ly, Py - ly)));
         var edge = MathF.Min(MathF.Min(x, PW - x), MathF.Min(y, PH - y));
-        var seam = MathF.Max(between, Smooth(1.4f, 0.3f, MathF.Abs(edge - 14.5f)));
+        var seam = MathF.Max(between, Smooth(1.4f, 0.3f, MathF.Abs(edge - 12.5f)));
         float ex = MathF.Min(x, PW - x), ey = MathF.Min(y, PH - y), bolt = 99f;
-        if (ex < PM && ey < PM) bolt = new Vector2(ex - 10, ey - 10).Length();
-        else if (ey < PM) bolt = new Vector2(Mod(x - PM, Px / 4f) - Px / 8f, ey - 10).Length();
-        else if (ex < PM) bolt = new Vector2(ex - 10, Mod(y - PM, Py / 2f) - Py / 4f).Length();
+        if (ex < PM && ey < PM) bolt = new Vector2(ex - 8.5f, ey - 8.5f).Length();
+        else if (ey < PM) bolt = new Vector2(Mod(x - PM, Px / 4f) - Px / 8f, ey - 8.5f).Length();
+        else if (ex < PM) bolt = new Vector2(ex - 8.5f, Mod(y - PM, Py / 2f) - Py / 4f).Length();
         return (seam, bolt, bolt);
     }
 
@@ -62,7 +62,7 @@ public static class SciFi
         if (d < 6) return 0.9f * MathF.Sin(MathF.PI * (d - 2.5f) / 3.5f);
         var (seam, bolt, _) = Plate(x, y);
         var h = -0.9f * seam;
-        if (bolt < 3.4f) h = bolt < 2.2f ? Dome(bolt, 2.2f, 0.9f) - 0.3f : -0.7f;
+        if (bolt < 2.8f) h = bolt < 1.8f ? Dome(bolt, 1.8f, 0.9f) - 0.3f : -0.7f;
         return h;
     }
 
@@ -98,10 +98,10 @@ public static class SciFi
         c += Rgb(0.01f, 0.013f, 0.016f) * grid + Chrome * 0.03f * trace;
         var (seam, bolt, _) = Plate(x, y);
         c *= 1 - 0.45f * seam;
-        if (bolt < 3.4f) c = bolt < 2.2f ? Rgb(0.2f, 0.225f, 0.25f) : Rgb(0.03f, 0.035f, 0.04f);
+        if (bolt < 2.8f) c = bolt < 1.8f ? Rgb(0.2f, 0.225f, 0.25f) : Rgb(0.03f, 0.035f, 0.04f);
         var glow = top ? Cyan * 0.07f * MathF.Exp(-(y - 6) / 3f) * Smooth(PCut, PCut + 14, MathF.Min(x, PW - x)) : Vector3.Zero;
         c *= 0.75f + 0.25f * Smooth(6, 11, d);                                                                // the rail's shadow
-        return new(c, 0.96f, bolt < 2.2f ? 0.5f : 0.12f, bolt < 2.2f ? 30 : 14, glow);
+        return new(c, 1, bolt < 1.8f ? 0.5f : 0.12f, bolt < 1.8f ? 30 : 14, glow);
     }
 
     // ---- Buttons ----------------------------------------------------------------------------------------------------------
@@ -138,7 +138,7 @@ public static class SciFi
         var reflection = look == Key.Disabled ? 0 : Smooth(BH * 0.5f, BH * 0.42f, y) * 0.022f;                 // the glass catches the light above
         face += new Vector3(reflection);
         if (look == Key.Pressed) face *= 0.6f + 0.4f * Smooth(3.4f, 9, y);
-        var emit = Cyan * (glow * MathF.Exp(-(d - 3.4f) / 3.2f) + fill);
+        var emit = Cyan * (glow * Smooth(BM - 1.5f, 3.4f, d) * Smooth(BM - 1.5f, 3.4f, d) + fill);   // the glow stays in the face's frame, so the repeat joins
         return new(face, 1, 0.2f, 40, emit);
     }
 
