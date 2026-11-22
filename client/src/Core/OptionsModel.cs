@@ -220,7 +220,6 @@ public sealed class OptionsModel
         Toggle("sound", A, "Sound", "Table sound effects. Default on.", s => s.Sound, (s, v) => s with { Sound = v }),
         Slider("master-volume", A, "Master volume", "Every sound. Default 70 %.", 0, 100, 5, Percent, s => s.Volume, (s, v) => s with { Volume = v }),
         Slider("effects-volume", A, "Effects volume", "Shots, hits, wounds, spells and moves on the table. Default 100 %.", 0, 100, 5, Percent, s => s.EffectsVolume, (s, v) => s with { EffectsVolume = v }),
-        Slider("interface-volume", A, "Interface volume", "Sounds of the interface. Default 100 %.", 0, 100, 5, Percent, s => s.InterfaceVolume, (s, v) => s with { InterfaceVolume = v }),
         Toggle("mute-background", A, "Mute in background", "No sound while another window has focus. Default off.", s => s.MuteInBackground, (s, v) => s with { MuteInBackground = v }),
 
         new("theme", I, "Theme", "Colours, fonts and panels of the whole client.", OptionKind.Themes, s => Math.Max(0, UiThemes.All.ToList().IndexOf(UiThemes.Resolve(s.Theme))),
@@ -232,6 +231,6 @@ public sealed class OptionsModel
         Toggle("colour-blind", X, "Colour-blind team colours", "Team colours that stay distinct with deuteranopia, protanopia and tritanopia. Default off.", s => s.ColourBlind, (s, v) => s with { ColourBlind = v }),
         Choice("text-size", X, "Text size", "The size of every font. Default 100 %.", ClientSettings.TextSizes.Select(Percent).ToList(),
             s => Math.Max(0, Array.IndexOf(ClientSettings.TextSizes, s.TextSize)), (s, v) => s with { TextSize = ClientSettings.TextSizes[v] }),
-        Toggle("reduce-motion", X, "Reduce motion", "No camera glides and no banner slides. Moves still follow Animate moves. Default off.", s => s.ReduceMotion, (s, v) => s with { ReduceMotion = v }),
+        Toggle("reduce-motion", X, "Reduce motion", "The camera jumps to where it goes instead of gliding. Default off.", s => s.ReduceMotion, (s, v) => s with { ReduceMotion = v }),
     ];
 }

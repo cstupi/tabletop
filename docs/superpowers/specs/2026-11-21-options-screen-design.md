@@ -66,15 +66,15 @@ drop down"*): a dropdown of the common sizes 1280×720, 1366×768, 1600×900, 19
 use the screen's size: the row shows the native size, disabled, with its description saying Render scale sets the 3D resolution; Quality preset; Render scale; VSync;
 Frame rate limit; Show frame rate (new, a corner counter).
 
-**Audio:** Master volume; Effects volume (new); Interface volume (new); Mute when the window is in the background (new, off). Volumes are
-Godot audio buses (`Master`, `Effects`, `Interface`); every sound plays on one of them.
+**Audio:** Master volume; Effects volume (new); Mute when the window is in the background (new, off). Volumes are
+Godot audio buses (`Master`, `Effects`); every sound plays on one of them.
 
 **Interface:** Theme (tiles, as today); UI scale (new: 75–150 %, the window's content scale); Tooltip delay (new: 0–1 s, default 0.15);
 Toast duration (new).
 
 **Accessibility:** Colour-blind team colours (new: off / a palette whose team colours stay distinct under deuteranopia, protanopia and
 tritanopia, applied through `Ui.Team`); Text size (new: 100 / 115 / 130 %, the theme's font sizes scaled); Reduce motion (new: no camera
-glides and no banner slides; moves still animate per Animate moves).
+glides).
 
 ## Where it lives
 

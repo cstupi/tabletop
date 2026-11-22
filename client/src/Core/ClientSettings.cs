@@ -53,9 +53,8 @@ public sealed record ClientSettings(bool Animate, bool RememberMe, string Manage
     public KeyBindings Keys => KeyBindings.With(KeyOverrides);
     /// <summary>A frame-rate counter in the window's corner.</summary>
     public bool ShowFps { get; init; }
-    /// <summary>The Effects and Interface audio buses, 0 to 100; <see cref="Volume"/> is the Master bus.</summary>
+    /// <summary>The Effects audio bus, 0 to 100; <see cref="Volume"/> is the Master bus.</summary>
     public int EffectsVolume { get; init; } = 100;
-    public int InterfaceVolume { get; init; } = 100;
     /// <summary>Silence while the window is in the background.</summary>
     public bool MuteInBackground { get; init; }
     /// <summary>The window's content scale in percent, <see cref="MinUiScale"/> to <see cref="MaxUiScale"/>.</summary>
@@ -70,7 +69,7 @@ public sealed record ClientSettings(bool Animate, bool RememberMe, string Manage
     /// <summary>The theme's font sizes in percent, one of <see cref="TextSizes"/>.</summary>
     public int TextSize { get; init; } = 100;
     public static readonly int[] TextSizes = [100, 115, 130];
-    /// <summary>No camera glides and no banner slides; moves still animate per <see cref="Animate"/>.</summary>
+    /// <summary>No camera glides: the camera jumps to where it goes.</summary>
     public bool ReduceMotion { get; init; }
     /// <summary>What the applier sets on the table's viewport (MSAA, scale, LOD threshold), its environment (SSAO), its key light and the shadow atlas.</summary>
     public GraphicsProfile Graphics => GraphicsSettings.Profile(Quality, RenderScale);
@@ -98,7 +97,7 @@ public sealed record ClientSettings(bool Animate, bool RememberMe, string Manage
         string? Theme = null, bool? CameraFollow = null, bool? TurnBanner = null, bool? RangeRings = null, string? WebUrl = null, string? MeasureMode = null, bool? ShowHitboxes = null, bool? ShowTerrainHitboxes = null, bool? Sound = null, int? Volume = null,
         string? Display = null, string? Quality = null, int? RenderScale = null, bool? VSync = null, WindowRect? Window = null, bool? LogDetailed = null, bool? WeaponRanges = null, int? FpsCap = null,
         bool? WoundNumbers = null, int? PanSpeed = null, int? OrbitSpeed = null, int? ZoomSpeed = null, bool? EdgeScroll = null, bool? InvertOrbit = null, bool? InvertZoom = null,
-        Dictionary<string, KeyDto[]>? Keys = null, bool? ShowFps = null, int? EffectsVolume = null, int? InterfaceVolume = null, bool? MuteInBackground = null,
+        Dictionary<string, KeyDto[]>? Keys = null, bool? ShowFps = null, int? EffectsVolume = null, bool? MuteInBackground = null,
         int? UiScale = null, int? TooltipMs = null, int? ToastSeconds = null, bool? ColourBlind = null, int? TextSize = null, bool? ReduceMotion = null);
 
     sealed record KeyDto(string Key, bool? Shift = null, bool? Ctrl = null);
@@ -143,7 +142,7 @@ public sealed record ClientSettings(bool Animate, bool RememberMe, string Manage
                 WebUrl = release ? def.WebUrl : d.WebUrl ?? def.WebUrl,
                 WoundNumbers = d.WoundNumbers ?? true, PanSpeed = Speed(d.PanSpeed), OrbitSpeed = Speed(d.OrbitSpeed), ZoomSpeed = Speed(d.ZoomSpeed),
                 EdgeScroll = d.EdgeScroll ?? false, InvertOrbit = d.InvertOrbit ?? false, InvertZoom = d.InvertZoom ?? false, KeyOverrides = KeysFrom(d.Keys),
-                ShowFps = d.ShowFps ?? false, EffectsVolume = Math.Clamp(d.EffectsVolume ?? 100, 0, 100), InterfaceVolume = Math.Clamp(d.InterfaceVolume ?? 100, 0, 100),
+                ShowFps = d.ShowFps ?? false, EffectsVolume = Math.Clamp(d.EffectsVolume ?? 100, 0, 100),
                 MuteInBackground = d.MuteInBackground ?? false, UiScale = Math.Clamp(d.UiScale ?? 100, MinUiScale, MaxUiScale), TooltipMs = Math.Clamp(d.TooltipMs ?? 150, 0, 1000),
                 ToastSeconds = Math.Clamp(d.ToastSeconds ?? 4, 2, 10), ColourBlind = d.ColourBlind ?? false,
                 TextSize = Array.IndexOf(TextSizes, d.TextSize ?? 100) >= 0 ? d.TextSize ?? 100 : 100, ReduceMotion = d.ReduceMotion ?? false };
@@ -172,7 +171,7 @@ public sealed record ClientSettings(bool Animate, bool RememberMe, string Manage
         File.WriteAllText(path, JsonSerializer.Serialize(new Dto(Animate, RememberMe, dev ? ManagementUrl : null, dev ? GameServerUrl : null,
             LogFilter.ToString(), LogOpen, Theme, CameraFollow, TurnBanner, null, dev ? WebUrl : null, MeasureMode.ToString(), ShowHitboxes, ShowTerrainHitboxes, Sound, Volume,
             Display.ToString(), Quality.ToString(), RenderScale, VSync, Window, LogDetailed, RangeRings, FpsCap,
-            WoundNumbers, PanSpeed, OrbitSpeed, ZoomSpeed, EdgeScroll, InvertOrbit, InvertZoom, KeysTo(KeyOverrides), ShowFps, EffectsVolume, InterfaceVolume, MuteInBackground,
+            WoundNumbers, PanSpeed, OrbitSpeed, ZoomSpeed, EdgeScroll, InvertOrbit, InvertZoom, KeysTo(KeyOverrides), ShowFps, EffectsVolume, MuteInBackground,
             UiScale, TooltipMs, ToastSeconds, ColourBlind, TextSize, ReduceMotion), Json));
     }
 
@@ -181,7 +180,7 @@ public sealed record ClientSettings(bool Animate, bool RememberMe, string Manage
         && Theme == other.Theme && CameraFollow == other.CameraFollow && TurnBanner == other.TurnBanner && RangeRings == other.RangeRings && LogDetailed == other.LogDetailed && ShowHitboxes == other.ShowHitboxes && ShowTerrainHitboxes == other.ShowTerrainHitboxes && MeasureMode == other.MeasureMode && Sound == other.Sound && Volume == other.Volume && Display == other.Display && Quality == other.Quality && RenderScale == other.RenderScale && VSync == other.VSync && FpsCap == other.FpsCap && Window == other.Window && WebUrl == other.WebUrl
         && WoundNumbers == other.WoundNumbers && PanSpeed == other.PanSpeed && OrbitSpeed == other.OrbitSpeed && ZoomSpeed == other.ZoomSpeed && EdgeScroll == other.EdgeScroll
         && InvertOrbit == other.InvertOrbit && InvertZoom == other.InvertZoom && SameKeys(KeyOverrides, other.KeyOverrides) && ShowFps == other.ShowFps && EffectsVolume == other.EffectsVolume
-        && InterfaceVolume == other.InterfaceVolume && MuteInBackground == other.MuteInBackground && UiScale == other.UiScale && TooltipMs == other.TooltipMs
+        && MuteInBackground == other.MuteInBackground && UiScale == other.UiScale && TooltipMs == other.TooltipMs
         && ToastSeconds == other.ToastSeconds && ColourBlind == other.ColourBlind && TextSize == other.TextSize && ReduceMotion == other.ReduceMotion;
     public override int GetHashCode() => HashCode.Combine(Animate, RememberMe, ManagementUrl, GameServerUrl, LogFilter, Theme);
 }

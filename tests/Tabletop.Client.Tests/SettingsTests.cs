@@ -46,9 +46,20 @@ public class SettingsTests : IDisposable
         Assert.Equal((55, DisplayMode.Fullscreen, "fantasy"), (s.Volume, s.Display, s.Theme));
         Assert.Equal((true, 100, 100, 100, false, false, false), (s.WoundNumbers, s.PanSpeed, s.OrbitSpeed, s.ZoomSpeed, s.EdgeScroll, s.InvertOrbit, s.InvertZoom));
         Assert.Empty(s.KeyOverrides);
-        Assert.Equal((false, 100, 100, false), (s.ShowFps, s.EffectsVolume, s.InterfaceVolume, s.MuteInBackground));
+        Assert.Equal((false, 100, false), (s.ShowFps, s.EffectsVolume, s.MuteInBackground));
         Assert.Equal((100, 150, 4), (s.UiScale, s.TooltipMs, s.ToastSeconds));
         Assert.Equal((false, 100, false), (s.ColourBlind, s.TextSize, s.ReduceMotion));
+    }
+
+    [Fact]
+    public void A_file_with_the_removed_interface_volume_still_loads()
+    {
+        var path = Path.Combine(_dir, "settings.json");
+        File.WriteAllText(path, """{ "volume": 40, "effectsVolume": 70, "interfaceVolume": 20 }""");
+        var s = ClientSettings.Load(path);
+        Assert.Equal((40, 70), (s.Volume, s.EffectsVolume));
+        s.Save(path);
+        Assert.DoesNotContain("interfaceVolume", File.ReadAllText(path));
     }
 
     [Fact]
@@ -57,7 +68,7 @@ public class SettingsTests : IDisposable
         var path = Path.Combine(_dir, "settings.json");
         var keys = new Dictionary<Intent, IReadOnlyList<KeyBinding>> { [Intent.NextUnit] = [new KeyBinding(HotKey.N, true, false)], [Intent.MeasureMode] = [new KeyBinding(HotKey.J, null, null)] };
         var s = ClientSettings.Default with { WoundNumbers = false, PanSpeed = 150, OrbitSpeed = 50, ZoomSpeed = 200, EdgeScroll = true, InvertOrbit = true, InvertZoom = true,
-            KeyOverrides = keys, ShowFps = true, EffectsVolume = 40, InterfaceVolume = 0, MuteInBackground = true, UiScale = 125, TooltipMs = 500, ToastSeconds = 8,
+            KeyOverrides = keys, ShowFps = true, EffectsVolume = 40, MuteInBackground = true, UiScale = 125, TooltipMs = 500, ToastSeconds = 8,
             ColourBlind = true, TextSize = 130, ReduceMotion = true, Display = DisplayMode.Exclusive };
         s.Save(path);
         var back = ClientSettings.Load(path);

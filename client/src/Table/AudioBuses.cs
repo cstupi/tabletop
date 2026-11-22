@@ -3,29 +3,25 @@ using Tabletop.Client.Core;
 
 namespace Tabletop.Client.Table;
 
-/// <summary>The audio buses (Options → Audio): Master, Effects (the table's sounds, SoundPlayer) and Interface, each sending to Master.
+/// <summary>The audio buses (Options → Audio): Master and Effects (the table's sounds, SoundPlayer), which sends to Master.
 /// <c>default_bus_layout.tres</c> declares them; <see cref="Ensure"/> adds any missing. Volumes are 0–100 linear; Mute in background
 /// silences Master while the window has no focus.</summary>
 public static class AudioBuses
 {
-    public const string Master = "Master", Effects = "Effects", Interface = "Interface";
+    public const string Master = "Master", Effects = "Effects";
 
     public static void Ensure()
     {
-        foreach (var name in new[] { Effects, Interface })
-        {
-            if (AudioServer.GetBusIndex(name) >= 0) continue;
-            AudioServer.AddBus();
-            var i = AudioServer.BusCount - 1;
-            AudioServer.SetBusName(i, name); AudioServer.SetBusSend(i, Master);
-        }
+        if (AudioServer.GetBusIndex(Effects) >= 0) return;
+        AudioServer.AddBus();
+        var i = AudioServer.BusCount - 1;
+        AudioServer.SetBusName(i, Effects); AudioServer.SetBusSend(i, Master);
     }
 
     public static void Apply(ClientSettings s, bool focused)
     {
         Set(Master, s.Volume, s.MuteInBackground && !focused);
         Set(Effects, s.EffectsVolume, false);
-        Set(Interface, s.InterfaceVolume, false);
     }
 
     static void Set(string bus, int volume, bool mute)
