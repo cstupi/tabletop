@@ -25,7 +25,13 @@ public sealed class ClientGameSocket : IGameSocket
     {
         var bytes = Encoding.UTF8.GetBytes(WireJson.Serialize(frame));
         await _sendGate.WaitAsync();
-        try { if (_socket.State == WebSocketState.Open) await _socket.SendAsync(bytes, WebSocketMessageType.Text, SocketCompression.FlagsFor(frame), _stop.Token); }
+        try
+        {
+            // A frame for a socket that is closing fails rather than vanishing: a dropped answer would leave the decision box waiting on a
+            // reply that never comes; the caller shows the failure, and the close reconnects.
+            if (_socket.State != WebSocketState.Open) throw new WebSocketException(WebSocketError.InvalidState, "Not connected to the game.");
+            await _socket.SendAsync(bytes, WebSocketMessageType.Text, SocketCompression.FlagsFor(frame), _stop.Token);
+        }
         finally { _sendGate.Release(); }
     }
 

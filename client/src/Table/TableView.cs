@@ -16,6 +16,8 @@ public partial class TableView : Node3D
     public OrbitCamera Camera { get; } = new();
     /// <summary>The open move Ask's paths and footprints (MovePaths.Proposed), drawn by the decision box; the last move's are LastMovePath's.</summary>
     public MovePathNode Paths { get; } = new();
+    /// <summary>The placed ghosts' unit coherency (CoherencyView): rings, and a line per model out of it; drawn by the decision box.</summary>
+    public CoherencyNode Coherency { get; } = new();
     public TableSize Size { get; private set; } = new(72, 48);
     VisualRef _texture;   // the print the slab draws: a new size or print rebuilds it
     Task? _slabDrawn;     // the slab's last Set: null before the first
@@ -35,7 +37,7 @@ public partial class TableView : Node3D
 
     public override void _Ready()
     {
-        foreach (var n in new Node[] { _slab, _pieces, _terrain, _markers, _zones, _ghosts, Camera, Paths }) AddChild(n);
+        foreach (var n in new Node[] { _slab, _pieces, _terrain, _markers, _zones, _ghosts, Camera, Paths, Coherency }) AddChild(n);
         (_key, _environment) = TableLighting.AddTo(this);
         ApplyGraphics();
         Camera.Current = true;

@@ -4,7 +4,7 @@
 // reauthenticates every minute and rebuilds from the server on every connect. It judges nothing: the server refuses.
 
 import type {
-  Board, Command, Connect, Edit, GameEvent, GameInfo, Refused, RulesOptionCatalog, SetAsideRule, SightAnswer, SocketMessage, TableState, UnitThreat, ZoneLegs,
+  Board, Command, Connect, Edit, GameEvent, GameInfo, Refused, RulesOptionCatalog, SetAsideRule, SightAnswer, SocketMessage, TableState, UnitCoherency, UnitThreat, ZoneLegs,
 } from '../protocol/wire.generated';
 import { PROTOCOL_VERSION } from '../protocol/wire.generated';
 import { Applier, ProjectionDesyncError, type Projection } from '../live/apply';
@@ -27,6 +27,8 @@ export interface ConnectionState {
   readonly terrainRules: { readonly [name: string]: string } | null;
   /** Welcome's marker range (inches from a marker's centre), drawn about each objective; null before the welcome or when the rule set has none. */
   readonly markerRange: number | null;
+  /** Welcome's unit coherency: what the decision box measures its ghosts with, as the server judges a move; null measures none. */
+  readonly coherency: UnitCoherency | null;
   /** Setup: the last board's table. */
   readonly draft: TableState | null;
   /** From playing on: the snapshot the log applies to. */
@@ -112,7 +114,7 @@ type Send = {
 };
 
 const INITIAL: ConnectionState = {
-  phase: 'connecting', game: null, participantId: null, options: NO_OPTIONS, zones: null, terrainWords: null, terrainRules: null, markerRange: null, draft: null, board: null, log: [], projection: null,
+  phase: 'connecting', game: null, participantId: null, options: NO_OPTIONS, zones: null, terrainWords: null, terrainRules: null, markerRange: null, coherency: null, draft: null, board: null, log: [], projection: null,
   maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), setAsideRules: new Map(), threats: new Map(), inCover: new Set(), catchingUp: true, closeReason: null,
 };
 
@@ -271,12 +273,12 @@ export function connectGame(options: ConnectionOptions): GameConnection {
         welcomed = true;
         attempt = 0;
         clearTimeout(welcomeTimer);
-        publish({ phase: 'connected', participantId: frame.participantId, game: frame.game, options: frame.options ?? NO_OPTIONS, zones: frame.zones ?? null, terrainWords: frame.terrainWords ?? null, terrainRules: frame.terrainRules ?? null, markerRange: frame.markerRange ?? null, closeReason: null });
+        publish({ phase: 'connected', participantId: frame.participantId, game: frame.game, options: frame.options ?? NO_OPTIONS, zones: frame.zones ?? null, terrainWords: frame.terrainWords ?? null, terrainRules: frame.terrainRules ?? null, markerRange: frame.markerRange ?? null, coherency: frame.coherency ?? null, closeReason: null });
         reauthTimer = setInterval(() => void reauth(), reauthEvery);
         flush();
         return;
       case 'rules_options':
-        publish({ options: frame.options, zones: frame.zones ?? null, terrainWords: frame.terrainWords ?? null, terrainRules: frame.terrainRules ?? null, markerRange: frame.markerRange ?? null });   // before the 'game' that follows
+        publish({ options: frame.options, zones: frame.zones ?? null, terrainWords: frame.terrainWords ?? null, terrainRules: frame.terrainRules ?? null, markerRange: frame.markerRange ?? null, coherency: frame.coherency ?? null });   // before the 'game' that follows
         return;
       case 'game':
         publish({ game: frame.game });

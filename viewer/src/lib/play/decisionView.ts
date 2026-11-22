@@ -64,6 +64,14 @@ export function choicesOf(options: Options, p: Projection, unitId: string): AskO
   return options.choices.filter((c) => c.pieces.some((id) => id === unitId || p.models.get(id)?.unitId === unitId));
 }
 
+/** DecisionView.Narrowed: what an activation's card first shows, the selected unit's choices when it has any, else null for every unit's.
+ * An Ask drawn again (an undo reopens it, a refusal) keeps to the selection. */
+export function narrowed(options: Options, p: Projection, selected: string | null): AskOption[] | null {
+  if (selected === null) return null;
+  const hits = choicesOf(options, p, selected);
+  return hits.length > 0 ? hits : null;
+}
+
 /**
  * The one unit an option's pieces name, by its id or its models' ids: the unit whose hover label shows while the pointer is on the option's
  * button. Null when the pieces name no unit, several, or anything that is not a unit or model.

@@ -16,9 +16,12 @@ import { handMarks, handMoveCommand, markerMove, mayDrag } from './handMove';
 import type { MarkerLocks } from './markerLocks';
 import { ModelDrag, type Held } from './modelDrag';
 import { ModelPicks, shiftPress, type PickBox, type PickCandidate } from './modelPicks';
-import { allowanceOverlay, bandsOverlay, boxOverlay, labelOverlay, landingOverlay, landingRings, pathsOverlay, rulerLines, rulerOverlay, violationLabels } from './moveOverlays';
+import { allowanceOverlay, bandsOverlay, boxOverlay, coherencyOverlay, labelOverlay, landingOverlay, landingRings, pathsOverlay, rulerLines, rulerOverlay, violationLabels } from './moveOverlays';
 import { isVehicle } from './movePaths';
 import { read } from './moveRuler';
+
+/** Ui.Warning on the board: the marks' labels and the coherency lines. */
+const WARNING = '#ffc44e';
 import { Names } from './names';
 import { teamsOf } from '../lobby/seats';
 import type { Selection } from './selectionView';
@@ -306,6 +309,8 @@ export class PlayDrags {
     if (rings.length > 0) out.push(allowanceOverlay(rings, teamColour(colour)));
     const paths = hooks?.paths() ?? [];
     if (paths.length > 0) out.push(pathsOverlay(paths, teamColour(colour), (id) => p !== null && isVehicle(p, id)));
+    const coherency = hooks?.coherency();
+    if (coherency !== undefined && coherency.rings.length + coherency.lines.length > 0) out.push(coherencyOverlay(coherency, teamColour(colour), WARNING));
     if (held !== null && p !== null) {
       const readouts = this.#proposing ? hooks?.readouts(held) ?? []
         : held.ids.flatMap((id) => {
@@ -319,7 +324,7 @@ export class PlayDrags {
     }
     const order = [...(held?.ids ?? []), ...this.#deps.violations.marked.keys(), ...this.#deps.violations.warned.keys()];
     const labels = violationLabels(this.#deps.violations, order, centreOf);
-    if (labels.length > 0) out.push(labelOverlay(labels, '#ffc44e', obstacles));
+    if (labels.length > 0) out.push(labelOverlay(labels, WARNING, obstacles));
     if (this.#box !== null) out.push(boxOverlay(this.#box.from, this.#box.to));
     const marker = this.#marker;
     if (marker !== null) out.push(landingOverlay([{ centre: { x: marker.at.x, y: marker.at.y }, radius: Math.max(0.5, marker.radius) }]));

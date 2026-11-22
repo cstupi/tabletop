@@ -28,6 +28,8 @@ public sealed record Nearest(double Distance, int From, int To);
 /// <summary>A range outline: every model at Range, or each at its own Ranges[i] when given.</summary>
 public sealed record RingRequest(IReadOnlyList<PlacedModel> Models, double Range, IReadOnlyList<double>? Ranges = null);
 public sealed record Segment(Point2 A, Point2 B);
+/// <summary>A unit's models and its coherency distances (Coherency.Gaps): Chain, Elevated at different elevation, Spread.</summary>
+public sealed record CoherencyRequest(IReadOnlyList<PlacedModel> Models, double Chain, double Elevated, double Spread);
 /// <summary>A keep-away (Clearance): each of From at Over[i], lifted within LiftedWithin of each of Lifted; Placed, the base ClearanceBreaks tests.</summary>
 public sealed record ClearanceRequest(IReadOnlyList<PlacedModel> From, IReadOnlyList<double> Over, IReadOnlyList<PlacedModel>? Lifted = null, double LiftedWithin = 0,
     PlacedModel? Placed = null);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { choicesOf, clickAnswers, decisionOf, noteOf, number, rows, stopLabel, unitNamed } from '../src/lib/play/decisionView';
+import { choicesOf, clickAnswers, narrowed as narrowedTo, decisionOf, noteOf, number, rows, stopLabel, unitNamed } from '../src/lib/play/decisionView';
 import { Names } from '../src/lib/play/names';
 import type { Ask, LegalSet, MoveRegion } from '../src/lib/protocol/wire.generated';
 import { TEAM1, TEAM2, askOf, newId, option, projectionOf, sample } from './play';
@@ -87,6 +87,14 @@ describe('DecisionView', () => {
     expect(narrowed.map((c) => c.id)).toEqual(['a', 'm']);
     expect(number(narrowed)).toEqual([{ key: 1, label: 'Advance', optionId: 'a' }, { key: 2, label: 'Charge', optionId: 'm' }]);
     expect(choicesOf(options, a.projection, newId())).toEqual([]);
+  });
+
+  it('an activation drawn with a unit selected starts narrowed to it (DecisionView.Narrowed)', () => {
+    const a = projectionOf(s.game, s.board);
+    const options = { kind: 'options', choices: [option('x', 'Other: Hold', [newId()]), option('a', 'Advance', [s.squad.id]), option('m', 'Charge', [s.model.id])] } as const;
+    expect(narrowedTo(options, a.projection, s.squad.id)?.map((c) => c.id)).toEqual(['a', 'm']);
+    expect(narrowedTo(options, a.projection, null)).toBeNull();
+    expect(narrowedTo(options, a.projection, newId())).toBeNull();
   });
 
   it('an option names one unit by its id or its models\' ids', () => {

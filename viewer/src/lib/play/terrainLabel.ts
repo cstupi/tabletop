@@ -28,3 +28,7 @@ export function flagsOf(v: Volume, words?: TerrainWords | null): string[] {
 /** The volume's height range on the table, scale and elevation applied: `0–4"`. */
 export const heightsOf = (t: TerrainPlacement, v: Volume): string =>
   `${inches(t.position.z + v.bottom * t.scale)}–${inches(t.position.z + v.top * t.scale)}"`;
+
+/** Whether the terrain hover panel shows (TerrainLabel.HoverShown): never while models are held, and while a move's or a deployment's ghosts
+ *  are down only with the modifier (Alt) held. */
+export const terrainHoverShown = (held: boolean, placing: boolean, modifier: boolean): boolean => !held && (!placing || modifier);

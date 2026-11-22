@@ -46,6 +46,7 @@
   import { fetchRuleTexts, RuleTexts, type GrantChoice } from './ruleTexts';
   import { sceneOfPlay } from './scene';
   import { terrainHoverOf } from './terrainHover';
+  import { terrainHoverShown } from './terrainLabel';
   import TerrainHoverPanel from './TerrainHoverPanel.svelte';
   import packedCatalog from '@builtin-catalog';
   import { loadCatalog, nameOf, parseCatalog, type Catalog } from '../setup/catalog';
@@ -163,6 +164,7 @@
       rules: () => rules,
       send: (command) => conn.sendCommand(command),
       onRefused: (listener) => conn.onRefused((refused) => listener(refused)),
+      selected: () => selection?.pieceId ?? null,
     }, moves);
     const stops = [
       b.subscribe((p) => { panel = p; }),
@@ -458,8 +460,14 @@
 
   // --- D3 helpers: what the card and the log hand back to the page ---
   /** The table lights the selection and what a clicked log row touched. */
-  /** HoverLabels.DrawTerrain: the hovered terrain piece's panel beside the pointer, not the selected one's. */
-  const terrainHover = $derived(shown === null ? null : terrainHoverOf(shown.board.table, catalog, hoveredTerrain, selection?.pieceId ?? null, snap?.terrainWords));
+  /** HoverLabels.DrawTerrain: the hovered terrain piece's panel beside the pointer, not the selected one's; never over held models, and over a
+   *  placement's ghosts only with Alt held (TerrainLabel.HoverShown). */
+  let altHeld = $state(false);
+  const terrainHover = $derived.by(() => {
+    void version; void panel;
+    if (shown === null || !terrainHoverShown(drags.held !== null, (box?.proposing.size ?? 0) > 0, altHeld)) return null;
+    return terrainHoverOf(shown.board.table, catalog, hoveredTerrain, selection?.pieceId ?? null, snap?.terrainWords);
+  });
   let stagePointer = $state({ x: 0, y: 0 });
   const drawnSelection = $derived(touchedIds.size === 0 ? selected : new Set([...selected, ...touchedIds]));
   const infoEligible = $derived.by(() => { void panel; return box?.eligible ?? new Set<string>(); });
@@ -530,7 +538,7 @@
   }
 </script>
 
-<svelte:window onpointerdowncapture={(e) => { pointerAt = { x: e.clientX, y: e.clientY }; }} onkeydown={onKeydown} onkeyup={(e) => { if (e.key === 'l' || e.key === 'L') sightHeld = false; }} onblur={() => { sightHeld = false; }} />
+<svelte:window onpointerdowncapture={(e) => { pointerAt = { x: e.clientX, y: e.clientY }; }} onkeydown={(e) => { if (e.key === 'Alt') altHeld = true; onKeydown(e); }} onkeyup={(e) => { if (e.key === 'l' || e.key === 'L') sightHeld = false; if (e.key === 'Alt') altHeld = false; }} onblur={() => { sightHeld = false; altHeld = false; }} />
 
 <div class="play" bind:clientWidth={boxW} bind:clientHeight={boxH}>
   <div class="stage" role="presentation" onpointermove={(e) => { const r = e.currentTarget.getBoundingClientRect(); stagePointer = { x: e.clientX - r.left, y: e.clientY - r.top }; }}>

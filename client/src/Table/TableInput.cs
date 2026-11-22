@@ -501,11 +501,12 @@ public partial class TableInput : Node
     /// <summary>Ctrl down: the ruler is anchored at the point under the cursor now, and follows it until Ctrl comes up.</summary>
     void StartTapeAtCursor() { var (point, piece) = Pick(GetViewport().GetMousePosition()); _tape.Start(AnchorAt(point, piece)); ShowTape(); }
 
-    /// <summary>A model measures from its base (p.5), a terrain piece from its top under the point, anything else from the point.</summary>
+    /// <summary>A model measures from its base where its node stands (a move's or a disembark's ghost included), a terrain piece from its
+    /// top under the point, anything else from the point.</summary>
     PlacedModel AnchorAt(Point3 point, Node3D? piece) =>
-        piece is PieceNode pn && _session.Projection?.Models.GetValueOrDefault(pn.ModelId) is { Location: OnTable on } m
-            ? new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), on.Placement)
-            : new PlacedModel(new ModelBody(Base.Circle(0), 0), new Placement(piece is TerrainNode ? TapeMeasure.OnSurface(point, _view.Volumes) : point, new Yaw(0)));
+        piece is PieceNode pn && _session.Projection?.Models.GetValueOrDefault(pn.ModelId) is { } m
+            ? TapeMeasure.EndAt(point, new ModelBody(m.Slot.Base, m.Slot.Height), new Placement(WorldFrame.FromGodot(pn.GlobalPosition), WorldFrame.YawFrom(pn.GlobalRotation.Y)))
+            : TapeMeasure.EndAt(piece is TerrainNode ? TapeMeasure.OnSurface(point, _view.Volumes) : point, null, null);
 
     /// <summary>The ruler as the tape has it, here and in presence.</summary>
     void ShowTape()

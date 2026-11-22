@@ -55,7 +55,13 @@ public sealed record Welcome(Guid ParticipantId, GameInfo Game) : SocketMessage
     /// <summary>How far from an objective marker's centre a model's base edge holds it under the game's rule set (IGameRules.MarkerRange),
     /// in inches; a client draws it about each marker. Null: the rule set holds no markers by range, and nothing is drawn.</summary>
     public double? MarkerRange { get; init; }
+    /// <summary>The unit coherency the game's rule set judges a move by (IGameRules.Coherency), which a client measures its ghosts with as the
+    /// server does (Coherency.Check). Null: the rule set holds no coherency, and nothing is measured.</summary>
+    public UnitCoherency? Coherency { get; init; }
 }
+/// <summary>A rule set's unit coherency, in inches, edge to edge: every model within Chain of another, one chain, and within Spread of every
+/// other; Elevated in place of Chain to a model at a different elevation.</summary>
+public sealed record UnitCoherency(double Chain, double Elevated, double Spread);
 /// <summary>After every lobby edit.</summary>
 public sealed record GameInfoMessage(GameInfo Game) : SocketMessage;
 /// <summary>A lobby SetConfiguration moved the game to another rule set's id: the new ruleset's whole per-rules bundle (catalog, zone legs,
@@ -70,6 +76,8 @@ public sealed record RulesOptionsMessage(RulesOptionCatalog Options) : SocketMes
     public IReadOnlyDictionary<string, string> TerrainRules { get; init; } = new Dictionary<string, string>();
     /// <summary>As Welcome.MarkerRange, under the new rule set.</summary>
     public double? MarkerRange { get; init; }
+    /// <summary>As Welcome.Coherency, under the new rule set.</summary>
+    public UnitCoherency? Coherency { get; init; }
 }
 /// <summary>On connect from setup on, and after every setup edit (the whole draft).</summary>
 public sealed record BoardMessage(Board Board) : SocketMessage;

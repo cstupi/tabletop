@@ -35,6 +35,10 @@ public static class TerrainLabel
         }));
     }
 
+    /// <summary>Whether the terrain hover panel shows (owner, 2026-11-22: a Forest panel covered the ghosts): never while models are held, and while
+    /// a move's or a deployment's ghosts are down only with the modifier (Alt) held.</summary>
+    public static bool HoverShown(bool held, bool placing, bool modifier) => !held && (!placing || modifier);
+
     /// <summary>The hover panel (owner, 2026-11-07: "clearer terrain tooltips"): the piece's name, its height range on the table and one chip
     /// per effect any of its volumes carries, in the label's order; Open alone when none carries one.</summary>
     public static TerrainHover HoverOf(TerrainPlacement t, IReadOnlyDictionary<string, string>? words = null)

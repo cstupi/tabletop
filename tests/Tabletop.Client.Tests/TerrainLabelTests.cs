@@ -68,4 +68,13 @@ public class TerrainLabelTests
         var piece = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfAsset(Guid.CreateVersion7()), new Point3(0, 0, 0), new Yaw(0), 1, [V(0, 1, None)]);
         Assert.Equal(["Open"], TerrainLabel.HoverOf(piece).Effects.Select(e => e.Word));
     }
+
+    [Theory]
+    [InlineData(false, false, false, true)]    // nothing placed: the panel shows
+    [InlineData(false, true, false, false)]    // ghosts down: hidden
+    [InlineData(false, true, true, true)]      // ghosts down, Alt held: shown
+    [InlineData(true, true, true, false)]      // models in hand: never, Alt or not
+    [InlineData(true, false, false, false)]
+    public void The_hover_panel_keeps_off_placed_and_held_models(bool held, bool placing, bool modifier, bool shown) =>
+        Assert.Equal(shown, TerrainLabel.HoverShown(held, placing, modifier));
 }
