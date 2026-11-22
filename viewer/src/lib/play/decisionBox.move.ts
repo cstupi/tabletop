@@ -13,6 +13,7 @@ import type { Enforcement, KeepAway, ModelRelocation, MoveRegion, Placement, Poi
 import type { AskView } from './askView';
 import { allWords, move as contactsOfMove, placement as contactsOfPlacement } from './contactCheck';
 import { withKeepAway } from './keepAwayArea';
+import { coherencyOf, coherencyWarnings, NO_COHERENCY, withCoherency, type CoherencyPicture } from './coherencyView';
 import { CommitHold } from './commitHold';
 import { button, dim, type Control, type DecisionBox, type MoveHooks } from './decisionBox';
 import { barOf, inches } from './decisionCard';
@@ -52,6 +53,8 @@ export type MoveBoxHooks = MoveHooks & {
   region(): MoveRegion | null;
   /** The open move's paths and footprints (MovePaths.Proposed), read again on every gate; empty outside one. */
   paths(): readonly ModelPath[];
+  /** The placed ghosts' unit coherency (CoherencyView), read again on every gate: rings and a line per model out of it; none outside a placement. */
+  coherency(): CoherencyPicture;
 };
 
 const xy = (p: { x: number; y: number }): XY => ({ x: p.x, y: p.y });
@@ -76,6 +79,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
   let moving: { legal: MoveRegion; p: Projection; allowance: number | null } | null = null;
   let built: { legal: MoveRegion; byId: Map<string, MoveBands | null> } | null = null;
   let paths: readonly ModelPath[] = [];
+  let coherency: CoherencyPicture = NO_COHERENCY;
 
   /** MoveRegions.Allowance and Route: each moved model's path from where it stands to its target, as the server measures it, and the unit's allowance
    *  (the Ask's, or its cap once any path goes in or through difficult ground; then each path is the shortest within it). The last answer is kept
@@ -166,7 +170,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
 
   function renderMove(box: DecisionBox, mine: AskView, p: Projection, n: Names): void {
     const ask = mine.ask, legal = ask.legal as MoveRegion;
-    rings = null; moving = null; minimum = null; paths = [];
+    rings = null; moving = null; minimum = null; paths = []; coherency = NO_COHERENCY;
     if (legal.modelIds.length === 0) return;                               // nothing to move; the server closes the Ask
     const lead = p.models.get(legal.modelIds[0]!);
     if (lead === undefined) return;
@@ -257,11 +261,14 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
           readouts.push(route === undefined ? read(xy(l.placement.position), xy(ghost.position), unit, minimum) : readDistance(route.distance, unit, minimum));
         }
       }
+      // p.7 unit coherency, as the server measures it (CoherencyView): a mark where the server refuses it, else a warning.
+      coherency = g === null ? NO_COHERENCY : coherencyOf(g, p, new Map(box.ghosts), box.host.state().coherency, (id) => p.models.get(id)?.slot.name ?? n.model(id), true);
       if (g !== null)
-        deps.violations.measure(legal.modelIds, withKeepAway(allWords(contactsOfMove(g, p, legal, new Map(box.ghosts), size), legal.separation, n.unit.bind(n)),
-          g, p, legal.keepAway ?? null, new Map(box.ghosts), n.unit.bind(n)));
-      deps.violations.warn(legal.modelIds, warningMarks(paths));
-      const warnings = warningLines(paths, (id) => p.models.get(id)?.slot.name ?? n.model(id), (v) => deps.terrainName?.(v) ?? 'terrain');
+        deps.violations.measure(legal.modelIds, withCoherency(withKeepAway(allWords(contactsOfMove(g, p, legal, new Map(box.ghosts), size), legal.separation, n.unit.bind(n)),
+          g, p, legal.keepAway ?? null, new Map(box.ghosts), n.unit.bind(n)), coherency));
+      deps.violations.warn(legal.modelIds, coherencyWarnings(warningMarks(paths), coherency));
+      const warnings = [...warningLines(paths, (id) => p.models.get(id)?.slot.name ?? n.model(id), (v) => deps.terrainName?.(v) ?? 'terrain'),
+        ...(coherency.blocks ? [] : coherency.words.values())];
       current = gateOf(readouts, deps.enforcement(), marked(legal.modelIds), warnings);
       if (unit !== null) box.replace('bar', { kind: 'bar', id: 'bar', bar: barOf(readouts, unit, minimum) });
       show(box, current, ids);
@@ -365,7 +372,10 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       const unitName = (id: string): string => st.projection!.units.get(id)?.definition.name ?? id;
       if (g !== null) deps.violations.measure(ids, withKeepAway(allWords(contactsOfPlacement(g, st.projection, new Map(box.ghosts)), undefined, unitName),
         g, st.projection, deployKeep, new Map(box.ghosts), unitName));
-      current = gateOf([], deps.enforcement(), marked(ids));
+      // p.7 unit coherency of the ghosts: the server does not judge a deployment's, so it warns and never holds Place.
+      coherency = g === null ? NO_COHERENCY : coherencyOf(g, st.projection, new Map(box.ghosts), st.coherency, (id) => st.projection!.models.get(id)?.slot.name ?? id, false);
+      deps.violations.warn(ids, coherency.words);
+      current = gateOf([], deps.enforcement(), marked(ids), [...coherency.words.values()]);
       show(box, current, ['place']);
     };
     regate();
@@ -396,7 +406,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       regate?.();
     },
     unhook() {
-      regate = null; rings = null; moving = null; minimum = null; paths = [];
+      regate = null; rings = null; moving = null; minimum = null; paths = []; coherency = NO_COHERENCY;
       deps.violations.clear();                                              // a refused commit's marks come back with its ghosts (applyVerdict)
     },
     allowance() {
@@ -435,6 +445,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
     },
     region() { return moving?.legal ?? null; },
     paths() { return moving === null ? [] : paths; },
+    coherency() { return coherency; },
     picked(ids) {
       if (rings !== null) rings = { ...rings, ids: [...new Set([...rings.ids.slice(0, 1), ...ids])].filter((id) => rings!.legal.modelIds.includes(id)) };
     },

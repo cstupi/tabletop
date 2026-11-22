@@ -56,8 +56,13 @@ public partial class HoverLabels : Node3D
     {
         _shift.Visible = Input.IsKeyPressed(Key.Shift);
         if (_shift.Visible) _shift.Position = GetViewport().GetMousePosition() + new Vector2(18, 18);
+        var shown = TerrainLabel.HoverShown(_input.HeldModels.Count > 0, _input.Proposing.Count > 0, Input.IsKeyPressed(Key.Alt));
+        if (shown != _terrainAllowed) { _terrainAllowed = shown; DrawTerrain(); }
         if (_terrainPanel.Visible) PlaceTerrainPanel();
     }
+
+    /// <summary>TerrainLabel.HoverShown as last read: the panel keeps off held models and a placement's ghosts unless Alt is held.</summary>
+    bool _terrainAllowed = true;
 
     /// <summary>Beside the cursor, inside the view and off the Hud's panels (CursorPanel over Session.Hud's Obstacles).</summary>
     void PlaceTerrainPanel()
@@ -121,7 +126,7 @@ public partial class HoverLabels : Node3D
     void DrawTerrain()
     {
         TerrainHover? hover = null;
-        if (_s.Game?.Status is GameStatus.Playing or GameStatus.Ended && _s.Projection is { } p && _terrain is { } id && id != _input.Selected?.PieceId
+        if (_terrainAllowed && _s.Game?.Status is GameStatus.Playing or GameStatus.Ended && _s.Projection is { } p && _terrain is { } id && id != _input.Selected?.PieceId
             && p.Board.Table.Terrain.FirstOrDefault(t => t.Id == id) is { } piece)
             hover = TerrainLabel.HoverOf(piece, _s.TerrainWords);
         _terrainPanel.Visible = hover is not null;

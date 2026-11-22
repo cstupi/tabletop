@@ -120,13 +120,17 @@ public partial class DecisionBox
             var readouts = unit is null ? [] : legal.ModelIds.Where(id => p.Models[id].Location is OnTable && proposed.ContainsKey(id))
                 .Select(id => MoveRuler.Read(Moved(p, id, proposed[id].Horizontal, unit < allowance), unit, _regions?.Minimum(id, proposed[id].Horizontal))).ToList();
             var placed = proposed.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
-            _input.Violations.Measure(legal.ModelIds, KeepAwayArea.With(ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit, _regions), legal.Separation, names.Unit),
-                p, legal.KeepAway, placed, names.Unit));
+            // p.7 unit coherency, as the server measures it (CoherencyView): a mark where the server refuses it, else a warning.
+            var coherency = CoherencyView.Of(p, placed, _s.Coherency, id => _input.Violations.Subject?.Invoke(id) ?? names.Model(id), judged: true);
+            _view.Coherency.Show(coherency, _regionColour);
+            _input.Violations.Measure(legal.ModelIds, CoherencyView.With(KeepAwayArea.With(ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit, _regions), legal.Separation, names.Unit),
+                p, legal.KeepAway, placed, names.Unit), coherency));
             // Each moved model's path and footprints, and a warning where its swept base crosses dangerous ground: never holding the commit.
             var paths = pathCache?.Proposed(proposed.ToDictionary(kv => kv.Key, kv => kv.Value.Horizontal), unit < allowance) ?? [];
-            _input.Violations.Warn(legal.ModelIds, MovePaths.Marks(paths));
+            _input.Violations.Warn(legal.ModelIds, CoherencyView.Warnings(MovePaths.Marks(paths), coherency));
             _view.Paths.Show(paths, _regionColour);
-            var warnings = MovePaths.Lines(paths, id => _input.Violations.Subject?.Invoke(id) ?? names.Model(id), v => MovePaths.VolumeName(p.Board.Table, v));
+            var warnings = MovePaths.Lines(paths, id => _input.Violations.Subject?.Invoke(id) ?? names.Model(id), v => MovePaths.VolumeName(p.Board.Table, v))
+                .Concat(coherency.Blocks ? [] : coherency.Words.Values).ToList();
             _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MarkedOf(legal.ModelIds), warnings);
             if (unit is { } cap) setBar?.Invoke(DecisionCard.Bar(readouts, cap, minimum));
             commit.Disabled = !_gate.Allowed; if (stop is not null) stop.Disabled = !_gate.Allowed;
@@ -301,7 +305,11 @@ public partial class DecisionBox
             var placed = at.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
             var unitName = new Names(game, p).Unit;
             _input.Violations.Measure(at.Keys, KeepAwayArea.With(ContactCheck.Words(ContactCheck.Placement(p, placed, _view.Volumes), null, unitName), p, _deployKeep, placed, unitName));
-            _gate = MoveRuler.Gate([], game.Enforcement, MarkedOf(at.Keys));
+            // p.7 unit coherency of the ghosts: the server does not judge a deployment's, so it warns and never holds Place.
+            var coherency = CoherencyView.Of(p, placed, _s.Coherency, id => _input.Violations.Subject?.Invoke(id) ?? p.Models[id].Slot.Name, judged: false);
+            _view.Coherency.Show(coherency, Palette.Team(MyOrdinal));
+            _input.Violations.Warn(at.Keys, coherency.Words);
+            _gate = MoveRuler.Gate([], game.Enforcement, MarkedOf(at.Keys), coherency.Words.Values.ToList());
             place.Disabled = !_gate.Allowed; place.TooltipText = _gate.Allowed ? "" : _gate.Reason ?? "";
             reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null && !RepeatsRefusal(_gate.Reason);
         };

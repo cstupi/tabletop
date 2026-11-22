@@ -186,6 +186,12 @@ public static class AgreementCases
             Clearance.Outline([Model(10, 10), Model(30, 10)], [9.0, 12], [Model(20, 10)], 6).Select(s => new Segment(s.A, s.B)).ToArray());
         Add("clearance_breaks_repel", "ClearanceBreaks", new ClearanceRequest([Model(10, 10), Model(30, 10)], [9, 12], Placed: Model(30, 22)),
             Clearance.Breaks(Model(30, 22), [Model(10, 10), Model(30, 10)], [9.0, 12], [], 0));
+        PlacedModel[] flayers = [new(new ModelBody(Base.Oval(2.362, 1.378), 4.43), Pl(39.839, 20.306, 0, 12.185)), new(new ModelBody(Base.Oval(2.362, 1.378), 4.43), Pl(38.675, 17.198, 0, 71.19)),
+            new(new ModelBody(Base.Oval(2.362, 1.378), 4.43), Pl(35.683, 19.208, 0, 71.19)), new(new ModelBody(Base.Oval(2.362, 1.378), 4.43), Pl(37.878, 19.779, 0, 71.19)), new(new ModelBody(Base.Oval(2.362, 1.378), 4.43), Pl(36.12, 21.084, 0, 71.19))];
+        Add("coherency_gaps_turned_ovals", "CoherencyGaps", new CoherencyRequest(flayers, 1, 3, 9), Coherency.Gaps(flayers, 1, 3, 9).ToArray());
+        PlacedModel[] line = Enumerable.Range(0, 7).Select(i => Model(2 * i, 0)).ToArray();
+        Add("coherency_gaps_spread", "CoherencyGaps", new CoherencyRequest(line, 1, 3, 9), Coherency.Gaps(line, 1, 3, 9).ToArray());
+        Add("coherency_gaps_none", "CoherencyGaps", new CoherencyRequest(line[..3], 1, 3, 9), Coherency.Gaps(line[..3], 1, 3, 9).ToArray());
         var size = new TableSize(72, 48);
         Add("zone_polygons_frontline", "ZonePolygons", new ZoneRequest("frontline/1", size, null, null), ZoneStyles.Resolve("frontline/1", size).Select(p => p.Vertices.ToArray()).ToArray());
         Add("zone_polygons_disordered", "ZonePolygons", new ZoneRequest("disordered/2", size, null, null), ZoneStyles.Resolve("disordered/2", size).Select(p => p.Vertices.ToArray()).ToArray());

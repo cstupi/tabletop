@@ -25,7 +25,7 @@ function close(a: unknown, b: unknown, path = '$'): string | null {
   return a === b ? null : `${path}: ${String(a)} vs ${String(b)}`;
 }
 
-const FACADE = ['BodyToBody', 'ClearanceBreaks', 'ClearanceOutline', 'Contacts', 'EdgeToEdge', 'EdgeToMarker', 'EdgeToPoint', 'ExitYaw', 'LandModels', 'LandPiece', 'ModelSurfaces', 'MoveBands', 'MoveRoutes', 'NearestPair',
+const FACADE = ['BodyToBody', 'ClearanceBreaks', 'ClearanceOutline', 'CoherencyGaps', 'Contacts', 'EdgeToEdge', 'EdgeToMarker', 'EdgeToPoint', 'ExitYaw', 'LandModels', 'LandPiece', 'ModelSurfaces', 'MoveBands', 'MoveRoutes', 'NearestPair',
   'OverlapBases', 'PieceSurfaces', 'RangeOutline', 'RestModel', 'RestPiece', 'TableHoldsBase', 'TurnPiece', 'ZoneContains', 'ZoneHoldsBase', 'ZonePolygons'];
 
 let g: Geometry;

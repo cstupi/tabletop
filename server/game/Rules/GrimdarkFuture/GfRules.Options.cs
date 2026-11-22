@@ -19,6 +19,8 @@ public sealed partial class GrimdarkFutureRules
     IReadOnlyDictionary<string, string>? _terrainRules;
     /// <summary>p.6 (3.6.0 p.6): "within 3” of a marker", from the marker's centre (GfObjectives.Seize).</summary>
     public double? MarkerRange => GfObjectives.SeizeRange;
+    /// <summary>p.7 UNIT COHERENCY (3.6.0 p.7) and p.11's 3" at different elevation, as GfMoves.CoherencyBreach judges a move.</summary>
+    public UnitCoherency? Coherency { get; } = new(GfNames.CoherencyChain, GfNames.CoherencyElevated, GfNames.CoherencySpread);
     public IReadOnlyList<string> OptionProblems(IReadOnlyDictionary<string, string> optionalRules) => GfOptions.Problems(optionalRules);
     public Interpreter.ISightPolicy SightPolicy(GameState state) => GfSight.For(state);
 }

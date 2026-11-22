@@ -70,7 +70,7 @@ const catalog = parseCatalog(packedCatalog);
 export function stateOf(c: CallCase, log: CallLogFiles): ConnectionState {
   const { welcome, board, events } = parsed(log);
   const common = {
-    participantId: c.participantId ?? null, options: welcome.options ?? { options: [], presets: [] }, zones: null, terrainWords: null, terrainRules: null, markerRange: null, catchingUp: false, closeReason: null,
+    participantId: c.participantId ?? null, options: welcome.options ?? { options: [], presets: [] }, zones: null, terrainWords: null, terrainRules: null, markerRange: null, coherency: null, catchingUp: false, closeReason: null,
     maxWounds: new Map(Object.entries(c.maxWounds)), deployInside: new Map(Object.entries(c.deployInside)), maySetAside: new Set(c.maySetAside), setAsideRules: new Map(), threats: new Map(), inCover: new Set(), phase: 'connected' as const,
   };
   if (c.status !== 'playing')

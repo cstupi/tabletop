@@ -74,8 +74,8 @@ describe('GameConnection', () => {
     const s = await welcomed(h, setupWelcome);
     const next = { options: [{ key: 'a', label: 'A', default: 'off', values: [{ value: 'off', label: 'Off' }] }], presets: [] };
     const zones = { sideBattleLong: 2 / 3, sideBattleShort: 0.75 };
-    s.deliver({ kind: 'rules_options', options: next, zones, terrainWords: { see_in_and_out: 'Dense' }, markerRange: 4 });
-    expect(h.conn.state).toMatchObject({ options: next, zones, terrainWords: { see_in_and_out: 'Dense' }, markerRange: 4 });
+    s.deliver({ kind: 'rules_options', options: next, zones, terrainWords: { see_in_and_out: 'Dense' }, markerRange: 4, coherency: { chain: 2, elevated: 4, spread: 10 } });
+    expect(h.conn.state).toMatchObject({ options: next, zones, terrainWords: { see_in_and_out: 'Dense' }, markerRange: 4, coherency: { chain: 2, elevated: 4, spread: 10 } });
   });
 
   it('a welcome publishes its zone legs', async () => {

@@ -1,4 +1,4 @@
-import type { Contact, Geometry, MoveBands, Nearest, PieceEnd, RouteFound, Segment, XY, HeldEnd } from './types';
+import type { CoherencyGap, Contact, Geometry, MoveBands, Nearest, PieceEnd, RouteFound, Segment, XY, HeldEnd } from './types';
 import type { Point3, Yaw } from './types';
 import { DownloadProgress } from './progress';
 
@@ -68,6 +68,7 @@ function wrap(exports: Exports): Geometry {
     nearestPair: (from, to) => from.length === 0 || to.length === 0 ? null : ask<Nearest>('NearestPair', { from, to }),
     rangeOutline: (models, range, ranges) => ask<Segment[]>('RangeOutline', ranges === undefined ? { models, range } : { models, range, ranges }),
     clearanceOutline: (from, over, lifted, liftedWithin) => from.length === 0 ? [] : ask<Segment[]>('ClearanceOutline', { from, over, lifted: lifted ?? [], liftedWithin: liftedWithin ?? 0 }),
+    coherencyGaps: (models, chain, elevated, spread) => ask<CoherencyGap[]>('CoherencyGaps', { models, chain, elevated, spread }),
     clearanceBreaks: (placed, from, over, lifted, liftedWithin) => ask<number>('ClearanceBreaks', { from, over, lifted: lifted ?? [], liftedWithin: liftedWithin ?? 0, placed }),
     zonePolygons: (shape, size, legs) => ask<XY[][]>('ZonePolygons', { shape, size, legs }),
     zoneContains: (shape, size, point, legs) => ask<boolean>('ZoneContains', { shape, size, point, legs }),

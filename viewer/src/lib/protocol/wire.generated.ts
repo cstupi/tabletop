@@ -669,6 +669,7 @@ export interface RulesOptionsMessage {
   readonly terrainWords: { readonly [key: string]: string };
   readonly terrainRules: { readonly [key: string]: string };
   readonly markerRange?: number;
+  readonly coherency?: UnitCoherency;
 }
 
 export interface RulesPreset {
@@ -980,6 +981,12 @@ export interface Unit {
   readonly points?: number;
 }
 
+export interface UnitCoherency {
+  readonly chain: number;
+  readonly elevated: number;
+  readonly spread: number;
+}
+
 export interface UnitReserve {
   readonly property: string;
   readonly of: string;
@@ -1025,6 +1032,7 @@ export interface Welcome {
   readonly terrainWords: { readonly [key: string]: string };
   readonly terrainRules: { readonly [key: string]: string };
   readonly markerRange?: number;
+  readonly coherency?: UnitCoherency;
 }
 
 export interface WoundsSet {

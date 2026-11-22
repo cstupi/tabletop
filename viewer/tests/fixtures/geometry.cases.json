@@ -11063,6 +11063,395 @@
     "expected": 1
   },
   {
+    "name": "coherency_gaps_turned_ovals",
+    "method": "CoherencyGaps",
+    "request": {
+      "models": [
+        {
+          "body": {
+            "base": {
+              "shape": "oval",
+              "a": 2.362,
+              "b": 1.378
+            },
+            "height": 4.43
+          },
+          "placement": {
+            "position": {
+              "x": 39.839,
+              "y": 20.306,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 12.185
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "oval",
+              "a": 2.362,
+              "b": 1.378
+            },
+            "height": 4.43
+          },
+          "placement": {
+            "position": {
+              "x": 38.675,
+              "y": 17.198,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 71.19
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "oval",
+              "a": 2.362,
+              "b": 1.378
+            },
+            "height": 4.43
+          },
+          "placement": {
+            "position": {
+              "x": 35.683,
+              "y": 19.208,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 71.19
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "oval",
+              "a": 2.362,
+              "b": 1.378
+            },
+            "height": 4.43
+          },
+          "placement": {
+            "position": {
+              "x": 37.878,
+              "y": 19.779,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 71.19
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "oval",
+              "a": 2.362,
+              "b": 1.378
+            },
+            "height": 4.43
+          },
+          "placement": {
+            "position": {
+              "x": 36.12,
+              "y": 21.084,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 71.19
+            }
+          }
+        }
+      ],
+      "chain": 1,
+      "elevated": 3,
+      "spread": 9
+    },
+    "expected": [
+      {
+        "model": 1,
+        "to": 3,
+        "break": "chain",
+        "distance": 1.072666499494444,
+        "needed": 1,
+        "onModel": {
+          "x": 38.23862845395249,
+          "y": 17.951842716515532,
+          "length": 42.242885353132976
+        },
+        "onTo": {
+          "x": 38.22994826855081,
+          "y": 19.024474094724773,
+          "length": 42.701985424531784
+        }
+      }
+    ]
+  },
+  {
+    "name": "coherency_gaps_spread",
+    "method": "CoherencyGaps",
+    "request": {
+      "models": [
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 2,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 4,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 6,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 8,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 10,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 12,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        }
+      ],
+      "chain": 1,
+      "elevated": 3,
+      "spread": 9
+    },
+    "expected": [
+      {
+        "model": 0,
+        "to": 6,
+        "break": "spread",
+        "distance": 11,
+        "needed": 9,
+        "onModel": {
+          "x": 0.5,
+          "y": 0,
+          "length": 0.5
+        },
+        "onTo": {
+          "x": 11.5,
+          "y": 0,
+          "length": 11.5
+        }
+      },
+      {
+        "model": 6,
+        "to": 0,
+        "break": "spread",
+        "distance": 11,
+        "needed": 9,
+        "onModel": {
+          "x": 11.5,
+          "y": 0,
+          "length": 11.5
+        },
+        "onTo": {
+          "x": 0.5,
+          "y": 0,
+          "length": 0.5
+        }
+      }
+    ]
+  },
+  {
+    "name": "coherency_gaps_none",
+    "method": "CoherencyGaps",
+    "request": {
+      "models": [
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 2,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 4,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        }
+      ],
+      "chain": 1,
+      "elevated": 3,
+      "spread": 9
+    },
+    "expected": []
+  },
+  {
     "name": "zone_polygons_frontline",
     "method": "ZonePolygons",
     "request": {
