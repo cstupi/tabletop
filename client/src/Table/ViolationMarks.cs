@@ -36,14 +36,14 @@ public partial class ViolationMarks : Node3D
     /// <summary>Every frame: a redraw can replace a node, so the tint is put on whatever node draws a marked model now, and the labels follow the models.</summary>
     public override void _Process(double delta)
     {
-        var marked = _input.Violations.Marked;
+        var marked = _input.Violations.Marked; var warned = _input.Violations.Warned;   // a dangerous terrain warning is drawn like a mark
         var warning = Ui.Warning;
-        foreach (var id in _tinted.Where(id => !marked.ContainsKey(id)).ToList())
+        foreach (var id in _tinted.Where(id => !marked.ContainsKey(id) && !warned.ContainsKey(id)).ToList())
         {
             if (_view.PieceAt(id) is { } n && IsInstanceValid(n)) n.SetWarning(null);
             _tinted.Remove(id);
         }
-        foreach (var id in marked.Keys)
+        foreach (var id in marked.Keys.Concat(warned.Keys))
             if (_view.PieceAt(id) is { } n && IsInstanceValid(n)) { n.SetWarning(warning); _tinted.Add(id); }
         if (_dirty) { _dirty = false; Relabel(); }
         foreach (var (id, label) in _labels)
@@ -55,12 +55,14 @@ public partial class ViolationMarks : Node3D
     {
         foreach (var (_, label) in _labels) label.QueueFree();
         _labels.Clear();
-        foreach (var (id, reason) in _input.Violations.Labels(_input.HeldModels.Concat(_input.Violations.Marked.Keys.OrderBy(k => k))))
+        var stacked = new Dictionary<Guid, int>();                                 // a model's second label (a mark and a warning) stands over its first
+        foreach (var (id, reason) in _input.Violations.Labels(_input.HeldModels.Concat(_input.Violations.Marked.Keys.Concat(_input.Violations.Warned.Keys).Distinct().OrderBy(k => k))))
         {
+            var below = stacked.GetValueOrDefault(id); stacked[id] = below + 1;
             var label = new Label3D
             {
                 Text = reason, Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 36, PixelSize = Palette.ScreenPixel, FixedSize = true,
-                OutlineSize = 10, NoDepthTest = true, Modulate = Ui.Warning, Visible = false,
+                OutlineSize = 10, NoDepthTest = true, Modulate = Ui.Warning, Visible = false, Offset = new Vector2(0, 44 * below),
             };
             AddChild(label); _labels.Add((id, label));
         }

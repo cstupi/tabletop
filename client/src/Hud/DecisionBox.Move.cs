@@ -102,6 +102,7 @@ public partial class DecisionBox
             var word = DecisionView.StopLabel(p, legal)!;
             Foot(stop = Act(word, DecisionCard.Stop, Stop, icon: word.StartsWith("Cast", StringComparison.Ordinal) ? "cast" : "hold"));
         }
+        var starts = MovePaths.Starts(p, legal);
         _regate = () =>
         {
             if (_proposed is not { } proposed || !IsInstanceValid(commit)) return;
@@ -112,7 +113,12 @@ public partial class DecisionBox
             var placed = proposed.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
             _input.Violations.Measure(legal.ModelIds, KeepAwayArea.With(ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit), legal.Separation, names.Unit),
                 p, legal.KeepAway, placed, names.Unit));
-            _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MarkedOf(legal.ModelIds));
+            // Each moved model's path and footprints, and a warning where its swept base crosses dangerous ground: never holding the commit.
+            var paths = _regions is null ? [] : MovePaths.Proposed(_regions, starts, legal, _view.Volumes, proposed.ToDictionary(kv => kv.Key, kv => kv.Value.Horizontal), unit < allowance);
+            _input.Violations.Warn(legal.ModelIds, MovePaths.Marks(paths));
+            _view.Paths.Show(paths, _regionColour);
+            var warnings = MovePaths.Lines(paths, id => _input.Violations.Subject?.Invoke(id) ?? names.Model(id), v => MovePaths.VolumeName(p.Board.Table, v));
+            _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MarkedOf(legal.ModelIds), warnings);
             if (unit is { } cap) setBar?.Invoke(DecisionCard.Bar(readouts, cap, minimum));
             commit.Disabled = !_gate.Allowed; if (stop is not null) stop.Disabled = !_gate.Allowed;
             reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null && !RepeatsRefusal(_gate.Reason);

@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 
@@ -24,6 +25,13 @@ public sealed record MoveSegment(MoveRegion Legal, IReadOnlyList<ModelRelocation
 public static class MovePaths
 {
     public const string TestWords = "Dangerous terrain test";
+    /// <summary>The path's look: the line and footprints in the moving team's colour at these opacities, a footprint touching dangerous ground in the
+    /// terrain's dangerous colour (TerrainEffects, the dangerous band's) at DangerousAlpha.</summary>
+    public const float LineAlpha = 0.5f, FootprintAlpha = 0.35f, DangerousAlpha = 0.9f;
+
+    /// <summary>A footprint's colour for the moving team's colour.</summary>
+    public static Rgba Colour(PathFootprint f, Rgba team) =>
+        f.Dangerous ? TerrainEffects.Of(TerrainDeclarations.Dangerous).Colour with { A = DangerousAlpha } : team with { A = FootprintAlpha };
 
     /// <summary>The Ask's models where they stand on the table, as MoveRegions.Of reads them.</summary>
     public static IReadOnlyDictionary<Guid, PlacedModel> Starts(Projection p, MoveRegion legal) =>
@@ -56,6 +64,16 @@ public static class MovePaths
         return paths;
     }
 
+    /// <summary>A footprint's outline: the base at `at` turned to `yaw` (length A along the facing, +Y at yaw 0), a circle or oval as `segments`
+    /// points, a rectangle as its corners.</summary>
+    public static IReadOnlyList<Point2> Outline(Base b, Point2 at, Yaw yaw, int segments = 32)
+    {
+        IEnumerable<Point2> local = b.Shape == BaseShape.Rect
+            ? [new(-b.B / 2, -b.A / 2), new(b.B / 2, -b.A / 2), new(b.B / 2, b.A / 2), new(-b.B / 2, b.A / 2)]
+            : Enumerable.Range(0, segments).Select(i => { var t = Math.Tau * i / segments; return new Point2(b.B / 2 * Math.Cos(t), b.A / 2 * Math.Sin(t)); });
+        return local.Select(p => p.Rotate(yaw) + at).ToList();
+    }
+
     /// <summary>The label each crossing model carries (beside the contact marks): the test it owes.</summary>
     public static IReadOnlyDictionary<Guid, string> Marks(IEnumerable<ModelPath> paths) =>
         paths.Where(p => p.Dangerous.Count > 0).ToDictionary(p => p.ModelId, _ => TestWords);
@@ -63,6 +81,10 @@ public static class MovePaths
     /// <summary>The decision box's gate lines, one per crossing model and volume: "Flayer Cavalry 1 crosses Toxic Smog: Dangerous terrain test".</summary>
     public static IReadOnlyList<string> Lines(IEnumerable<ModelPath> paths, Func<Guid, string> model, Func<Guid, string> volume) =>
         paths.SelectMany(p => p.Dangerous.Select(v => $"{model(p.ModelId)} crosses {volume(v)}: {TestWords}")).ToList();
+
+    /// <summary>The name of the terrain piece a volume belongs to (TerrainLabel.NameOf), "terrain" when no piece holds it.</summary>
+    public static string VolumeName(TableState table, Guid volumeId) =>
+        table.Terrain.FirstOrDefault(t => t.Volumes.Any(v => v.Id == volumeId)) is { } piece ? TerrainLabel.NameOf(piece) : "terrain";
 
     /// <summary>
     /// The last activation's move, while it stands: every move step (a StepCompleted carrying Destinations, table to table) after the last
