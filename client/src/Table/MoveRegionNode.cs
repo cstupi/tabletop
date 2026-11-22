@@ -31,7 +31,8 @@ public partial class MoveRegionNode : Node3D
         {
             var c = MoveBandLook.Colour(band, rgba);
             var colour = new Color(c.R, c.G, c.B, c.A);
-            Add(triangles, MoveBandLook.Striped(band) ? Striped(colour) : Palette.Translucent(colour));
+            // The dangerous band draws over every model's clear and difficult bands (MoveBandLook.Priority, Lift).
+            Add(triangles, MoveBandLook.Striped(band) ? Striped(colour) : Palette.Translucent(colour), MoveBandLook.Lift(band));
         }
     }
 
@@ -42,14 +43,14 @@ public partial class MoveRegionNode : Node3D
         Add(areas, Palette.Translucent(colour with { A = 0.25f }));
     }
 
-    void Add(IReadOnlyList<IReadOnlyList<Point2>> areas, Material material)
+    void Add(IReadOnlyList<IReadOnlyList<Point2>> areas, Material material, double lift = 0.03)
     {
         if (areas.All(a => a.Count < 3)) return;
         var st = new SurfaceTool(); st.Begin(Mesh.PrimitiveType.Triangles);
         foreach (var area in areas)
             for (var i = 0; i + 2 < area.Count; i += 3)
             {
-                Vector3 a = At(area[i]), b = At(area[i + 1]), c = At(area[i + 2]);
+                Vector3 a = At(area[i], lift), b = At(area[i + 1], lift), c = At(area[i + 2], lift);
                 // Godot culls clockwise-from-above back faces: wind each triangle one way whatever order the geometry gave it.
                 if ((area[i + 1] - area[i]).Cross(area[i + 2] - area[i]) > 0) { st.AddVertex(a); st.AddVertex(c); st.AddVertex(b); }
                 else { st.AddVertex(a); st.AddVertex(b); st.AddVertex(c); }
@@ -82,10 +83,11 @@ public partial class MoveRegionNode : Node3D
         {
             AlbedoColor = c, AlbedoTexture = _stripes, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, CullMode = BaseMaterial3D.CullModeEnum.Disabled,
             Uv1Triplanar = true, Uv1WorldTriplanar = true, Uv1Scale = new Vector3(scale, scale, scale),
+            RenderPriority = MoveBandLook.Priority(MoveBand.Dangerous),
         };
     }
 
-    static Vector3 At(Point2 p) => WorldFrame.ToGodot(new Point3(p.X, p.Y, 0.03));
+    static Vector3 At(Point2 p, double lift) => WorldFrame.ToGodot(new Point3(p.X, p.Y, lift));
 
     public new void Hide()
     {

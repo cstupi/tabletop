@@ -39,8 +39,14 @@ export interface BandsRequest {
 export interface RouteModel { readonly id: string; readonly start: PlacedModel; readonly to: XY }
 /** The move Ask's parameters for `moveRoutes` (as BandsRequest, no minimum); `capped`: the unit is held to the cap, each move by its shortest path. */
 export type RoutesRequest = Omit<BandsRequest, 'start' | 'minDistance'> & { readonly models: readonly RouteModel[]; readonly capped?: boolean };
-/** The path a move is measured along, its length, and whether the base goes in or through difficult ground on it. */
-export interface RouteFound { readonly id: string; readonly points: readonly XY[]; readonly distance: number; readonly entersDifficult: boolean }
+/** One footprint of the base along its path (SweptPath): the centre, the base at the start's facing; whether it touches dangerous ground there. */
+export interface PathFootprint { readonly at: XY; readonly dangerous: boolean }
+/** The path a move is measured along, its length, whether the base goes in or through difficult ground on it, the base's footprints along it and
+ *  the volumes dangerous to the move its swept base enters or crosses (SweptPath.Of, Movement.VolumesOnPath: the server's test). */
+export interface RouteFound {
+  readonly id: string; readonly points: readonly XY[]; readonly distance: number; readonly entersDifficult: boolean;
+  readonly footprints: readonly PathFootprint[]; readonly dangerous: readonly string[];
+}
 /** The area in its bands, each as triangles (three points each): clear, only through difficult ground, only into ground dangerous to the move. */
 export interface MoveBands { readonly clear: readonly XY[]; readonly difficult: readonly XY[]; readonly dangerous: readonly XY[] }
 type Terrain = readonly TerrainPlacement[];

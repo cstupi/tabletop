@@ -446,7 +446,7 @@ public partial class DecisionBox : PanelContainer
         if (_input is not null && IsInstanceValid(_input)) _input.DropProposed();   // before Proposing clears: a held ghost would otherwise drop as a hand move
         if (_input is not null && IsInstanceValid(_input)) { _input.Proposing.Clear(); _input.Allowance = null; _input.Proposed = null; _input.Region = null; _input.Reach = null; _input.Eligible = new HashSet<Guid>(); }
         if (_region is not null && IsInstanceValid(_region)) _region.Hide();
-        if (_view is not null && IsInstanceValid(_view)) _view.ClearExitGhosts();
+        if (_view is not null && IsInstanceValid(_view)) { _view.ClearExitGhosts(); _view.Paths.Hide(); }
     }
 
     /// <summary>Unhook, and the card's controls and the table's highlights with it.</summary>

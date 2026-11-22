@@ -15,7 +15,7 @@ import { handMarks, handMoveCommand, markerMove, mayDrag } from './handMove';
 import type { MarkerLocks } from './markerLocks';
 import { ModelDrag, type Held } from './modelDrag';
 import { ModelPicks, shiftPress, type PickBox, type PickCandidate } from './modelPicks';
-import { allowanceOverlay, bandsOverlay, boxOverlay, labelOverlay, landingOverlay, landingRings, rulerLines, rulerOverlay, violationLabels } from './moveOverlays';
+import { allowanceOverlay, bandsOverlay, boxOverlay, labelOverlay, landingOverlay, landingRings, pathsOverlay, rulerLines, rulerOverlay, violationLabels } from './moveOverlays';
 import { read } from './moveRuler';
 import { Names } from './names';
 import { teamsOf } from '../lobby/seats';
@@ -301,6 +301,8 @@ export class PlayDrags {
     const rings = bands.length > 0 ? [] : hooks?.allowance() ?? [];
     if (bands.length > 0) out.push(bandsOverlay(bands, teamColour(colour)));
     if (rings.length > 0) out.push(allowanceOverlay(rings, teamColour(colour)));
+    const paths = hooks?.paths() ?? [];
+    if (paths.length > 0) out.push(pathsOverlay(paths, teamColour(colour)));
     if (held !== null && p !== null) {
       const readouts = this.#proposing ? hooks?.readouts(held) ?? []
         : held.ids.flatMap((id) => {
@@ -312,7 +314,7 @@ export class PlayDrags {
       out.push(rulerOverlay(rulerLines(readouts)));
       out.push(landingOverlay(landingRings(held, (id) => { const b = p.models.get(id)?.slot.base; return b === undefined ? 0.5 : Math.max(b.a, b.b) / 2; })));
     }
-    const order = [...(held?.ids ?? []), ...this.#deps.violations.marked.keys()];
+    const order = [...(held?.ids ?? []), ...this.#deps.violations.marked.keys(), ...this.#deps.violations.warned.keys()];
     const labels = violationLabels(this.#deps.violations, order, centreOf);
     if (labels.length > 0) out.push(labelOverlay(labels, '#ffc44e'));
     if (this.#box !== null) out.push(boxOverlay(this.#box.from, this.#box.to));

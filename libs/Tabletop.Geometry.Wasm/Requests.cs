@@ -50,4 +50,5 @@ public sealed record RouteModel(Guid Id, PlacedModel Start, Point2 To);
 public sealed record RoutesRequest(IReadOnlyList<RouteModel> Models, double Allowance, IReadOnlyList<Guid> Impassable, IReadOnlyList<Guid> Difficult,
     double? DifficultCap, IReadOnlyList<Piece> Terrain, TableSize Size, IReadOnlyList<PlacedModel> Stationary, IReadOnlyList<Guid>? Steep = null,
     IReadOnlyList<Guid>? Dangerous = null, IReadOnlyList<Guid>? Unstable = null, double? UnstableOver = null, bool Capped = false);
-public sealed record RouteFound(Guid Id, Point2[] Points, double Distance, bool EntersDifficult);
+/// <summary>Footprints and Dangerous: the base swept along the path (SweptPath.Of).</summary>
+public sealed record RouteFound(Guid Id, Point2[] Points, double Distance, bool EntersDifficult, PathFootprint[] Footprints, Guid[] Dangerous);

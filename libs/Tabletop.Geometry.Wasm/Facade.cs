@@ -173,20 +173,22 @@ public static class Facade
     }
 
     /// <summary>Each held model's path as the server measures it (Movement.Measured over the Ask's volumes, the standing models and the table; the
-    /// steep volumes it starts outside difficult), the path MoveReach.Route draws in the Godot client; `Capped`, the shortest within the cap.</summary>
+    /// steep volumes it starts outside difficult), the path MoveReach.Route draws in the Godot client; `Capped`, the shortest within the cap. Each with
+    /// its base swept along it (SweptPath: footprints and the volumes dangerous to the path its base enters or crosses, as the server tests it).</summary>
     public static string MoveRoutes(string json)
     {
         var r = Read<RoutesRequest>(json);
         var volumes = Volumes(r.Terrain);
         List<WorldVolume> Named(IReadOnlyList<Guid>? ids) => ids is null ? [] : volumes.Where(v => ids.Contains(v.Id)).ToList();
-        var (impassable, difficult, steep) = (Named(r.Impassable), Named(r.Difficult), Named(r.Steep));
+        var (impassable, difficult, steep, dangerous, unstable) = (Named(r.Impassable), Named(r.Difficult), Named(r.Steep), Named(r.Dangerous), Named(r.Unstable));
         return Write(r.Models.Select(m =>
         {
             var path = r.Capped
                 ? Movement.Check(m.Start, m.To, Math.Min(r.Allowance, r.DifficultCap ?? r.Allowance), impassable, [], null, r.Size, r.Stationary, volumes)
-                : Movement.Measured(m.Start, m.To, r.Allowance, impassable, difficult, r.DifficultCap, r.Size, r.Stationary, volumes, Named(r.Dangerous),
-                    Named(r.Unstable), r.UnstableOver ?? 0, steep);
-            return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult);
+                : Movement.Measured(m.Start, m.To, r.Allowance, impassable, difficult, r.DifficultCap, r.Size, r.Stationary, volumes, dangerous,
+                    unstable, r.UnstableOver ?? 0, steep);
+            var swept = SweptPath.Of(m.Start, path.Path, SweptPath.DangerousTo(path.Distance, dangerous, unstable, r.UnstableOver ?? 0));
+            return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult, [.. swept.Footprints], [.. swept.Dangerous]);
         }).ToArray());
     }
 
