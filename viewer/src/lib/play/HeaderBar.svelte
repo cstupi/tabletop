@@ -122,7 +122,8 @@
   .wait.mine { color: var(--team); font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); }
   .band { flex: none; width: 4px; height: 1.1rem; background: var(--team); }
   .score { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-2); flex: none; }
-  .tile { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); cursor: context-menu; line-height: 1.2;
+  /* web/src/app.css gives every .tile a column, 4.5rem minimum height and centred text; this one is a single row. */
+  .tile { display: inline-flex; flex-direction: row; justify-content: flex-start; min-height: 0; text-align: left; white-space: nowrap; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); cursor: context-menu; line-height: 1.2;
     border: 1px solid color-mix(in srgb, var(--team) 45%, transparent); border-left: 6px solid var(--team); border-radius: 4px;
     background: color-mix(in srgb, var(--team) 10%, transparent); }
   .tile.acting { border-width: 2px; border-left-width: 6px; border-color: var(--team); background: color-mix(in srgb, var(--team) 22%, transparent); }

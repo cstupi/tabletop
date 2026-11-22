@@ -285,7 +285,7 @@
   details[open] > summary::after { content: '▾'; }
   summary:hover { color: var(--text); }
   .meta { margin-left: auto; font-family: var(--font-num); font-weight: var(--num-weight); font-size: .8rem; color: var(--dim); text-transform: none; letter-spacing: 0; }
-  .inline-action { flex: none; margin-left: var(--space-2); padding: var(--space-1) var(--space-2); display: inline-flex; align-items: center; gap: var(--space-1); text-transform: none;
+  .inline-action { flex: none; padding: var(--space-1) var(--space-2); display: inline-flex; align-items: center; gap: var(--space-1); text-transform: none;
     letter-spacing: 0; font-family: var(--font-body); font-weight: normal; font-size: .8rem; }
   .body { display: flex; flex-direction: column; gap: var(--space-2); padding: 0 var(--space-3) var(--space-3); }
   .primary { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: stretch; padding: var(--space-2); border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);

@@ -178,8 +178,8 @@
 </div>
 
 <style>
-  .setup { display: grid; grid-template-columns: 18rem minmax(0, 1fr); height: 100%; min-height: 0; }
-  .setup.carded { grid-template-columns: 18rem minmax(0, 1fr) 20rem; }
+  .setup { display: grid; grid-template-columns: 20rem minmax(0, 1fr); height: 100%; min-height: 0; }
+  .setup.carded { grid-template-columns: 20rem minmax(0, 1fr) 20rem; }
   .tools, .card-col { min-height: 0; overflow-y: auto; background: var(--panel-solid); }
   .tools { border-right: 1px solid var(--rule); display: flex; flex-direction: column; }
   .card-col { border-left: 1px solid var(--rule); }
@@ -191,7 +191,7 @@
     display: flex; gap: var(--space-2); align-items: baseline; padding: var(--space-2) var(--space-2); background: var(--panel-solid); color: var(--text);
     border-left: 3px solid var(--failure); box-shadow: 0 2px 8px #0006; z-index: 4; }
   @media (max-width: 70rem) {
-    .setup, .setup.carded { grid-template-columns: 16rem minmax(0, 1fr); }
+    .setup, .setup.carded { grid-template-columns: 20rem minmax(0, 1fr); }
     .card-col { position: absolute; right: 0; top: 0; bottom: 0; width: 20rem; z-index: 5; box-shadow: -4px 0 12px #0005; }
     .setup { position: relative; }
   }

@@ -228,7 +228,7 @@
   h2 { margin-top: var(--space-4); letter-spacing: .06em; text-transform: uppercase; font-size: .9rem; }
 
   .band-lobby { --band: var(--lobby); } .band-setup { --band: var(--setup); } .band-playing { --band: var(--playing); } .band-ended { --band: var(--ended); }
-  .status { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--band); font-size: .85rem; letter-spacing: .04em; white-space: nowrap; }
+  .status { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--band); font-size: .85rem; letter-spacing: .04em; flex-wrap: wrap; row-gap: 0; min-width: 0; }
   .status .sep { opacity: .7; }
   .mark { width: .8rem; height: .8rem; border-radius: 50%; border: 2px solid var(--band); box-sizing: border-box; flex: none; }
   .status.setup .mark { background: linear-gradient(90deg, transparent 50%, var(--band) 50%); }
