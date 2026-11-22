@@ -92,4 +92,14 @@ public class TapeMeasureTests
         Assert.Equal(MeasureMode.Horizontal, ClientSettings.Default.MeasureMode);
         Assert.Equal(MeasureMode.Straight, MeasureMode.Horizontal.Toggled());
     }
+
+    [Fact]
+    public void A_model_end_is_its_base_where_its_node_is_drawn_so_a_move_ghost_measures_from_the_ghost_not_the_unit_s_start()
+    {
+        var body = new ModelBody(Base.Circle(1), 1.5);
+        var ghost = new Placement(new Point3(20, 10, 0), new Yaw(0));
+        Assert.Equal(new PlacedModel(body, ghost), TapeMeasure.EndAt(new Point3(20.5, 10, 1.5), body, ghost));
+        Assert.Equal(new PlacedModel(new ModelBody(Base.Circle(0), 0), new Placement(new Point3(7, 3, 0), new Yaw(0))), TapeMeasure.EndAt(new Point3(7, 3, 0), null, null));
+        Assert.Equal(new PlacedModel(new ModelBody(Base.Circle(0), 0), new Placement(new Point3(7, 3, 0), new Yaw(0))), TapeMeasure.EndAt(new Point3(7, 3, 0), body, null));
+    }
 }

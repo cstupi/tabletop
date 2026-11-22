@@ -55,6 +55,11 @@ public sealed class TapeMeasure
 
     public MeasureReading? Reading => Line is { } m ? MeasureReading.Of(m.From, m.To, Mode) : null;
 
+    /// <summary>A ruler end: a model's base (p.5) where its node is drawn, which in a move Ask is its ghost and not the placement the
+    /// projection still holds; anything else the point.</summary>
+    public static PlacedModel EndAt(Point3 point, ModelBody? body, Placement? drawn) =>
+        body is { } b && drawn is { } at ? new PlacedModel(b, at) : new PlacedModel(new ModelBody(Base.Circle(0), 0), new Placement(point, new Yaw(0)));
+
     /// <summary>A point picked on a terrain piece rests on the piece's top under it (a ray that meets the box's side lands on the
     /// top), and a point off every Solid on the table.</summary>
     public static Point3 OnSurface(Point3 hit, IReadOnlyList<WorldVolume> volumes) => hit with { Z = Collision.RestHeight(hit.Horizontal, volumes) };
