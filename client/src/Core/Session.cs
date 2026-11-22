@@ -104,6 +104,18 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     /// Null without a game.</summary>
     public CombatLogState? CombatLog => Game is { } game ? _combatLog.Of(Log, PendingUndoTo, game, Projection) : null;
 
+    /// <summary>The Hud's frame as the last layout pass built it (GameScreen.Layout, one per pass): every part's rect and the Obstacles every
+    /// overlay over the table keeps off. HudChanged is raised when a pass changed it.</summary>
+    public HudFrame Hud { get; private set; } = HudFrame.Empty;
+    public event Action? HudChanged;
+
+    public void PublishHud(HudFrame frame)
+    {
+        if (frame.SameAs(Hud)) return;
+        Hud = frame;
+        HudChanged?.Invoke();
+    }
+
     public event Action? PhaseChanged;
     public event Action? GameChanged;
     public event Action? BoardChanged;

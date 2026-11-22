@@ -32,7 +32,7 @@ public partial class GameScreen : Control
     public override void _Ready()
     {
         _session = Main.Instance.Session;
-        // The table's box and the lobby's page, each placed by Layout: the table fills play, setup's frame slot (HudLayout.Setup's Body) in setup.
+        // The table's box and the lobby's page, each placed by Layout: the table fills play, HudFrame.Setup's Table slot in setup.
         var root = new Control { MouseFilter = MouseFilterEnum.Ignore }; root.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(root);
         root.AddChild(_backdrop = new Backdrop { Visible = false });   // behind the lobby's page only: never over the table
         var viewportContainer = _tableBox = new SubViewportContainer { Stretch = true, MouseTarget = true };

@@ -8,11 +8,11 @@ namespace Tabletop.Client.Table;
 /// The models in breach (TableInput.Violations) drawn in the theme's warning colour, and each reason once in a short label over its first model
 /// (`Too close 1"`, `Through a model`, `On a base`, `Out of coherency`, `Dangerous terrain test`: Violations.Labels, MarkWords); the full
 /// sentence is the decision box's. The labels are controls in the table viewport's own canvas layer, placed each frame by MarkLabels: a model's
-/// labels stacked Space.XS apart over it, no two overlapping, all off the Hud's panels (Covered). A model in hand carries its labels with the cursor.
+/// labels stacked Space.XS apart over it, no two overlapping, all off the Hud's panels (Session.Hud's Obstacles). A model in hand carries its labels with the cursor.
 /// </summary>
 public partial class ViolationMarks : Node3D
 {
-    TableView _view = null!; TableInput _input = null!;
+    Session _s = null!; TableView _view = null!; TableInput _input = null!;
     readonly HashSet<Guid> _tinted = new();
     readonly CanvasLayer _layer = new();
     readonly List<(Guid ModelId, Label Label)> _labels = [];
@@ -22,12 +22,9 @@ public partial class ViolationMarks : Node3D
     bool _dirty = true;
     Action? _onChanged, _onTheme;
 
-    /// <summary>The Hud's panels over the table, in the table viewport's pixels (GameScreen.Covered).</summary>
-    public Func<IReadOnlyList<HudRect>>? Covered;
-
-    public void Bind(TableView view, TableInput input)
+    public void Bind(Session session, TableView view, TableInput input)
     {
-        _view = view; _input = input;
+        _s = session; _view = view; _input = input;
         AddChild(_layer);
         _onChanged = () => _dirty = true;
         _onTheme = () => { _look = null; _dirty = true; };
@@ -75,7 +72,7 @@ public partial class ViolationMarks : Node3D
             _wanted.Add(new MarkLabel(id, (at.X, at.Y), box.X, box.Y)); _order.Add(label);
         }
         var size = GetViewport().GetVisibleRect().Size;
-        var placed = MarkLabels.Place(_wanted, new HudRect(0, 0, size.X, size.Y), Covered?.Invoke());
+        var placed = MarkLabels.Place(_wanted, new HudRect(0, 0, size.X, size.Y), _s.Hud.Obstacles);
         for (var i = 0; i < placed.Count; i++) { _order[i].Position = new Vector2(placed[i].X, placed[i].Y); _order[i].Visible = true; }
     }
 

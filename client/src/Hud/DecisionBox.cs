@@ -134,7 +134,7 @@ public partial class DecisionBox : PanelContainer
         Render();
     }
 
-    /// <summary>Into its HudLayout slot: the slot's width, the content's height up to the slot's, against the slot's bottom.</summary>
+    /// <summary>Into its HudFrame slot: the slot's width, the content's height up to the slot's, against the slot's bottom.</summary>
     public void Place(HudRect slot) { _slot = slot; Fit(); HudPlacement.Bottom(this, slot); }
 
     void QueueFit() { if (_fitQueued) return; _fitQueued = true; Callable.From(() => { _fitQueued = false; Fit(); }).CallDeferred(); }

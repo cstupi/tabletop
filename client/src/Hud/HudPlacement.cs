@@ -3,7 +3,7 @@ using Tabletop.Client.Core;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>A Hud part into its HudLayout slot: anchored top left, the slot's width, and the slot's height (Fill) or its own
+/// <summary>A Hud part into its HudFrame slot: anchored top left, the slot's width, and the slot's height (Fill) or its own
 /// minimum height capped by the slot, against the slot's top or bottom edge.</summary>
 public static class HudPlacement
 {

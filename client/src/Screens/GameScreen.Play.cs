@@ -49,10 +49,10 @@ public partial class GameScreen
 
         // Table overlays: Node3D children of the table, and the markers and floating text in a canvas layer of the table's own viewport.
         Table.AddChild(_hover = new HoverLabels()); _hover.Bind(_session, Table, Input);
-        Table.AddChild(_violations = new ViolationMarks()); _violations.Bind(Table, Input); _violations.Covered = Covered;
+        Table.AddChild(_violations = new ViolationMarks()); _violations.Bind(_session, Table, Input);
         Table.AddChild(_sight = new SightLines()); _sight.Bind(_session, Table, Input);
         Table.AddChild(_targets = new TargetLines()); _targets.Bind(_session, Table, Input);
-        Table.AddChild(_rings = new RangeRingNode()); _rings.Bind(_session, Input); _rings.Covered = Covered;
+        Table.AddChild(_rings = new RangeRingNode()); _rings.Bind(_session, Input);
         Table.AddChild(_modelMarks = new ModelMarkNodes()); _modelMarks.Bind(_session, Table);
         Table.AddChild(_tableLayer = new CanvasLayer());
 
@@ -137,101 +137,111 @@ public partial class GameScreen
         _layoutChanged = changed.Count == 0 ? "nothing" : string.Join("; ", changed);
     }
 
-    /// <summary>Every Hud part into its HudLayout slot (spec → Layout); lobby and setup into HudLayout.Setup's frame (LayoutSetup). The unit card (or the terrain card, in the same slot) starts 8 px below the roster's actual bottom, so a collapsed roster gives it the
-    /// column back; the dice end 8 px above the decision box's actual top; the end message stays a full-screen backdrop.</summary>
+    /// <summary>One frame per pass (HudFrame.Of over HudFrame.Play; lobby and setup over HudFrame.Setup, LayoutSetup), published on the session
+    /// for every overlay, and every Hud part into its rect. The parts that measure (the header, the replay bar, the roster, the cards, the
+    /// decision box, the dice tray) are fitted to their slots while the frame is built, so a part below or above one stands against it as it
+    /// is: the unit card under a collapsed roster, the dice and the open log above a short decision box.</summary>
     void Layout()
     {
         _layoutQueued = false;
         if (!IsInstanceValid(_hud) || _hud.Size.X <= 0 || _hud.Size.Y <= 0) return;
         if (Shows(_topBar)) { LayoutSetup(); NoteLayout(); return; }
         if (IsInstanceValid(_tableBox)) HudPlacement.Fill(_tableBox, new HudRect(0, 0, _hud.Size.X, _hud.Size.Y));   // play: the table to the edges
-        var w = _hud.Size.X;
         var logOpen = _logDrawer is { } l && IsInstanceValid(l) && l.Open;
         // The corner buttons are square: the larger side of either face.
         var buttonSize = _undo is { } u && IsInstanceValid(u) && _logDrawer is { } ld && IsInstanceValid(ld)
-            ? new[] { u.GetCombinedMinimumSize(), ld.Toggle.GetCombinedMinimumSize() }.Max(s => Math.Max(s.X, s.Y)) : HudLayout.CornerButton;
-        var replayH = Shows(_replay) ? _replay!.GetCombinedMinimumSize().Y : HudLayout.ReplayH;   // its three rows in the theme's font: the left column ends above it
-        // The unit card and the terrain card share the slot: SheetFocus names no unit while terrain is selected.
-        var visible = new HudVisible(Shows(_roster), Shows(_card) || Shows(_terrainCard), Shows(_decision) || Shows(_waiting), Shows(_dice), logOpen, Shows(_replay));
-        // The header draws the fullest fit for its slot's width, then its slot takes the height that fit draws at: the right column starts below it.
-        if (Shows(_header)) _header!.FitTo(HudLayout.Of(w, _hud.Size.Y, visible, buttonSize, replayH)[HudPart.Header].W);
-        var headerH = Shows(_header) ? _header!.GetCombinedMinimumSize().Y : HudLayout.HeaderH;
-        var r = HudLayout.Of(w, _hud.Size.Y, visible, buttonSize, replayH, headerH);
-        if (_dice is { } tray && IsInstanceValid(tray)) tray.Covered = logOpen;   // the open log holds the latest roll: the tray gives its slot up
-        PlaceCorner(r[HudPart.Corner]);
-        HudPlacement.Top(_toasts, r[HudPart.Toasts]);
-        if (Shows(_strip)) HudPlacement.Bottom(_strip, r[HudPart.Loading]);
-        if (Shows(_header)) HudPlacement.Top(_header!, r[HudPart.Header]);
-        if (Shows(_roster)) _roster!.Place(r[HudPart.Roster]);
-        if (r.TryGetValue(HudPart.UnitCard, out var cardSlot))
+            ? new[] { u.GetCombinedMinimumSize(), ld.Toggle.GetCombinedMinimumSize() }.Max(s => Math.Max(s.X, s.Y)) : HudFrame.CornerButton;
+        var shown = new HashSet<HudPart> { HudPart.Corner, HudPart.LogButton };
+        foreach (var (part, on) in new[]
         {
-            if (Shows(_roster)) cardSlot = HudLayout.Below(cardSlot, _roster!.Position.Y + _roster.Size.Y);
-            if (Shows(_card)) _card!.Place(cardSlot);
-            if (Shows(_terrainCard)) _terrainCard!.Place(cardSlot);
-        }
-        if (Shows(_decision)) _decision!.Place(r[HudPart.Decision]);
-        if (Shows(_waiting)) HudPlacement.Bottom(_waiting!, r[HudPart.Decision]);   // waiting for players: the team columns in the decision slot
-        if (Shows(_replay)) _replay!.Place(r[HudPart.Replay]);
-        if (Shows(_dice) && r.TryGetValue(HudPart.Dice, out var slot))   // the open log covers the tray: HudLayout gives it no slot
-        {
-            if (Shows(_decision)) slot = slot with { Y = _decision!.Position.Y - HudLayout.M - slot.H };
-            HudPlacement.Bottom(_dice!, slot);
-        }
-        if (_logDrawer is { } log && IsInstanceValid(log))
-            log.Place(r[HudPart.LogButton], r.TryGetValue(HudPart.LogPanel, out var panel) ? AboveBottomStack(BelowHeader(panel)) : null);
-        if (_undo is { } undo && IsInstanceValid(undo)) HudPlacement.Fill(undo, r[HudPart.UndoButton]);
+            (HudPart.Header, Shows(_header)), (HudPart.Roster, Shows(_roster)), (HudPart.UnitCard, Shows(_card) || Shows(_terrainCard)),
+            (HudPart.Decision, Shows(_decision) || Shows(_waiting)), (HudPart.Dice, Shows(_dice)), (HudPart.LogPanel, logOpen),
+            (HudPart.Replay, Shows(_replay)), (HudPart.Loading, Shows(_strip)), (HudPart.UndoButton, Shows(_undo)),
+        })
+            if (on) shown.Add(part);
+        var f = HudFrame.Of(_hud.Size.X, _hud.Size.Y, shown, (part, slot) => Fit(part, slot, buttonSize));
+        _session.PublishHud(f);
+        PlaceCorner(f[HudPart.Corner]);
+        HudPlacement.Top(_toasts, f[HudPart.Toasts]);
+        if (Shows(_strip)) HudPlacement.Bottom(_strip, f[HudPart.Loading]);
+        if (Shows(_header)) HudPlacement.Top(_header!, f[HudPart.Header]);
+        if (_logDrawer is { } log && IsInstanceValid(log)) log.Place(f[HudPart.LogButton], f.Rects.TryGetValue(HudPart.LogPanel, out var panel) ? panel : null);
+        if (_undo is { } undo && IsInstanceValid(undo)) HudPlacement.Fill(undo, f[HudPart.UndoButton]);
         // Placed while hidden too: the banner shows itself between layouts, and nothing queues one when it does.
-        if (_banner is { } banner && IsInstanceValid(banner)) HudPlacement.Fill(banner, r[HudPart.Banner]);
+        if (_banner is { } banner && IsInstanceValid(banner)) HudPlacement.Fill(banner, f[HudPart.Banner]);
         NoteLayout();
     }
 
-    /// <summary>Lobby and setup (spec 2026-11-21-setup-screen-layout-design.md → Layout): the top bar across the top with the corner over its left
-    /// end, in setup the rail, the open tool's panel and the hint bar, the table's box in the rest with the terrain card on its right; the
-    /// lobby's page in the rest.</summary>
+    /// <summary>A measured part fitted to its frame slot, and the size it takes there (HudFit); null for a part that takes its slot as it is.</summary>
+    (float W, float H)? Fit(HudPart part, HudRect slot, float buttonSize)
+    {
+        static (float, float) Size(Control c) => (c.Size.X, c.Size.Y);
+        switch (part)
+        {
+            case HudPart.LogButton or HudPart.UndoButton: return (buttonSize, buttonSize);
+            // The header draws the fullest fit for its slot's width, then its slot takes the height that fit draws at.
+            case HudPart.Header when Shows(_header): _header!.FitTo(slot.W); return (slot.W, _header.GetCombinedMinimumSize().Y);
+            case HudPart.Replay when Shows(_replay): return (slot.W, _replay!.GetCombinedMinimumSize().Y);   // its three rows in the theme's font
+            case HudPart.Roster when Shows(_roster): _roster!.Place(slot); return Size(_roster);
+            case HudPart.UnitCard:
+                // The unit card and the terrain card share the slot: SheetFocus names no unit while terrain is selected.
+                if (Shows(_card)) { _card!.Place(slot); return Size(_card); }
+                if (Shows(_terrainCard)) { _terrainCard!.Place(slot); return Size(_terrainCard); }
+                return null;
+            case HudPart.Decision:
+                if (Shows(_decision)) { _decision!.Place(slot); return Size(_decision); }
+                if (Shows(_waiting)) { HudPlacement.Bottom(_waiting!, slot); return Size(_waiting!); }   // waiting for players: the team columns in the decision slot
+                return null;
+            case HudPart.Dice when Shows(_dice): HudPlacement.Bottom(_dice!, slot); return Size(_dice!);
+            default: return null;
+        }
+    }
+
+    /// <summary>Lobby and setup (spec 2026-11-21-setup-screen-layout-design.md → Layout): HudFrame.Setup's frame: the top bar across the top with
+    /// the corner over its left end, in setup the rail, the open tool's panel and the hint bar, the table's box in the rest with the terrain
+    /// card on its right; the lobby's page in the rest.</summary>
     void LayoutSetup()
     {
         var setup = Shows(_rail);
-        var v = new SetupVisible(setup, setup && Shows(_toolPanel), setup);
-        var hintH = _hints is { } hb && IsInstanceValid(hb) ? hb.GetCombinedMinimumSize().Y : HudLayout.HintH;
-        var r = HudLayout.Setup(_hud.Size.X, _hud.Size.Y, v, _topBar!.GetCombinedMinimumSize().Y, hintH);
-        HudPlacement.Fill(_topBar, r[SetupPart.TopBar]);
-        PlaceCorner(r[SetupPart.Corner] with { Y = MathF.Floor((r[SetupPart.TopBar].H - _corner.GetCombinedMinimumSize().Y) / 2) });
+        var shown = new HashSet<HudPart> { HudPart.TopBar, HudPart.Corner };
+        if (setup) { shown.Add(HudPart.Rail); shown.Add(HudPart.Hints); }
+        if (setup && Shows(_toolPanel)) shown.Add(HudPart.ToolPanel);
+        if (Shows(_terrainCard)) shown.Add(HudPart.TerrainCard);
+        if (Shows(_strip)) shown.Add(HudPart.Loading);
+        var f = HudFrame.Of(_hud.Size.X, _hud.Size.Y, shown, (part, slot) => part switch
+        {
+            HudPart.TopBar => (slot.W, _topBar!.GetCombinedMinimumSize().Y),
+            HudPart.Hints when _hints is { } hb && IsInstanceValid(hb) => (slot.W, hb.GetCombinedMinimumSize().Y),
+            HudPart.Corner => (slot.W, _corner.GetCombinedMinimumSize().Y),   // centred in the bar as it draws
+            HudPart.TerrainCard when Shows(_terrainCard) => PlaceCard(slot),
+            _ => null,
+        }, HudFrame.Setup);
+        _session.PublishHud(f);
+        HudPlacement.Fill(_topBar!, f[HudPart.TopBar]);
+        PlaceCorner(f[HudPart.Corner] with { H = f.Slots[HudPart.Corner].H });
         // The bar's items start a group's gap past what the corner draws (a short name leaves no hole), never past its slot.
-        var corner = r[SetupPart.Corner];
-        _topBar.Lead = MathF.Min(corner.Right, corner.X + _corner.GetCombinedMinimumSize().X + Space.L) - Space.S;
-        HudPlacement.Top(_toasts, r[SetupPart.Toasts]);
-        if (Shows(_strip)) HudPlacement.Bottom(_strip, r[SetupPart.Loading]);
-        if (r.TryGetValue(SetupPart.Rail, out var rail)) HudPlacement.Fill(_rail!, rail);
-        if (r.TryGetValue(SetupPart.Panel, out var panel)) HudPlacement.Fill(_toolPanel!, panel);
-        if (r.TryGetValue(SetupPart.Hints, out var hints) && _hints is { } h && IsInstanceValid(h)) HudPlacement.Fill(h, hints);
-        if (setup) { HudPlacement.Fill(_tableBox, r[SetupPart.Body]); HudPlacement.Fill(_veil, r[SetupPart.Body]); }
+        var corner = f[HudPart.Corner];
+        _topBar!.Lead = MathF.Min(corner.Right, corner.X + _corner.GetCombinedMinimumSize().X + Space.L) - Space.S;
+        HudPlacement.Top(_toasts, f[HudPart.Toasts]);
+        if (Shows(_strip)) HudPlacement.Bottom(_strip, f[HudPart.Loading]);
+        if (f.Rects.TryGetValue(HudPart.Rail, out var rail)) HudPlacement.Fill(_rail!, rail);
+        if (f.Rects.TryGetValue(HudPart.ToolPanel, out var panel)) HudPlacement.Fill(_toolPanel!, panel);
+        if (f.Rects.TryGetValue(HudPart.Hints, out var hints) && _hints is { } h && IsInstanceValid(h)) HudPlacement.Fill(h, hints);
+        var table = f[HudPart.Table];
+        if (setup) { HudPlacement.Fill(_tableBox, table); HudPlacement.Fill(_veil, table); }
         else
         {
-            HudPlacement.Fill(_sideColumn, r[SetupPart.Body]);
+            HudPlacement.Fill(_sideColumn, table);
             // Game settings as tall as the page under it: its settings scroll inside, Start setup stays in view.
             if (_lobbyPanel is { } lp && IsInstanceValid(lp) && _lobby is { } page && IsInstanceValid(page))
             {
-                var height = MathF.Max(0, r[SetupPart.Body].H - 2 * Space.XL - page.Position.Y);
+                var height = MathF.Max(0, table.H - 2 * Space.XL - page.Position.Y);
                 if (lp.CustomMinimumSize.Y != height) lp.CustomMinimumSize = new Vector2(LobbyColumnWidth, height);
             }
         }
-        if (Shows(_terrainCard)) _terrainCard!.Place(r[SetupPart.Card]);
     }
 
-    readonly List<HudRect> _covered = new();
-
-    /// <summary>The Hud's panels as they stand over the table, in the table viewport's pixels: the ring labels keep off them. The banner, the
-    /// end message and the toasts come and go over everything and are left out.</summary>
-    IReadOnlyList<HudRect> Covered()
-    {
-        _covered.Clear();
-        if (!IsInstanceValid(_tableBox)) return _covered;
-        var origin = _tableBox.GlobalPosition;
-        foreach (var part in new Control?[] { _corner, _header, _roster, _card, _terrainCard, _decision, _waiting, _dice, _undo, _replay, _logDrawer?.Toggle, _logDrawer?.Panel })
-            if (part is not null && IsInstanceValid(part) && part.IsVisibleInTree() && part.GetGlobalRect() is var r && r.Size.X > 0 && r.Size.Y > 0)
-                _covered.Add(new HudRect(r.Position.X - origin.X, r.Position.Y - origin.Y, r.Size.X, r.Size.Y));
-        return _covered;
-    }
+    (float, float) PlaceCard(HudRect slot) { _terrainCard!.Place(slot); return (_terrainCard.Size.X, _terrainCard.Size.Y); }
 
     /// <summary>The corner keeps to its slot's width: the game's name gives up what Home and the tail take, and clips.</summary>
     void PlaceCorner(HudRect slot)
@@ -241,27 +251,6 @@ public partial class GameScreen
         var width = new Vector2(MathF.Ceiling(Math.Min(full, Math.Max(0, slot.W - others))), 0);
         if (_status.CustomMinimumSize != width) _status.CustomMinimumSize = width;   // only a change: each set queues another layout
         HudPlacement.Top(_corner, slot);
-    }
-
-    /// <summary>The log panel ends HudLayout.M above the decision box and dice tray as they are, not as their slots assume: either
-    /// may grow upward past its slot, and a short decision box leaves the log the room above it, up to HudLayout.LogMaxH. Only
-    /// when the panel's columns span theirs. The panel keeps its top, below the corner buttons.</summary>
-    HudRect AboveBottomStack(HudRect panel)
-    {
-        float? top = null;
-        foreach (var part in new Control?[] { _decision, _waiting, _dice })
-            if (Shows(part) && panel.SpansX(new HudRect(part!.Position.X, 0, part.Size.X, 1))) top = Math.Min(top ?? float.MaxValue, part.Position.Y);
-        var bottom = top is { } t ? t - HudLayout.M : panel.Bottom;
-        return panel with { H = Math.Clamp(bottom - panel.Y, 0, HudLayout.LogMaxH) };
-    }
-
-    /// <summary>The log panel starts HudLayout.M below the header as it is, not as its 96 px slot assumes: three lines can be
-    /// taller. Only when the panel's columns span the header's; the height never goes negative.</summary>
-    HudRect BelowHeader(HudRect panel)
-    {
-        if (!Shows(_header) || !panel.SpansX(new HudRect(_header!.Position.X, 0, _header.Size.X, 1))) return panel;
-        var top = Math.Max(panel.Y, _header.Position.Y + _header.Size.Y + HudLayout.M);
-        return panel with { Y = top, H = Math.Max(0, panel.Bottom - top) };
     }
 
     static bool Shows(Control? c) => c is not null && IsInstanceValid(c) && c.Visible;

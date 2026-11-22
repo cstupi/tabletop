@@ -17,7 +17,6 @@ public partial class UnitActionsNode : Control
     readonly List<(Button Button, OptionTile Option)> _buttons = new();
     readonly List<(Button Button, CardAction Action)> _acts = new();
     readonly List<(Button Button, UnitTarget Target)> _targets = new();
-    readonly List<HudRect> _covered = new();
     readonly UnitActionsHold _hold = new();
     UnitActions? _shown; string? _lit; bool _dirty = true, _targetsDirty = true; UnitMarkerNodes? _markers; HoverLabels? _labels; int _labelLines = 1;
     Action? _onDirty, _onTheme, _onTargets; Action<Guid>? _onUnit; Action<string?>? _onTile;
@@ -156,7 +155,7 @@ public partial class UnitActionsNode : Control
         if (_targetsDirty) RenderTargets();
         if (_shown is not { } v) { _hold.Reset(); foreach (var (b, _) in _targets) b.Visible = false; return; }
         SyncActs();
-        var cam = _view.Camera; var screen = GetViewportRect().Size; var view = new HudRect(0, 0, screen.X, screen.Y); var covered = Covered();
+        var cam = _view.Camera; var screen = GetViewportRect().Size; var view = new HudRect(0, 0, screen.X, screen.Y); var covered = _s.Hud.Obstacles;   // the Hud's panels (the play table fills the window)
         var top = WorldFrame.ToGodot(v.Anchor);
         if (cam.IsPositionBehind(top)) { _row.Visible = false; _hold.Reset(); }
         else
@@ -196,25 +195,5 @@ public partial class UnitActionsNode : Control
         if (_markers is not null && IsInstanceValid(_markers)) return _markers;
         _markers = _view.GetChildren().OfType<CanvasLayer>().SelectMany(l => l.GetChildren().OfType<UnitMarkerNodes>()).FirstOrDefault();
         return _markers;
-    }
-
-    /// <summary>The Hud's panels over the table, in the table viewport's pixels: the box's siblings as drawn, a full-window layer's own children.</summary>
-    IReadOnlyList<HudRect> Covered()
-    {
-        _covered.Clear();
-        if (_box.GetParent() is not Control hud || _view.GetViewport().GetParent() is not Control table) return _covered;
-        var origin = table.GlobalPosition; var whole = hud.Size;
-        void Add(Node parent, int depth)
-        {
-            foreach (var child in parent.GetChildren())
-            {
-                if (child is not Control c || !c.IsVisibleInTree()) continue;
-                var r = c.GetGlobalRect();
-                if (r.Size.X >= whole.X * 0.9f && r.Size.Y >= whole.Y * 0.9f) { if (depth < 2) Add(c, depth + 1); continue; }   // a layer over the window: its panels
-                if (r.Size.X > 0 && r.Size.Y > 0) _covered.Add(new HudRect(r.Position.X - origin.X, r.Position.Y - origin.Y, r.Size.X, r.Size.Y));
-            }
-        }
-        Add(hud, 0);
-        return _covered;
     }
 }

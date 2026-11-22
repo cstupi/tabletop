@@ -20,9 +20,6 @@ public partial class RangeRingNode : Node3D
     Action? _onBuilt;
     readonly List<(float X, float Y)> _projected = new(); readonly List<HudRect> _wanted = new(); readonly List<Control> _order = new();
 
-    /// <summary>The Hud's panels over the table, in this viewport's pixels (GameScreen sets it): labels keep off them.</summary>
-    public Func<IReadOnlyList<HudRect>>? Covered;
-
     public void Bind(Session session, TableInput input)
     {
         _s = session; _input = input;
@@ -128,14 +125,14 @@ public partial class RangeRingNode : Node3D
         foreach (var l in layers) any |= l.Shown;
         if (!any) return;
         if (GetViewport().GetCamera3D() is not { } cam) return;
-        var size = GetViewport().GetVisibleRect().Size; var view = new HudRect(0, 0, size.X, size.Y); var covered = Covered?.Invoke();
+        var size = GetViewport().GetVisibleRect().Size; var view = new HudRect(0, 0, size.X, size.Y); var covered = _s.Hud.Obstacles;   // the Hud's panels (the play table fills the window): labels keep off them
         _wanted.Clear(); _order.Clear();
         foreach (var layer in layers)
         foreach (var (candidates, label) in layer.Labels)
         {
             _projected.Clear();
             foreach (var q in candidates) if (!cam.IsPositionBehind(q)) { var s = cam.UnprojectPosition(q); _projected.Add((s.X, s.Y)); }
-            if (RingLabels.Anchor(_projected, view, HudLayout.M, covered) is not { } at) { label.Visible = false; continue; }
+            if (RingLabels.Anchor(_projected, view, HudFrame.M, covered) is not { } at) { label.Visible = false; continue; }
             var box = label.GetCombinedMinimumSize();
             _wanted.Add(RingLabels.Under(at, box.X, box.Y)); _order.Add(label);
         }

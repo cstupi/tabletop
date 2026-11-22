@@ -33,7 +33,7 @@ public partial class Roster : PanelContainer
         if (_input is not null && IsInstanceValid(_input)) _input.SelectionChanged -= _onSelection;
         if (_s is null) return; _s.Frame.Render -= _onFrame;
     }
-    /// <summary>Into its HudLayout slot: the slot's width, the list's height up to the slot's, against the slot's top.</summary>
+    /// <summary>Into its HudFrame slot: the slot's width, the list's height up to the slot's, against the slot's top.</summary>
     public void Place(HudRect slot) { _slot = slot; Fit(); HudPlacement.Top(this, slot); }
 
     void QueueFit() { if (_fitQueued) return; _fitQueued = true; Callable.From(() => { _fitQueued = false; Fit(); }).CallDeferred(); }

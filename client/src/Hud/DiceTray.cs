@@ -20,8 +20,7 @@ public partial class DiceTray : PanelContainer
     Action<RenderCause>? _onFrame; Action? _onTheme;
 
     bool _covered;
-    /// <summary>The log is open and holds the same roll: the tray hides and gives its slot to the decision box.</summary>
-    public bool Covered { get => _covered; set { if (_covered == value) return; _covered = value; Render(); } }
+    Action? _onHud;
 
     /// <summary>The shown roll's RollRecord id, when the player clicks it.</summary>
     public event Action<Guid>? RollClicked;
@@ -37,6 +36,9 @@ public partial class DiceTray : PanelContainer
         _line.Pressed += () => { if (_shown is { } r) RollClicked?.Invoke(r.Record.Id); };
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) Render(); };
         session.Frame.Render += _onFrame;
+        // The open log holds the latest roll: the frame gives the tray no slot then (HudFrame.Covered), and it hides.
+        _onHud = () => { if (_covered == _s.Hud.Covered(HudPart.Dice)) return; _covered = !_covered; Render(); };
+        session.HudChanged += _onHud; _covered = session.Hud.Covered(HudPart.Dice);
         _onTheme = Paint; Ui.Changed += _onTheme;   // the dice faces are the theme's
         Render();
     }
@@ -44,7 +46,7 @@ public partial class DiceTray : PanelContainer
     public override void _ExitTree()
     {
         Ui.Changed -= _onTheme;
-        if (_s is not null) _s.Frame.Render -= _onFrame;
+        if (_s is not null) { _s.Frame.Render -= _onFrame; _s.HudChanged -= _onHud; }
     }
 
     void Render()

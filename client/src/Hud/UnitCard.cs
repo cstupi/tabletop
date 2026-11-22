@@ -57,7 +57,7 @@ public partial class UnitCard : VBoxContainer
         if (_input is not null && IsInstanceValid(_input)) { _input.SelectionChanged -= _onChanged; _input.HoveredUnitChanged -= _onHover; }
     }
 
-    /// <summary>Into its HudLayout slot: the slot's width, the content's height up to the slot's, against the slot's bottom.</summary>
+    /// <summary>Into its HudFrame slot: the slot's width, the content's height up to the slot's, against the slot's bottom.</summary>
     public void Place(HudRect slot)
     {
         _slot = slot;

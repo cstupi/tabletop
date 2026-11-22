@@ -59,13 +59,12 @@ public partial class HoverLabels : Node3D
         if (_terrainPanel.Visible) PlaceTerrainPanel();
     }
 
-    /// <summary>Below and right of the cursor, kept inside the view: left of it near the right edge, above it near the foot.</summary>
+    /// <summary>Beside the cursor, inside the view and off the Hud's panels (CursorPanel over Session.Hud's Obstacles).</summary>
     void PlaceTerrainPanel()
     {
         var root = GetTree().Root; var view = root.GetVisibleRect().Size; var mouse = root.GetMousePosition(); var size = _terrainPanel.Size;
-        var x = mouse.X + 22 + size.X > view.X ? mouse.X - 16 - size.X : mouse.X + 22;
-        var y = mouse.Y + 22 + size.Y > view.Y ? mouse.Y - 16 - size.Y : mouse.Y + 22;
-        _terrainPanel.Position = new Vector2(Math.Max(4, x), Math.Max(4, y));
+        var (x, y) = CursorPanel.Place((mouse.X, mouse.Y), (size.X, size.Y), new HudRect(0, 0, view.X, view.Y), _s.Hud.Obstacles);
+        _terrainPanel.Position = new Vector2(x, y);
     }
 
     /// <summary>Where a unit's name label stands: over its models' centre, 1.2" above the tallest; null with none on the table.</summary>
