@@ -64,7 +64,7 @@ public static partial class DecisionTiles
         {
             if (key == "" || action.FindChildren("*", "HBoxContainer", true, false).OfType<HBoxContainer>().FirstOrDefault() is not { } row) return;
             cap = Cap(key);
-            if (action.ThemeTypeVariation == Variation.Primary) cap.AddThemeColorOverride("font_color", Ui.Background with { A = 1 });
+            if (action.ThemeTypeVariation == Variation.Primary) cap.AddThemeColorOverride("font_color", Ui.OnPrimary);   // the lit face's own text colour, as Action draws it
             row.AddChild(cap);
             action.CustomMinimumSize = new Vector2(row.GetCombinedMinimumSize().X + (action.ThemeTypeVariation == Variation.Primary ? 28 : 12), action.CustomMinimumSize.Y);
         }
