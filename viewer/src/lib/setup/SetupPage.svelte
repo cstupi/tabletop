@@ -184,7 +184,7 @@
   .tools { border-right: 1px solid var(--rule); display: flex; flex-direction: column; }
   .card-col { border-left: 1px solid var(--rule); }
   .help { margin: auto 0 0; padding: var(--space-2) var(--space-3); font-size: .85rem; border-top: 1px solid var(--rule); }
-  kbd { font-family: var(--font-num); font-size: .8em; padding: 0 var(--space-1); border: 1px solid var(--rule); color: var(--text); }
+  kbd { font-family: var(--font-num); font-size: .8em; padding: var(--space-2); border: 1px solid var(--rule); color: var(--text); }
   .stage { position: relative; min-height: 0; min-width: 0; background: var(--board-bg); }
   .pad { margin: var(--space-3); }
   .banner { position: absolute; top: var(--space-2); left: 50%; transform: translateX(-50%); max-width: min(36rem, calc(100% - 2 * var(--space-3)));

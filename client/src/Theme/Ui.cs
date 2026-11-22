@@ -82,7 +82,7 @@ public static class Ui
     public static StyleBoxFlat TeamBand(int ordinal, bool compact = false)
     {
         var b = new StyleBoxFlat { BgColor = ordinal > 0 ? Team(ordinal) : DimText with { A = 0.25f } };
-        b.ContentMarginLeft = b.ContentMarginRight = compact ? Space.S : Space.M; b.ContentMarginTop = b.ContentMarginBottom = compact ? Space.XS : Space.S;
+        b.ContentMarginLeft = b.ContentMarginRight = compact ? Space.S : Space.M; b.ContentMarginTop = b.ContentMarginBottom = Space.S;   // S inside a filled box (spacing rule 5)
         return b;
     }
 
@@ -93,7 +93,7 @@ public static class Ui
     public static StyleBoxFlat MemberRow(bool mine)
     {
         var b = new StyleBoxFlat { BgColor = mine ? Accent with { A = 0.10f } : Accent with { A = 0 } };
-        b.SetCornerRadiusAll(Math.Min(Current.Shape.CornerRadius, 4)); b.ContentMarginLeft = b.ContentMarginRight = Space.S; b.ContentMarginTop = b.ContentMarginBottom = Space.XS;
+        b.SetCornerRadiusAll(Math.Min(Current.Shape.CornerRadius, 4)); b.SetContentMarginAll(Space.S);
         return b;
     }
 
@@ -103,7 +103,7 @@ public static class Ui
         var c = Of(colour);
         var b = new StyleBoxFlat { BgColor = c with { A = 0.2f }, BorderColor = c, CornerDetail = 6 };
         b.SetBorderWidthAll(1); b.SetCornerRadiusAll(Math.Max(3, Math.Min(Current.Shape.CornerRadius, 8)));
-        b.ContentMarginLeft = b.ContentMarginRight = Space.S; b.ContentMarginTop = b.ContentMarginBottom = Space.XS;
+        b.SetContentMarginAll(Space.S);   // S inside the border (spacing rule 5)
         return b;
     }
 
@@ -111,12 +111,12 @@ public static class Ui
     public static StyleBoxFlat EdgeBand(Color edge)
     {
         var b = new StyleBoxFlat { BgColor = edge with { A = 0.12f }, BorderColor = edge };
-        b.BorderWidthLeft = 6; b.ContentMarginLeft = b.ContentMarginRight = Space.S; b.ContentMarginTop = b.ContentMarginBottom = Space.XS;
+        b.BorderWidthLeft = 6; b.ContentMarginLeft = b.ContentMarginRight = Space.M; b.ContentMarginTop = b.ContentMarginBottom = Space.S;   // a title band: M across, S down
         return b;
     }
 
-    /// <summary>A floating panel over the table (the terrain hover, the key overlay): the theme's panel material, S inside its frame.</summary>
-    public static StyleBox FloatingPanel() => ThemeBuilder.Nine(Current.Materials.Panel, Space.S, Space.S);
+    /// <summary>A floating panel over the table (the terrain hover, the key overlay): the theme's panel material, M inside its frame.</summary>
+    public static StyleBox FloatingPanel() => ThemeBuilder.Nine(Current.Materials.Panel, Space.M, Space.M);
 
     /// <summary>Null when the theme has no icon for the name.</summary>
     public static Texture2D? Icon(string name)

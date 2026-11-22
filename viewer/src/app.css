@@ -29,7 +29,7 @@ main.viewer > * { flex: 1; min-height: 0; }
 }
 
 /* A status chip: lobby, setup, playing, ended. */
-.chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); min-height: 1.5rem; font-size: .8rem;
+.chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-2); min-height: 1.5rem; font-size: .8rem;
   border: 1px solid var(--rule); color: var(--dim); white-space: nowrap; }
 .chip.lobby, .chip.setup { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); }
 .chip.playing { color: var(--success); border-color: color-mix(in srgb, var(--success) 45%, transparent); }

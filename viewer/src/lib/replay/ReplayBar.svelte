@@ -64,7 +64,7 @@
   .replay-bar { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: var(--panel-solid); border-top: 1px solid var(--rule); }
   .title { display: flex; align-items: center; gap: var(--space-2); color: var(--accent); font-family: var(--display, inherit); text-transform: uppercase; letter-spacing: .06em; font-size: .9rem; }
   .steps { display: flex; align-items: stretch; justify-content: center; gap: var(--space-1); flex-wrap: wrap; }
-  .step, .play { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); min-width: 3.4rem; padding: var(--space-1) var(--space-2); }
+  .step, .play { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); min-width: 3.4rem; padding: var(--space-2); }
   .step span, .play span { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
   .flat { background: transparent; border: 1px solid transparent; color: var(--text); }
   .flat:hover:not(:disabled) { border-color: var(--rule); }

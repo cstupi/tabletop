@@ -241,7 +241,7 @@
   .toggle h2 { margin: 0; font-size: .9rem; }
   .chev { display: inline-flex; transition: transform .12s; }
   .chev.open { transform: rotate(90deg); }
-  kbd { font-family: var(--font-num); font-size: .7rem; line-height: 1; padding: var(--space-1) var(--space-1); border: 1px solid var(--rule); border-radius: 3px; color: var(--dim); }
+  kbd { font-family: var(--font-num); font-size: .7rem; line-height: 1; padding: var(--space-2); border: 1px solid var(--rule); border-radius: 3px; color: var(--dim); }
   .filter { min-height: 2rem; min-width: 0; font-size: .9rem; }
   .detailed { display: flex; flex: none; align-items: center; gap: var(--space-1); font-size: .9rem; white-space: nowrap; }
   .foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--rule); }

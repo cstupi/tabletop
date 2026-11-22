@@ -72,7 +72,7 @@ public partial class DecisionBox : PanelContainer
         // The controls keep clear of the scroll bar: a margin between their right edge and the bar's.
         var inset = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; inset.AddThemeConstantOverride("margin_right", ScrollGap);
         _controls.SizeFlagsHorizontal = SizeFlags.ExpandFill; _controls.AddThemeConstantOverride("separation", Space.S); inset.AddChild(_controls); _scroll.AddChild(inset);
-        foreach (var side in new[] { "left", "right", "top", "bottom" }) _inset.AddThemeConstantOverride($"margin_{side}", Space.S);
+        foreach (var side in new[] { "left", "right", "top", "bottom" }) _inset.AddThemeConstantOverride($"margin_{side}", Space.M);   // a box of a title and several lines: M (spacing rule 5)
         _body.AddThemeConstantOverride("separation", Space.M); _inset.AddChild(_body);
         _footRow.AddThemeConstantOverride("h_separation", Space.S); _footRow.AddThemeConstantOverride("v_separation", Space.S);
         _reveal.AddThemeConstantOverride("h_separation", Space.S); _reveal.AddThemeConstantOverride("v_separation", Space.XS);
@@ -147,7 +147,7 @@ public partial class DecisionBox : PanelContainer
         _scroll.CustomMinimumSize = new Vector2(0, MathF.Floor(Math.Max(0, Math.Min(_controls.GetCombinedMinimumSize().Y, slot.H - chrome))));
     }
 
-    /// <summary>The card's frame: the card's panel with no inset (the band runs edge to edge and the body takes its own 16 px), or nothing
+    /// <summary>The card's frame: the card's panel with no inset (the band runs edge to edge inside the frame and the body takes its own 16 px), or nothing
     /// while only quiet bands show.</summary>
     bool? _framed;
     void Frame(bool card)
@@ -155,7 +155,7 @@ public partial class DecisionBox : PanelContainer
         if (card == _framed) return;
         _framed = card;
         if (!card) { AddThemeStyleboxOverride("panel", new StyleBoxEmpty()); return; }
-        var b = (StyleBox)Ui.Theme.GetStylebox("panel", Variation.Card).Duplicate(); b.SetContentMarginAll(0);   // the theme's: this control's own override would answer first
+        var b = (StyleBox)Ui.Theme.GetStylebox("panel", Variation.Card).Duplicate(); b.SetContentMarginAll(Ui.Current.Materials.Panel.Inset);   // the theme's, inside its drawn frame: this control's own override would answer first
         AddThemeStyleboxOverride("panel", b);
     }
 

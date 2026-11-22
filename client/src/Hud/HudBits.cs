@@ -50,7 +50,7 @@ public static class HudBits
     {
         var cap = new PanelContainer { ThemeTypeVariation = Variation.Chip, MouseFilter = Control.MouseFilterEnum.Ignore, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
         var box = Ui.Theme.GetStylebox("panel", Variation.Chip).Duplicate() as StyleBoxFlat;
-        if (box is not null) { box.BorderColor = ink is { } i ? i with { A = 0.6f } : Ui.DimText; box.ContentMarginTop = box.ContentMarginBottom = 0; box.ContentMarginLeft = box.ContentMarginRight = Space.XS; cap.AddThemeStyleboxOverride("panel", box); }
+        if (box is not null) { box.BorderColor = ink is { } i ? i with { A = 0.6f } : Ui.DimText; cap.AddThemeStyleboxOverride("panel", box); }
         var label = new Label { Text = key, ThemeTypeVariation = Variation.Dim, MouseFilter = Control.MouseFilterEnum.Ignore };
         if (ink is { } c) label.AddThemeColorOverride("font_color", c with { A = 0.75f });
         cap.AddChild(label);

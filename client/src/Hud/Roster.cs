@@ -150,7 +150,7 @@ public partial class Roster : PanelContainer
     /// conditions the theme draws no icon for), hidden when empty.</summary>
     sealed partial class RowControls : PanelContainer
     {
-        public readonly StyleBoxFlat Edge = new() { ContentMarginLeft = Space.S, ContentMarginRight = Space.XS, ContentMarginTop = 0, ContentMarginBottom = 0 };
+        public readonly StyleBoxFlat Edge = new() { ContentMarginLeft = Space.S, ContentMarginRight = Space.S, ContentMarginTop = Space.S, ContentMarginBottom = Space.S };   // S inside the lit row's box (spacing rule 5)
         public readonly Label Acting = new() { Text = "▶", CustomMinimumSize = new Vector2(14, 0), MouseFilter = MouseFilterEnum.Ignore },
             Title = new() { ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore },
             MarkText = new() { HorizontalAlignment = HorizontalAlignment.Center, CustomMinimumSize = new Vector2(16, 0), MouseFilter = MouseFilterEnum.Pass },

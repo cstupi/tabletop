@@ -271,7 +271,7 @@
   .lines { display: flex; gap: var(--space-1); align-items: flex-start; }
   .lines ul { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
   .lines li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-size: .8rem; }
-  .chip { flex: none; display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); min-width: 5rem; background: var(--team); color: var(--bg);
+  .chip { flex: none; display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-2); min-width: 5rem; background: var(--team); color: var(--bg);
     text-transform: uppercase; font-size: .72rem; letter-spacing: .04em; }
   .line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .line.warn { color: var(--warning); }
@@ -285,7 +285,7 @@
   details[open] > summary::after { content: '▾'; }
   summary:hover { color: var(--text); }
   .meta { margin-left: auto; font-family: var(--font-num); font-weight: var(--num-weight); font-size: .8rem; color: var(--dim); text-transform: none; letter-spacing: 0; }
-  .inline-action { flex: none; padding: var(--space-1) var(--space-2); display: inline-flex; align-items: center; gap: var(--space-1); text-transform: none;
+  .inline-action { flex: none; padding: var(--space-2); display: inline-flex; align-items: center; gap: var(--space-1); text-transform: none;
     letter-spacing: 0; font-family: var(--font-body); font-weight: normal; font-size: .8rem; }
   .body { display: flex; flex-direction: column; gap: var(--space-2); padding: 0 var(--space-3) var(--space-3); }
   .primary { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: stretch; padding: var(--space-2); border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
@@ -300,7 +300,7 @@
   .dot:focus-visible { outline: 2px solid var(--focus); }
   .limit { color: var(--warning); }
   .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); max-height: 22rem; overflow-y: auto; padding: var(--space-1); }
-  .tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); padding: var(--space-2) var(--space-1); min-height: 4.6rem; min-width: 0;
+  .tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); padding: var(--space-2); min-height: 4.6rem; min-width: 0;
     font-size: .72rem; line-height: 1.15; }
   .tile .glyph { color: var(--kind, var(--accent)); display: inline-flex; }
   .tile .name { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: center; max-width: 100%; }
@@ -315,7 +315,7 @@
   .size input { width: 100%; }
   .x { color: var(--dim); }
   .swatches, .styles { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-  .swatch { font-size: .8rem; padding: var(--space-1) var(--space-2); }
+  .swatch { font-size: .8rem; padding: var(--space-2); }
   .swatch.on { outline: 2px solid var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 18%, transparent); }
   .diagram { position: relative; width: 100%; }
   .diagram svg { display: block; }

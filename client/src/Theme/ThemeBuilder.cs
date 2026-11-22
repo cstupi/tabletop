@@ -13,7 +13,7 @@ public static class ThemeBuilder
         var m = u.Materials;
         // Panels and buttons are the theme's materials (spec 2026-11-21-theme-materials-design.md): nine-patches whose drawn frame (the
         // material's inset) sits outside the padding. A text button pads M across and S down, so every text button is as tall.
-        StyleBox panel = Nine(m.Panel, Space.S, Space.S);
+        StyleBox panel = Nine(m.Panel, Space.M, Space.M);   // a box of several lines: M inside its frame (spacing rule 5)
         foreach (var type in new[] { "PanelContainer", "Panel", "TabContainer" }) t.SetStylebox("panel", type, panel);
         // Every dialog (AcceptDialog, ConfirmationDialog): even L padding, L between the content and the button row (buttons_separation),
         // each button at least DialogButtonWidth wide; DialogLayout right-aligns the row and spaces its buttons L apart, Cancel left of the
@@ -22,7 +22,7 @@ public static class ThemeBuilder
         t.SetStylebox("panel", "AcceptDialog", dialogPanel); Variant(t, Variation.DialogCard, "PanelContainer", "panel", dialogPanel);
         t.SetConstant("buttons_separation", "AcceptDialog", Space.L); t.SetConstant("buttons_min_width", "AcceptDialog", DialogButtonWidth);
         // A popup floats over other controls: its panel is opaque, or the text under it reads through a translucent panel colour.
-        StyleBox popup = Nine(m.Panel, Space.S, Space.S);
+        StyleBox popup = Nine(m.Panel, Space.M, Space.M);   // tooltips run to several lines (rule texts), menus list several items
         foreach (var type in new[] { "TooltipPanel", "PopupPanel", "PopupMenu" }) t.SetStylebox("panel", type, popup);
         foreach (var (state, face) in new[] { ("normal", m.Button), ("hover", m.ButtonHover), ("pressed", m.ButtonPressed), ("hover_pressed", m.ButtonPressed), ("disabled", m.ButtonDisabled) })
             t.SetStylebox(state, "Button", Nine(face, Space.M, Space.S, stretchDown: m.ButtonStretch));
@@ -81,9 +81,9 @@ public static class ThemeBuilder
         var fill = Flat(s, C(u.Accent), C(u.Accent), 0, 0); fill.SetCornerRadiusAll(Math.Min(s.CornerRadius, 3));
         t.SetStylebox("background", "ProgressBar", track); t.SetStylebox("fill", "ProgressBar", fill);
         Variant(t, Variation.Badge, "PanelContainer", "panel", Flat(s, C(u.Panel), C(u.Accent), 2));
-        Variant(t, Variation.Chip, "PanelContainer", "panel", Flat(s, C(u.Panel) with { A = 0 }, C(u.Accent), 1, Space.XS));
-        Variant(t, Variation.DieFace, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Dice.Mark), 1, Space.XS));
-        Variant(t, Variation.DieMiss, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Failure), 2, Space.XS));
+        Variant(t, Variation.Chip, "PanelContainer", "panel", Flat(s, C(u.Panel) with { A = 0 }, C(u.Accent), 1, Space.S));   // spacing rule 5: S inside every border
+        Variant(t, Variation.DieFace, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Dice.Mark), 1, Space.S));
+        Variant(t, Variation.DieMiss, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Failure), 2, Space.S));
         foreach (var (v, c) in new[] { (Variation.Dim, u.DimText), (Variation.Accent, u.Accent), (Variation.Success, u.Success), (Variation.Failure, u.Failure), (Variation.Warning, u.Warning) }) LabelVariant(t, v, c: C(c));
         LabelVariant(t, Variation.Display, u.Display); LabelVariant(t, Variation.Mono, UiThemes.Mono with { Size = UiThemes.Scaled(UiThemes.Mono.Size, u.TextSize) }, C(u.Text)); LabelVariant(t, Variation.Numerals, u.Numerals, C(u.Dice.Mark)); LabelVariant(t, Variation.Banner, u.Display with { Size = UiThemes.Scaled(48, u.TextSize) }, C(u.Accent));
         t.SetColor("font_outline_color", Variation.Banner, C(u.Background)); t.SetConstant("outline_size", Variation.Banner, 6);
@@ -98,10 +98,10 @@ public static class ThemeBuilder
     {
         var s = u.Shape; Color C(Rgba c) => Ui.Of(c);
         StyleBoxFlat Pad(StyleBoxFlat b, int x, int y) { b.ContentMarginLeft = b.ContentMarginRight = x; b.ContentMarginTop = b.ContentMarginBottom = y; return b; }
-        var cap = Pad(Flat(s, C(u.Background) with { A = 0.35f }, C(u.DimText), 1, 0), Space.XS, 0); cap.SetCornerRadiusAll(3);
+        var cap = Pad(Flat(s, C(u.Background) with { A = 0.35f }, C(u.DimText), 1, 0), Space.S, Space.S); cap.SetCornerRadiusAll(3);
         LabelVariant(t, Variation.KeyCap, u.Numerals with { Size = Math.Max(11, u.Body.Size - 4) }, C(u.DimText)); t.SetStylebox("normal", Variation.KeyCap, cap);
         var m = u.Materials;
-        Variant(t, Variation.Card, "PanelContainer", "panel", Nine(m.Panel, Space.S, Space.S));
+        Variant(t, Variation.Card, "PanelContainer", "panel", Nine(m.Panel, Space.M, Space.M));
         Variant(t, Variation.Quiet, "PanelContainer", "panel", Pad(Flat(s, C(u.Panel) with { A = 0.8f }, C(u.PanelBorder) with { A = 0.5f }, 1, 0), Space.S, Space.S));
         // A tile, and the same lit (its hover look at rest: the matching control under the pointer elsewhere) and round (an icon alone: the
         // action buttons over the selected unit).

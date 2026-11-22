@@ -72,12 +72,12 @@
 {/if}
 
 <style>
-  .piece-menu, .menu-dialog { position: fixed; z-index: 20; margin: 0; padding: var(--space-1); background: var(--panel-solid); color: var(--text);
+  .piece-menu, .menu-dialog { position: fixed; z-index: 20; margin: 0; padding: var(--space-2); background: var(--panel-solid); color: var(--text);
     border: 1px solid var(--panel-border); min-width: 11rem; box-shadow: 0 4px 16px #0000004d; }
   :global([data-theme='fantasy']) .piece-menu, :global([data-theme='fantasy']) .menu-dialog { border: 2px solid var(--wood); border-radius: 4px; }
   .piece-menu { list-style: none; }
   /* Menu items are rows, not themed buttons. */
-  .piece-menu button, .choices button { display: block; width: 100%; min-height: 2rem; padding: var(--space-1) var(--space-2); text-align: left; border: 0; border-radius: 0;
+  .piece-menu button, .choices button { display: block; width: 100%; min-height: 2rem; padding: var(--space-2); text-align: left; border: 0; border-radius: 0;
     clip-path: none; border-image: none; box-shadow: none; background: none; color: var(--text); }
   .piece-menu button:hover:not(:disabled), .choices button:hover:not(:disabled) { background: var(--rule); color: var(--text); }
   .menu-dialog { padding: var(--space-2); display: grid; gap: var(--space-2); min-width: 16rem; }

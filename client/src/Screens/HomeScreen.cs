@@ -19,7 +19,7 @@ public partial class HomeScreen : Control
     bool _loaded, _busy, _endedToo;
     LineEdit _search = null!;
     VBoxContainer _body = null!;
-    Label _status = null!, _hint = null!;
+    Label _status = null!, _hint = null!; PanelContainer _statusBox = null!;
     MenuButton _account = null!;
     Action? _onAccount, _onTheme;
 
@@ -65,7 +65,11 @@ public partial class HomeScreen : Control
         root.AddChild(scroll);
         scroll.AddChild(_body = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill });
         _body.AddThemeConstantOverride("separation", Space.S);
-        root.AddChild(_status = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
+        // The status line floats over the list's foot, shown only while it has words: the list runs down to the page's margin.
+        _statusBox = new PanelContainer { Visible = false, MouseFilter = MouseFilterEnum.Ignore };
+        _statusBox.SetAnchorsAndOffsetsPreset(LayoutPreset.CenterBottom, LayoutPresetMode.Minsize, Space.XL); _statusBox.GrowHorizontal = GrowDirection.Both; _statusBox.GrowVertical = GrowDirection.Begin;
+        AddChild(_statusBox);
+        _statusBox.AddChild(_status = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.Off });
         ShowName();
         Render();
     }
@@ -158,7 +162,7 @@ public partial class HomeScreen : Control
     void Show(string message, string variation = Variation.Warning)
     {
         if (!IsInstanceValid(this) || !IsInstanceValid(_status)) return;
-        _status.Text = message; _status.ThemeTypeVariation = variation;
+        _status.Text = message; _status.ThemeTypeVariation = variation; _statusBox.Visible = message.Length > 0;
     }
 
     void Render()

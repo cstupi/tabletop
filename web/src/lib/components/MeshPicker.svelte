@@ -235,7 +235,7 @@
   .searchbox :global(.icon) { color: var(--accent); flex: none; width: 1.5rem; height: 1.5rem }
   .searchbox input { flex: 1; min-width: 0; font-size: 1.1rem; min-height: 2.75rem }
   .chips, .fchips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) }
-  .fchip { min-height: 2rem; padding: 0 var(--space-2); gap: var(--space-1); border-radius: 1rem; font-size: .92rem }
+  .fchip { min-height: 2rem; padding: var(--space-2); gap: var(--space-1); border-radius: 1rem; font-size: .92rem }
   .fchip .num { opacity: .75 }
   .fchip.sub { opacity: .9 }
   .total { margin-left: auto; color: var(--dim) }
@@ -270,7 +270,7 @@
   .fit { right: 4px; color: var(--success) }
   .now { left: 4px; color: var(--accent) }
   .why { position: absolute; left: 4px; bottom: 4px; display: inline-flex; align-items: center; gap: var(--space-1); max-width: calc(100% - 8px);
-    padding: 0 var(--space-1); font-size: .72rem; border-radius: .7em; background: var(--panel-solid); border: 1px solid currentColor; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
+    padding: var(--space-2); font-size: .72rem; border-radius: .7em; background: var(--panel-solid); border: 1px solid currentColor; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
   .why-unit { color: var(--success) } .why-army { color: var(--accent) } .why-name { color: var(--warning) }
   :global([data-theme='fantasy']) .why-army { color: var(--wood) }
   .empty { display: flex; align-items: center; gap: var(--space-2); color: var(--dim) }
