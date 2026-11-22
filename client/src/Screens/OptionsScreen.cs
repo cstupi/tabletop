@@ -28,7 +28,7 @@ public partial class OptionsScreen : CanvasLayer
         Main.Instance.AddChild(_open);
     }
 
-    const int RailWidth = 240, ControlWidth = 320, DescriptionWidth = 340, RowHeight = 48, ConfirmSeconds = 15;
+    const int RailWidth = 240, ControlWidth = 320, DescriptionWidth = 340, RowsMaxWidth = 760, RowHeight = 48, ConfirmSeconds = 15;
 
     readonly Session _session;
     OptionsModel _model;
@@ -107,6 +107,7 @@ public partial class OptionsScreen : CanvasLayer
         desc.AddChild(descBox);
         body.AddChild(desc);
         column.AddChild(body);
+        body.Resized += () => FitRows(body);
 
         var foot = new HBoxContainer(); foot.AddThemeConstantOverride("separation", Space.M);
         foreach (var b in new[] { _reset, _revert, _apply }) b.FocusMode = Control.FocusModeEnum.None;
@@ -119,6 +120,18 @@ public partial class OptionsScreen : CanvasLayer
         foot.AddChild(new Label { Text = "Esc", ThemeTypeVariation = Variation.KeyCap, VerticalAlignment = VerticalAlignment.Center, TooltipText = "Close" });
         column.AddChild(foot);
         Rail();
+    }
+
+    /// <summary>The rows fill the room between the rail and the description up to <see cref="RowsMaxWidth"/>: on a wide window a label stays
+    /// near its control and the description beside them, the rest of the width left empty.</summary>
+    void FitRows(Control body)
+    {
+        var room = body.Size.X - RailWidth - DescriptionWidth - 2 * body.GetThemeConstant("separation");
+        var capped = room > RowsMaxWidth;
+        var flags = capped ? Control.SizeFlags.ShrinkBegin : Control.SizeFlags.ExpandFill;
+        var min = new Vector2(capped ? RowsMaxWidth : 0, 0);
+        if (_scroll.SizeFlagsHorizontal != flags) _scroll.SizeFlagsHorizontal = flags;
+        if (_scroll.CustomMinimumSize != min) _scroll.CustomMinimumSize = min;
     }
 
     /// <summary>The categories as tall tabs, icon and word; the open one lit with an accent bar on its left edge.</summary>
