@@ -19,7 +19,7 @@ public static partial class CallCases
         var n = skirmish.Events.Count;
         foreach (var at in new[] { n / 4, n / 2, 3 * n / 4 })
             yield return Playing("undo/button", skirmish, skirmish.Events[at].Seq, player, Choice("undoButton"),
-                s => UndoPlan.Of(s.Events, s.Names, CombatLog.Build(s.Events, s.Names)) is { } plan ? Command(new Undo(plan.ToSeq)) : null,
+                s => UndoPlan.Of(s.Events, s.Names, () => CombatLog.Build(s.Events, s.Names)) is { } plan ? Command(new Undo(plan.ToSeq)) : null,
                 (s, d) => d["undo"] = Obj(("toSeq", UndoPlan.Of(s.Events, s.Names)?.ToSeq)));
 
         JsonNode? Row(CallState s, long seq) =>

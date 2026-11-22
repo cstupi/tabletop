@@ -146,6 +146,15 @@ public static partial class CombatLog
     public static RollEntry? Latest(IReadOnlyList<GameEvent> log, Names n) => Latest(Build(log, n));
 
     /// <summary>The last roll still standing in entries already built, nested blocks included.</summary>
+    /// <summary>Whether the log's events from index <paramref name="from"/> on can change the latest roll: a step with rolls, a reroll, a hand edit or an
+    /// undo. A batch without one (a move, a step with no dice) leaves the dice tray's roll as it was, so the tray need not build the log for it.</summary>
+    public static bool TouchesRolls(IReadOnlyList<GameEvent> log, int from)
+    {
+        for (var i = Math.Max(0, from); i < log.Count; i++)
+            if (log[i].Payload is StepCompleted { Rolls.Count: > 0 } or DiceRerolled or DiceEdited or Undone) return true;
+        return false;
+    }
+
     public static RollEntry? Latest(IReadOnlyList<LogEntry> entries) => Flatten(entries).OfType<RollEntry>().LastOrDefault(r => !r.Undone);
 
     /// <summary>Every entry in log order, each block's entries after it.</summary>
