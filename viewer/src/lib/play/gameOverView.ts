@@ -21,9 +21,8 @@ export interface GameOverModel {
 export const WAITING_NOTE = 'Waiting for the other player';
 /** GameOverView.WaitingText: `Waiting for Team 2`, the teams named; WAITING_NOTE when none is named. */
 export const waitingText = (teams: readonly string[], n: Names): string => (teams.length === 0 ? WAITING_NOTE : `Waiting for ${teams.map((t) => n.team(t)).join(', ')}`);
-/** GameOverModel.Headline: `Team 1 wins · 4 rounds`; the result alone before a round is played; null before the end. */
-export const headline = (m: GameOverModel): string | null =>
-  m.result === null ? null : m.rounds > 0 ? `${m.result} · ${m.rounds} round${m.rounds === 1 ? '' : 's'}` : m.result;
+/** GameOverModel.Headline: `Team 1 wins`: the result alone, since the reason under the scores says why and after how many rounds; null before the end. */
+export const headline = (m: GameOverModel): string | null => m.result;
 
 /** GameOverView.Answer: the chosen option for the team the popup answers as; teamId omitted when none. */
 export const answerOf = (model: GameOverModel, optionId: string, team: string | null): AnswerAsk =>

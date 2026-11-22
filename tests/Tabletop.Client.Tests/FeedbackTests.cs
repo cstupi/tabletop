@@ -61,7 +61,7 @@ public class FeedbackTests
         Assert.Equal("Cannot reach the game server (Connection refused); reconnecting…", Feedback.Closed(new SocketClosed(null, "Connection refused", new IOException("x")), true));
         Assert.Equal("The connection dropped; reconnecting…", Feedback.Closed(new SocketClosed(null, null, null), true));
         var desync = new ProjectionDesyncException("models_moved", Guid.Empty);
-        Assert.Equal("The table fell out of step with the server; rebuilding it from the log…", Feedback.Closed(new SocketClosed(null, desync.Message, desync), true));
+        Assert.Equal("Rebuilding the table from the log…", Feedback.Closed(new SocketClosed(null, desync.Message, desync), true));
         Assert.StartsWith("This game's log cannot be replayed: ", Feedback.Closed(new SocketClosed(null, desync.Message, desync), false));
     }
 

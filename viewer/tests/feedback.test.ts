@@ -41,7 +41,7 @@ describe('closedText', () => {
     expect(closedText(4000, null, false)).toBe('Disconnected (code 4000).');
   });
   it('a desync rebuilds, or gives up with the reason', () => {
-    expect(closedText(null, 'x', true, true)).toBe('The table fell out of step with the server; rebuilding it from the log…');
+    expect(closedText(null, 'x', true, true)).toBe('Rebuilding the table from the log…');
     expect(closedText(null, 'unit u9 missing', false, true)).toBe("This game's log cannot be replayed: unit u9 missing");
   });
 });

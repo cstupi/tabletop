@@ -29,7 +29,7 @@ describe('keepAwayArea through the WebAssembly', () => {
     for (const s of ring.segments) expect(Math.hypot(s.a.x - 40, s.a.y - 30)).toBeCloseTo(9 + base, 2);
   });
 
-  it('units kept at different distances read the shortest to the longest', () => expect(keepAwayLabel([9, 12, 9])).toBe('Too close 9–12"'));
+  it('units kept at different distances read the rule\'s own, the shortest', () => expect(keepAwayLabel([9, 12, 9])).toBe('Too close 9"'));
 
   it('no listed model on the table draws nothing', () => {
     const p = projectionOf(gameOf(), boardOf([{ participantId: P1, units: [enemy, mine] }])).projection;

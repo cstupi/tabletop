@@ -28,12 +28,12 @@ public class SightSummaryTests
     public void The_summary_counts_seeing_models_and_screened_clear_lines()
     {
         var answer = new SightAnswer(Guid.CreateVersion7(), [Line(M(0), true, true), Line(M(0), true, false), Line(M(1), true, true), Line(M(2), false, false)], [M(0)]);
-        Assert.Equal("2 of 3 models can see Red Warriors · 2 of 3 clear lines screened", SightSummary.Text(answer, "Red Warriors", shooting: false));
-        Assert.Equal("2 of 3 models can see Red Warriors · 2 of 3 clear lines screened · 1 can shoot", SightSummary.Text(answer, "Red Warriors", shooting: true));
+        Assert.Equal("2 of 3 see Red Warriors · 2 screened", SightSummary.Text(answer, "Red Warriors", shooting: false));
+        Assert.Equal("2 of 3 see Red Warriors · 2 screened · 1 can shoot", SightSummary.Text(answer, "Red Warriors", shooting: true));
         var open = new SightAnswer(Guid.CreateVersion7(), [Line(M(0), true, false), Line(M(1), false, false)], []);
-        Assert.Equal("1 of 2 models can see Red Warriors · 0 of 1 clear lines screened", SightSummary.Text(open, "Red Warriors", shooting: false));
+        Assert.Equal("1 of 2 see Red Warriors · 0 screened", SightSummary.Text(open, "Red Warriors", shooting: false));
         var blind = new SightAnswer(Guid.CreateVersion7(), [Line(M(0), false, false)], []);
-        Assert.Equal("0 of 1 models can see Red Warriors", SightSummary.Text(blind, "Red Warriors", shooting: false));
+        Assert.Equal("0 of 1 see Red Warriors", SightSummary.Text(blind, "Red Warriors", shooting: false));
     }
 
     /// <summary>A model that sees the target may still be out of range: the summary names each range a rule changed against this target, and the rules.</summary>
@@ -43,9 +43,9 @@ public class SightSummaryTests
         var lines = new[] { Line(M(0), true, false), Line(M(1), true, false), Line(M(2), true, false) };
         var answer = new SightAnswer(Guid.CreateVersion7(), lines, [M(2)],
             [new ShotRange("Carbine", 18, 14, ["Shadowborn"]), new ShotRange("Plasma Rifle", 24, 20, ["Shadowborn"]), new ShotRange("Pistol", 12, 12, [])]);
-        Assert.Equal("3 of 3 models can see Reapers · 0 of 3 clear lines screened · 1 can shoot · Carbine 18\" → 14\", Plasma Rifle 24\" → 20\" (Shadowborn)",
+        Assert.Equal("3 of 3 see Reapers · 0 screened · 1 can shoot · Carbine 18\" → 14\", Plasma Rifle 24\" → 20\" (Shadowborn)",
             SightSummary.Text(answer, "Reapers", shooting: true));
-        Assert.Equal("3 of 3 models can see Reapers · 0 of 3 clear lines screened", SightSummary.Text(answer, "Reapers", shooting: false));
+        Assert.Equal("3 of 3 see Reapers · 0 screened", SightSummary.Text(answer, "Reapers", shooting: false));
         var half = answer with { Ranges = [new ShotRange("Carbine", 18, 13.5, ["Shadowborn", "Long Shot"])] };
         Assert.EndsWith(" · 1 can shoot · Carbine 18\" → 13.5\" (Shadowborn, Long Shot)", SightSummary.Text(half, "Reapers", shooting: true));
         Assert.EndsWith(" · 1 can shoot", SightSummary.Text(answer with { Ranges = null }, "Reapers", shooting: true));

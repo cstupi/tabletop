@@ -96,7 +96,7 @@ public partial class UnitCard : VBoxContainer
     {
         var p = _s.Projection; var game = _s.Game;
         var unit = p is not null && game is not null && game.Status is GameStatus.Playing or GameStatus.Ended
-            ? SheetFocus.Of(p, game, _s.MyTeamId, _input.Selected?.PieceId, _previewed, _placing.Placing(Placing(p), _input.Selected?.PieceId)) : null;
+            ? SheetFocus.Of(p, game, _s.MyTeamId, _input.Selected?.PieceId, _previewed, _placing.Placing(Placing(p) ?? SheetFocus.Actor(p, game, _s.MyTeamId), _input.Selected?.PieceId)) : null;
         if (unit != _unit) { _unit = unit; FocusChanged?.Invoke(unit); }
         Visible = unit is not null;
         if (unit is not { } u) { _sheet = null; _names = null; _content = null; _pending.Clear(); return; }
@@ -410,10 +410,9 @@ public partial class UnitCard : VBoxContainer
     void RenderStrip(Projection p, GameInfo game, Names names, UnitSheetModel mine)
     {
         _strip.Visible = false;
-        var measured = EnemyStrip.Measured(p, game, _s.MyTeamId, mine.UnitId);   // the acting shooter's weapons, whatever the card shows
+        var measured = EnemyStrip.Measured(p, game, _s.MyTeamId, mine.UnitId);   // the distance from the acting shooter, whatever the card shows
         if (_hovered is not { } h || !p.Units.ContainsKey(h) || !EnemyStrip.Shows(p, game, _s.MyTeamId, measured, h)) return;
-        if (measured != mine.UnitId) mine = UnitSheet.Of(p, names, measured, _s.Rules, _s.MaxWounds);
-        var m = EnemyStrip.Of(mine, UnitSheet.Of(p, names, h, _s.Rules, _s.MaxWounds), HoverView.Of(p, game, names, h, measured, _s.MaxWounds)?.Distance);
+        var m = EnemyStrip.Of(UnitSheet.Of(p, names, h, _s.Rules, _s.MaxWounds), HoverView.Of(p, game, names, h, measured, _s.MaxWounds)?.Distance);
         var band = SheetFocus.TeamOf(p, game, h)?.Ordinal ?? 0;
         var edge = band > 0 ? Ui.Team(band) : Ui.DimText;
         if (_stripFrame.BorderColor != edge) _stripFrame.BorderColor = edge;

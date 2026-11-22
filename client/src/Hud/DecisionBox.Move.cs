@@ -46,7 +46,7 @@ public partial class DecisionBox
             var fromShelf = MoveRuler.IsShelfPlacement(legal, p);                   // a Spawn or Split reserve: placed around its anchor model, the Ask's prompt says what
             var unitName = names.Unit(lead.UnitId);
             Head(fromShelf ? new CardHead("army", "Place", unitName, ask.Prompt)        // the Ask's prompt says what is placed
-                : new CardHead("advance", "Disembark", unitName, $"Fully within {DecisionCard.Inches(within)} of {names.Piece(containerId)}"), MyOrdinal);
+                : new CardHead("advance", "Disembark", unitName, $"Fully within {DecisionCard.Inches(within)} of {names.Unit(p.Models[containerId].UnitId)}"), MyOrdinal);
             _input.Allowance = null; _input.Proposed = null; _input.Region = null;
             void StartExit()
             {

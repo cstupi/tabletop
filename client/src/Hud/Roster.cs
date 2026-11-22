@@ -13,6 +13,8 @@ public partial class Roster : PanelContainer
     Guid? _selected;
     public event Action<Guid>? UnitPicked;
     public event Action<Guid, Vector2>? UnitMenuRequested;
+    /// <summary>The unit's roster menu has an item (Menus.Roster); a row without one draws no ▸ (its room kept, so the pips stay aligned).</summary>
+    public Func<Guid, bool>? HasMenu;
 
     public void Bind(Session session, TableInput? input = null)
     {
@@ -80,6 +82,22 @@ public partial class Roster : PanelContainer
             if (!next.TryGetValue(unit, out var now) || now.Line != line) { Free(line); if (chips is not null) Free(chips); }
         for (var i = 0; i < order.Count; i++) { if (order[i].GetParent() is null) _list.AddChild(order[i]); _list.MoveChild(order[i], i); }
         (_lines, _drawn, _drawnSelected) = (next, teams, _selected);
+        SyncMenuItems();
+    }
+
+    /// <summary>Each row's ▸ only where its menu has an item, every render: the items follow the facts (MaySetAside, DeployInside), not the row.</summary>
+    void SyncMenuItems()
+    {
+        foreach (var (unit, (line, _)) in _lines)
+        {
+            var row = (RowControls)line;
+            var has = !_s.IsWatching && HasMenu?.Invoke(unit) != false;
+            var ink = has ? HudBits.Plain : HudBits.Plain with { A = 0 };
+            if (row.Menu.SelfModulate != ink) row.Menu.SelfModulate = ink;
+            if (row.Menu.Disabled == has) row.Menu.Disabled = !has;
+            var filter = has ? MouseFilterEnum.Stop : MouseFilterEnum.Ignore;
+            if (row.Menu.MouseFilter != filter) row.Menu.MouseFilter = filter;
+        }
     }
 
     void Rebuild(IReadOnlyList<RosterTeam> teams)
@@ -100,6 +118,7 @@ public partial class Roster : PanelContainer
             }
             _list.AddChild(spacer);
         }
+        SyncMenuItems();
     }
 
     void Free(Control c) { if (c.GetParent() == _list) _list.RemoveChild(c); if (!c.IsQueuedForDeletion()) c.QueueFree(); }
@@ -188,7 +207,7 @@ public partial class Roster : PanelContainer
         {
             if (Owner is not { } roster) return;
             if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) roster.UnitPicked?.Invoke(UnitId);
-            else if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b) roster.UnitMenuRequested?.Invoke(UnitId, b.GlobalPosition);
+            else if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b && !Menu.Disabled) roster.UnitMenuRequested?.Invoke(UnitId, b.GlobalPosition);
         }
 
     }
@@ -224,7 +243,6 @@ public partial class Roster : PanelContainer
             Look.Tip(icon, RosterView.Words(k));
         }
         conditions.End();
-        c.Menu.Visible = !_s.IsWatching;
         // Where an off-table unit is, and the conditions the theme draws no icon for, on their own line under the name so a long chip
         // never squeezes the name: inside a Transport (passengers spec), or held off the table until its property places it.
         var chips = c.ChipKids.Begin();

@@ -31,7 +31,7 @@ public static class Feedback
     public static string Closed(SocketClosed c, bool willReconnect)
     {
         if (c.Error is ProjectionDesyncException)
-            return willReconnect ? "The table fell out of step with the server; rebuilding it from the log…" : $"This game's log cannot be replayed: {c.Reason}";
+            return willReconnect ? "Rebuilding the table from the log…" : $"This game's log cannot be replayed: {c.Reason}";
         var reason = string.IsNullOrWhiteSpace(c.Reason) ? null : c.Reason;
         var what = c.Code switch
         {

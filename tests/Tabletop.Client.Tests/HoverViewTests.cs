@@ -90,11 +90,12 @@ public class HoverViewTests
     }
 
     [Fact]
-    public void The_wounds_are_one_line_under_the_name_like_ones_counted()
+    public void The_wounds_are_one_line_under_the_name_each_model_s_up_to_four_else_summed()
     {
-        Guid a = Guid.CreateVersion7(), b = Guid.CreateVersion7(), c = Guid.CreateVersion7(), d = Guid.CreateVersion7();
-        Assert.Equal("3/3 ×2 · 1/3 · 2/3", HoverView.WoundsLine([(a, 3, 3), (b, 1, 3), (c, 3, 3), (d, 2, 3)]));
-        Assert.Equal("2/2", HoverView.WoundsLine([(a, 2, 2)]));
+        Guid a = Guid.CreateVersion7(), b = Guid.CreateVersion7(), c = Guid.CreateVersion7(), d = Guid.CreateVersion7(), e = Guid.CreateVersion7();
+        Assert.Equal("Wounds 3/3 · 1/3 · 3/3 · 2/3", HoverView.WoundsLine([(a, 3, 3), (b, 1, 3), (c, 3, 3), (d, 2, 3)]));
+        Assert.Equal("Wounds 2/2", HoverView.WoundsLine([(a, 2, 2)]));
+        Assert.Equal("Wounds 12/15 on 5 models", HoverView.WoundsLine([(a, 3, 3), (b, 1, 3), (c, 3, 3), (d, 2, 3), (e, 3, 3)]));
         Assert.Null(HoverView.WoundsLine([]));
     }
 }

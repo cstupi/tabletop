@@ -52,7 +52,7 @@ public class GameOverViewTests
         Assert.Equal((GameOverStage.Ended, (Guid?)null, "4 rounds have been played. 2 to 1"), (m.Stage, m.AskId, m.Reason));
         Assert.Equal("Team 1 wins", m.Result);
         Assert.Equal("Team 1 wins", m.Headline);   // no round played in this log
-        Assert.Equal("Team 1 wins · 4 rounds", (m with { Rounds = 4 }).Headline);
+        Assert.Equal("Team 1 wins", (m with { Rounds = 4 }).Headline);   // the server's reason names the rounds: said once
         Assert.Equal("Waiting for the other player", GameOverView.WaitingText([], new Names(Game, null)));
         Assert.Empty(m.Choices);
     }

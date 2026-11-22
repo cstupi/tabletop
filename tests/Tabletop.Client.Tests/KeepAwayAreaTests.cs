@@ -19,10 +19,10 @@ public class KeepAwayAreaTests
     }
 
     [Fact]
-    public void Units_kept_at_different_distances_read_the_shortest_to_the_longest()
+    public void Units_kept_at_different_distances_read_the_rule_s_own_the_shortest()
     {
         var keep = new KeepAway([new AwayFrom(TableUx.Orcs.Id, 12), new AwayFrom(TableUx.Squad.Id, 9)]);
-        Assert.Equal("Too close 9–12\"", KeepAwayArea.Of(TableUx.After(TableUx.Deploy), keep)!.Label);
+        Assert.Equal("Too close 9\"", KeepAwayArea.Of(TableUx.After(TableUx.Deploy), keep)!.Label);
     }
 
     [Fact]
