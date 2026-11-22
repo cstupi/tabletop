@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { configChanged, settingsSummary } from '../src/lib/lobby/lobbyPage';
+import { configChanged, foldTitle, ruleSetEdit, rulesSummary, settingsSummary } from '../src/lib/lobby/lobbyPage';
 import { headerOf, WATCHER_ID } from '../src/lib/game/header';
 import type { ConnectionState } from '../src/lib/connection/gameConnection';
 import type { GameInfo, Participant, RulesOptionCatalog } from '../src/lib/protocol/wire.generated';
@@ -18,15 +18,28 @@ const catalog: RulesOptionCatalog = {
 describe('the lobby page', () => {
   it('the settings in words, and whether the form changed them', () => {
     const g = game([]);
-    expect(settingsSummary(g, catalog)).toEqual([
-      { label: 'Activation', value: 'Alternating activation' }, { label: 'Enforcement', value: 'Warn' },
-      { label: 'Unit sight blocking', value: 'Each model blocks' },
+    expect(rulesSummary(g)).toEqual([
+      { label: 'Rule set', value: 'r' }, { label: 'Activation', value: 'Alternating activation' }, { label: 'Enforcement', value: 'Warn' },
     ]);
+    expect(settingsSummary(g, catalog)).toEqual([{ label: 'Unit sight blocking', value: 'Each model blocks' }]);
     expect(configChanged(g, catalog, ' Friday ', 'alternating-activation', 'warn', {})).toBe(false);
     expect(configChanged(g, catalog, 'Friday', 'player-turn', 'warn', {})).toBe(true);
     expect(configChanged(g, catalog, 'Friday', 'alternating-activation', 'warn', { sight: 'none' })).toBe(true);
     expect(configChanged(g, catalog, 'Friday', 'alternating-activation', 'warn', {}, `${g.propertiesHash}x`)).toBe(true);
     expect(configChanged(g, catalog, 'Saturday', 'alternating-activation', 'warn', {})).toBe(true);
+  });
+
+  it('the fold reads its three values on one line', () => {
+    expect(foldTitle('Grimdark Future v3.6.0', 'alternating-activation', 'warn')).toBe('Grimdark Future v3.6.0 · Alternating · Warn');
+    expect(foldTitle('Grimdark Future v3.6.0', 'player-turn', 'strict')).toBe('Grimdark Future v3.6.0 · Player turn · Strict');
+  });
+
+  it('a rule set applies alone with the game\'s other values', () => {
+    const g = { ...game([]), optionalRules: { sight: 'none' } };
+    expect(ruleSetEdit(g, catalog, 'other')).toEqual({
+      kind: 'set_configuration', name: 'Friday', propertiesHash: 'other', schedulerShape: 'alternating-activation', enforcement: 'warn',
+      waitsBetweenSteps: false, optionalRules: { sight: 'none' },
+    });
   });
 });
 

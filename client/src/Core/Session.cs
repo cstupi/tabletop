@@ -303,6 +303,24 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
         return id;
     }
 
+    /// <summary>A lobby edit and its outcome: the Refused naming it, or null once the next game info arrives (taken). A game info another
+    /// player's edit brings can settle it first, as the browser's sendEdit; past the wait it counts as taken.</summary>
+    public async Task<Refused?> SendGameEditAsync(Edit edit, TimeSpan? wait = null)
+    {
+        var id = Guid.CreateVersion7();
+        var done = new TaskCompletionSource<Refused?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnRefused(Refused r) { if (r.MessageId == id) done.TrySetResult(r); }
+        void OnGame() => done.TrySetResult(null);
+        RefusedReceived += OnRefused; GameChanged += OnGame;
+        try
+        {
+            await SendOrQueue(new EditMessage(id, edit));
+            var settled = await Task.WhenAny(done.Task, Task.Delay(wait ?? TimeSpan.FromSeconds(10)));
+            return settled == done.Task ? done.Task.Result : null;
+        }
+        finally { RefusedReceived -= OnRefused; GameChanged -= OnGame; }
+    }
+
     /// <summary>A reconnect is under way: commands and edits wait for the next Welcome and go out in order after it.</summary>
     public bool Queueing => !_welcomed && !_userClosed && GameId is not null && Phase == SessionPhase.Reconnecting;
     const int MaxQueued = 16;

@@ -286,8 +286,8 @@ so the catalog has the one preset. The lobby shows the preset whose map equals t
 ### Lobby
 
 `client/src/Panels/LobbyPanel.cs`'s configuration section gains a preset `OptionButton` and one `OptionButton` per
-catalog option, labelled with its `Label`, built from `Welcome.Options`; *Apply configuration* sends the map with the
-rest of `SetConfiguration`. Picking a preset sets the option buttons (and enforcement when the preset names one).
+catalog option, labelled with its `Label`, built from `Welcome.Options`; the map goes with the rest of `SetConfiguration`
+when the creator's Start setup sends it (setup's Game tool: on each change; spec `2026-11-21-setup-screen-layout-design.md` → Lobby). Picking a preset sets the option buttons (and enforcement when the preset names one).
 The matching and map building are Godot-free in `client/src/Core/RulesOptions.cs`, tested in
 `tests/Tabletop.Client.Tests`. `client/src/Screens/HomeScreen.cs` creates the game as today; management cannot
 validate a map it cannot read, so options are set in the lobby. `client/src/Core/ManagementDtos.cs` is unchanged.

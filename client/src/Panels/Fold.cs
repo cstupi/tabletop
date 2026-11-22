@@ -16,9 +16,12 @@ public partial class Fold : VBoxContainer
     /// <summary>The heading row's right end, before the arrow: a section's own action (+ Objective) goes here.</summary>
     public HBoxContainer Actions { get; } = new();
 
-    public Fold(SetupFolds folds, SetupFold fold, GameStatus status, Func<string> title)
+    readonly bool _upper;
+
+    /// <summary>Upper: the heading's words before its first digit or · in capitals (Mesh, Volumes 3); off for a heading of values.</summary>
+    public Fold(SetupFolds folds, SetupFold fold, GameStatus status, Func<string> title, bool upper = true)
     {
-        _title = title;
+        _title = title; _upper = upper;
         var open = folds.IsOpen(fold, status);
         AddThemeConstantOverride("separation", Space.XS);
         var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S); AddChild(row);
@@ -39,7 +42,7 @@ public partial class Fold : VBoxContainer
     {
         if (!IsInstanceValid(_head)) return;
         var title = _title(); var cut = title.IndexOfAny("0123456789·".ToCharArray());
-        _head.Text = cut < 0 ? title.ToUpperInvariant() : title[..cut].ToUpperInvariant() + title[cut..]; _head.TooltipText = title;
+        _head.Text = !_upper ? title : cut < 0 ? title.ToUpperInvariant() : title[..cut].ToUpperInvariant() + title[cut..]; _head.TooltipText = title;
         _arrow.Text = _head.ButtonPressed ? "▾" : "▸";
     }
 }

@@ -39,14 +39,14 @@ public class TopBarViewTests
     }
 
     [Fact]
-    public void The_creator_starts_and_ends_setup_and_everyone_else_reads_who_does()
+    public void The_creator_ends_setup_and_everyone_else_reads_who_does_and_the_lobby_bar_has_no_action()
     {
         var ann = new Participant(Guid.NewGuid(), Account, "Ann", Samples.Team1, null);
         var lobby = Game(GameStatus.Lobby, ann, new Participant(Guid.NewGuid(), Other, "Ben", null, null));
         var mine = TopBarView.Of(lobby, isCreator: true, null)!;
-        Assert.Equal(("Start setup", (LobbyEdit?)new StartSetup(), (string?)null), (mine.Action, mine.Edit, mine.Waiting));
+        Assert.Equal(((string?)null, (LobbyEdit?)null, (string?)null), (mine.Action, mine.Edit, mine.Waiting));
         var theirs = TopBarView.Of(lobby, isCreator: false, null)!;
-        Assert.Equal(((string?)null, (LobbyEdit?)null, "Ann starts setup"), (theirs.Action, theirs.Edit, theirs.Waiting));
+        Assert.Equal(((string?)null, (LobbyEdit?)null, (string?)null), (theirs.Action, theirs.Edit, theirs.Waiting));
         var setup = lobby with { Status = GameStatus.Setup };
         var end = TopBarView.Of(setup, isCreator: true, null)!;
         Assert.Equal(("End setup", "End setup", (LobbyEdit?)new EndSetup()), (end.Action, end.ActionTip, end.Edit));

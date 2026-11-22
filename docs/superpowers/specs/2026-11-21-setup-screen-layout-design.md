@@ -46,7 +46,9 @@ approved) and their behaviour; changes where things sit. Spacing follows `2026-1
   wire). Terrain's list takes the full panel height. A small badge on a rail icon carries a count where it helps (objectives placed).
 - **Teams tool:** the compact team columns, one a row at the panel's full width, Watching, + Team (unchanged behaviour). The head lines and columns no longer sit above every
   tool.
-- **Game tool:** the game settings (same controls as the lobby's Game settings; creator-only enabled). One place in setup.
+- **Game tool:** the game settings (same controls as the lobby's Game settings; creator-only enabled). One place in setup. Setup has
+  started, so there is no Start setup: each change sends `SetConfiguration` at once (a dropdown or option picker on select, the name on
+  Enter or focus-out; a bad name shows its problem and is not sent).
 - **Top bar** (across the top, right of the corner's Home): game name, status chip, one chip per team (team colour, state icon: ready /
   needs a player / needs an army; click opens Teams), **Still to do** as a count that opens its lines in a dropdown (none: hidden), the
   creator's **End setup** (primary, with the pieces off the table it will remove, as today), and **☰** the game menu.
@@ -59,16 +61,22 @@ approved) and their behaviour; changes where things sit. Spacing follows `2026-1
 
 ## Lobby
 
-Keeps the team columns across the page and the Game settings column on the right. Game settings gains its own grouping: **Game** (name,
-rule set, activation, enforcement) then **Optional rules** (preset, options), with the spacing scale's section gaps; Apply sits at the
-column's foot. Leave game moves to the top bar's ☰ (same top bar as setup, without End setup: the creator's **Start setup** takes its
-place).
+Keeps the team columns across the page and the Game settings column on the right. Game settings: **Game** (the name, visible; then
+Rule set, Activation and Enforcement in a fold headed with their current values on one line, `Grimdark Future v3.6.0 · Alternating · Warn
+▸`, closed until opened, its state kept for the session) then **Optional rules** (preset, options), with the spacing scale's section gaps.
+There is no Apply: the controls are local edits, and the creator's **Start setup** (the column's primary, at its foot) sends
+`SetConfiguration` with the current values when they differ from the game's, waits for the server to take it, then sends `StartSetup`. A
+refused configuration shows its problem and setup does not start; a bad name shows its problem. The **Rule set** alone applies as soon as
+it is picked (`SetConfiguration` with the game's other values), because it decides the edition, which decides the armies every player's
+picker offers in the team columns. Everyone else reads who starts setup (`Ann starts setup`) at that spot, and sees the settings
+read-only. Leave game moves to the top bar's ☰ (same top bar as setup, without an action: Start setup is the Game settings column's).
 
 ## Where it lives
 
 - `client/src/Core/SetupTools.cs` (Godot-free, unit-tested): the tool list, order, icons, which one is open, badges; replaces the fold
-  order for setup (`SetupFolds` keeps the card's Mesh and Volumes folds). `TopBarView` (Core, unit-tested): chips, to-do count, primary
-  action per phase and role.
+  order for setup (`SetupFolds` keeps the card's Mesh and Volumes folds). `TopBarView` (Core, unit-tested): chips, to-do count, setup's End
+  setup per role. `LobbySettings` (Core, unit-tested): the lobby's local edits, the configuration Start setup sends first, the rule set's own
+  send, the fold's heading.
 - `client/src/Panels/SetupRail.cs`, `SetupTopBar.cs`, `GameMenu.cs`, `KeyHintBar.cs`; `SetupToolbar.cs` splits into one file per tool
   (`SetupTerrainTool.cs`, … each under 500 lines); `SidePanelHead.cs` goes (its parts move to the top bar and Teams tool).
 - `HudLayout`: setup slots for the rail, panel, top bar and hint bar; no overlaps from 1280×720 up (unit-tested as today).

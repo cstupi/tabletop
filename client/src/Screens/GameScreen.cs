@@ -16,7 +16,10 @@ public partial class GameScreen : Control
     Button _home = null!; PanelContainer _chip = null!; Label _chipText = null!;
     Label _status = null!, _statusTail = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!; ScrollContainer _sideColumn = null!; HBoxContainer _bottom = null!;
     Control? _lobby; WaitingPanel? _waiting; bool _wasWaiting;
-    readonly SetupFolds _folds = new();   // the terrain card's folds outlive each rebuild
+    readonly SetupFolds _folds = new();   // the terrain card's and Game settings' folds outlive each rebuild
+    /// <summary>The folds and the lobby's local Game settings edits, kept across rebuilds (LobbyPanel).</summary>
+    public SetupFolds Folds => _folds;
+    public LobbySettings LobbyDraft { get; } = new();
     /// <summary>The open setup tool, remembered for the session (spec 2026-11-21-setup-screen-layout-design.md → Tool rail).</summary>
     static readonly SetupTools Tools = new();
     SetupTopBar? _topBar; SetupRail? _rail; SetupToolPanel? _toolPanel; KeyHintBar? _hints; GameMenu _gameMenu = null!; SetupPieceKeys? _pieceKeys;
@@ -194,7 +197,7 @@ public partial class GameScreen : Control
                 // The lobby: the team columns across the window, Game settings in a column of its own on the right.
                 var page = new HBoxContainer(); page.AddThemeConstantOverride("separation", Space.XL);
                 page.AddChild(new TeamColumnsPanel(compact: false) { SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ShrinkBegin, Report = Toast });
-                page.AddChild(new LobbyPanel { CustomMinimumSize = new Vector2(380, 0), SizeFlagsVertical = SizeFlags.ShrinkBegin });
+                page.AddChild(new LobbyPanel { CustomMinimumSize = new Vector2(380, 0), SizeFlagsVertical = SizeFlags.ShrinkBegin, Folds = _folds, Draft = LobbyDraft, Report = Toast });
                 _side.AddChild(_lobby = page);
             }
         }

@@ -614,14 +614,15 @@ not connected, Leave game (lobby and setup, not for a watcher), and in setup the
 off-slab pieces) or, for everyone else, "Ann ends setup" (`header.ts`). The play spec (`2026-10-25-play-ui-design.md`) settles the
 layouts.
 
-The lobby (`LobbyPage`, spec `2026-11-07-lobby-and-setup-redesign-design.md`) fills the window: a head with the creator's **Start
-setup** (disabled while the settings form has unapplied changes) and the Still to do lines (`stillToDo`), the team columns on the
-left, the Game settings panel on the right. `TeamColumns.svelte` over `teamColumns.ts` (a port of Godot's `TeamColumns`) draws a
+The lobby (`LobbyPage`, spec `2026-11-07-lobby-and-setup-redesign-design.md`) fills the window: the Still to do lines (`stillToDo`) and the team
+columns on the left, the Game settings panel on the right with the creator's **Start setup** at its foot. `TeamColumns.svelte` over `teamColumns.ts` (a port of Godot's `TeamColumns`) draws a
 column per team in its colour, then Watching: each player with their army and the game's edition, each of my rows with its army
 picker, a row's ▸ `<select>` of moves (Leave Team N on my row while I hold several) and HTML drag and drop onto another column
-(`moveTo`), Join (adds a seat for my account, never moves one; compact: the band's +) at a column's foot, Watch on Watching, the creator's + Add team. The Game settings panel is the creator's form (name, rule set, activation,
-enforcement with what it does, the optional rules and their preset); Apply changes and Undo appear only while the form differs from
-the game (`configChanged`). Everyone else sees the settings in words (`settingsSummary`).
+(`moveTo`), Join (adds a seat for my account, never moves one; compact: the band's +) at a column's foot, Watch on Watching, the creator's + Add team. The Game settings panel is the creator's form: the name, then rule set,
+activation and enforcement (with what it does) in a `<details>` headed with their values (`foldTitle`), then the optional rules and
+their preset. The form is local until Start setup sends it (`configurationOf`, when `configChanged`), waits for it to be taken, then
+sends `startSetup`; the rule set applies on pick (`ruleSetEdit`). Everyone else sees the settings in words (`rulesSummary`,
+`settingsSummary`) and who starts setup.
 
 Setup (`SetupPage`) is a grid: the tools sidebar (18rem), the board, and the selected piece's card (20rem) when a terrain piece or
 marker is selected, an overlay drawer below 70rem. `SetupTools` holds collapsible sections: Table (size, surface), Terrain (a search

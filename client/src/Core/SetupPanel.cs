@@ -3,11 +3,12 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>The terrain card's two folds.</summary>
-public enum SetupFold { PieceMesh, PieceVolumes }
+/// <summary>The terrain card's two folds, and Game settings' rule set, activation and enforcement.</summary>
+public enum SetupFold { PieceMesh, PieceVolumes, GameRules }
 
-/// <summary>The terrain card's Mesh and Volumes folds (spec 2026-11-21-setup-screen-layout-design.md → Selected piece): closed until opened. A fold
-/// the player opens or closes stays so, per status, for as long as this instance lives (the game screen's).</summary>
+/// <summary>The terrain card's Mesh and Volumes folds (spec 2026-11-21-setup-screen-layout-design.md → Selected piece) and Game settings' rule
+/// set fold (→ Lobby): closed until opened. A fold the player opens or closes stays so, per status, for as long as this instance lives (the
+/// game screen's).</summary>
 public sealed class SetupFolds
 {
     readonly Dictionary<(SetupFold, GameStatus), bool> _chosen = new();

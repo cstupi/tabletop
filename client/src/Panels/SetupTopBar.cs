@@ -9,7 +9,7 @@ namespace Tabletop.Client.Panels;
 /// <summary>
 /// The top bar of lobby and setup (spec 2026-11-21-setup-screen-layout-design.md → Top bar, TopBarView): a band across the window whose left
 /// end the corner draws over (Home, the game's name, the status chip), then a chip per team (its colour, title and state icon; in setup a click
-/// opens Teams), the to-do count opening its lines, the creator's Start setup or End setup (or who takes it) and ☰, the game menu.
+/// opens Teams), the to-do count opening its lines, in setup the creator's End setup (or who takes it), and ☰, the game menu.
 /// </summary>
 public partial class SetupTopBar : PanelContainer
 {

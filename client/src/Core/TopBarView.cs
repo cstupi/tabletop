@@ -8,8 +8,8 @@ public sealed record TeamChip(Guid TeamId, int Ordinal, string Title, ColumnStat
 
 /// <summary>
 /// The top bar of lobby and setup (spec 2026-11-21-setup-screen-layout-design.md → Top bar): a chip per team, the Still to do lines that lack a
-/// player or an army with their count (null at none), and the creator's one action (Start setup, End setup with the pieces off the table it will
-/// remove) or, for everyone else, who takes it.
+/// player or an army with their count (null at none), and in setup the creator's End setup (with the pieces off the table it will remove) or,
+/// for everyone else, who takes it. The lobby's Start setup sits at the foot of Game settings (LobbyPanel), not here.
 /// </summary>
 public sealed record TopBarView(IReadOnlyList<TeamChip> Teams, IReadOnlyList<ToDoLine> ToDo, string? ToDoText, string? Action, string? ActionTip,
     LobbyEdit? Edit, string? Waiting)
@@ -25,14 +25,14 @@ public sealed record TopBarView(IReadOnlyList<TeamChip> Teams, IReadOnlyList<ToD
         var who = TeamColumns.CreatorName(game);
         var lobby = game.Status == GameStatus.Lobby;
         string? action = null, tip = null, waiting = null; LobbyEdit? edit = null;
-        if (isCreator && lobby) { action = tip = "Start setup"; edit = LobbyEdits.StartSetup(); }
+        if (lobby) { }
         else if (isCreator)
         {
             var off = draft is { } d ? d.Terrain.Count(t => !Tabletop.Geometry.Table.ContainsPoint(d.Size, t.Position.Horizontal)) : 0;
             action = off == 0 ? "End setup" : $"End setup ({off} off the table)";
             tip = LobbyView.EndSetupText(draft); edit = LobbyEdits.EndSetup();
         }
-        else waiting = lobby ? $"{who} starts setup" : $"{who} ends setup";
+        else waiting = $"{who} ends setup";
         return new(chips, todo, todo.Count == 0 ? null : $"{todo.Count} to do", action, tip, edit, waiting);
     }
 }

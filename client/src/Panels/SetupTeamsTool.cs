@@ -19,5 +19,5 @@ public partial class SetupGameTool : SetupToolBody
     public SetupGameTool() { }
     public SetupGameTool(GameScreen screen) : base(screen) { }
 
-    protected override void Build() => AddChild(new LobbyPanel { SizeFlagsHorizontal = SizeFlags.ExpandFill });
+    protected override void Build() => AddChild(new LobbyPanel { SizeFlagsHorizontal = SizeFlags.ExpandFill, Folds = Screen.Folds, Draft = Screen.LobbyDraft, Report = Screen.Toast });
 }
