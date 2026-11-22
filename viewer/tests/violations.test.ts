@@ -79,4 +79,19 @@ describe('Violations', () => {
     v.clear();
     expect(v.marked.size).toBe(0);
   });
+
+  it('a warning is labelled beside the marks and never blocks', () => {
+    const v = new Violations(); let raised = 0; v.subscribe(() => { raised++; });
+    v.warn([A, B], marks({ [A]: 'Dangerous terrain test' }));
+    expect(raised).toBe(1);
+    expect([...v.warned]).toEqual([[A, 'Dangerous terrain test']]);
+    expect(v.marked.size).toBe(0);
+    expect(v.blocks('strict')).toBe(false);
+    v.measure([B], marks({ [B]: 'overlaps a base' }));
+    expect(v.labels([A, B])).toEqual([{ modelId: A, reason: 'Dangerous terrain test' }, { modelId: B, reason: 'overlaps a base' }]);
+    v.warn([A, B], marks({ [A]: 'Dangerous terrain test' }));
+    expect(raised).toBe(2);
+    v.clear();
+    expect(v.warned.size).toBe(0);
+  });
 });

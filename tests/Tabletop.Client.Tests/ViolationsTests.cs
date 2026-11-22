@@ -87,6 +87,23 @@ public class ViolationsTests
     }
 
     [Fact]
+    public void A_warning_is_labelled_and_tinted_beside_the_marks_and_never_blocks()
+    {
+        var v = new Violations(); var raised = 0; v.Changed += () => raised++;
+        v.Warn([A, B], new Dictionary<Guid, string> { [A] = "Dangerous terrain test" });
+        Assert.Equal(1, raised);
+        Assert.Equal(new Dictionary<Guid, string> { [A] = "Dangerous terrain test" }, v.Warned);
+        Assert.Empty(v.Marked);
+        Assert.False(v.Blocks(Enforcement.Strict));
+        v.Measure([B], new Dictionary<Guid, string> { [B] = "overlaps a base" });
+        Assert.Equal([(A, "Dangerous terrain test"), (B, "overlaps a base")], v.Labels([A, B]));
+        v.Warn([A, B], new Dictionary<Guid, string> { [A] = "Dangerous terrain test" });
+        Assert.Equal(2, raised);                                                                   // the same warning again raises nothing
+        v.Clear();
+        Assert.Empty(v.Warned);
+    }
+
+    [Fact]
     public void Clear_drops_the_measure_and_the_refusal()
     {
         var v = new Violations();

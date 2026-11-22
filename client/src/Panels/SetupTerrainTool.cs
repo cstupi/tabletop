@@ -39,8 +39,14 @@ public partial class SetupTerrainTool : SetupToolBody
         {
             // The server rolls and lays the table, balanced across the teams; the draft keeps its size, texture, markers and zones.
             var draft = s.Draft ?? throw new InvalidOperationException("The table has not arrived yet.");
-            var laid = await s.Management.RandomTable(new RandomTableRequest(draft.Size, Enum.GetValues<Planet>()[planets.Selected], draft.Zones, null));
-            await s.SendEditAsync(SetupEdits.Random(draft, laid));
+            Screen.BeginTableLoad();   // the veil from the click: the server's roll, then the new pieces' meshes
+            RandomTable laid;
+            try
+            {
+                laid = await s.Management.RandomTable(new RandomTableRequest(draft.Size, Enum.GetValues<Planet>()[planets.Selected], draft.Zones, null));
+                await s.SendEditAsync(SetupEdits.Random(draft, laid));
+            }
+            catch { Screen.CancelTableLoad(); throw; }
             if (laid.Unplaced.Count > 0) Screen.Toast($"No room for: {string.Join(", ", laid.Unplaced)}.");
         }, Screen.Toast);
         line.AddChild(roll); line.AddChild(planets);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Held } from '../src/lib/play/modelDrag';
-import { labelOverlay, landingOverlay, landingRings, rulerLines, rulerOverlay, violationLabels, allowanceOverlay } from '../src/lib/play/moveOverlays';
+import { labelOverlay, landingOverlay, landingRings, pathsOverlay, rulerLines, rulerOverlay, violationLabels, allowanceOverlay } from '../src/lib/play/moveOverlays';
+import { footprintColour, lineColour } from '../src/lib/play/movePaths';
 import { read } from '../src/lib/play/moveRuler';
 import { Violations } from '../src/lib/play/violations';
 
@@ -61,5 +62,17 @@ describe('move overlays', () => {
     expect(calls).toContain('lineTo:40,0');
     expect(calls).toContain('fillText:4.0",20,-6');
     expect(calls).toContain('fillText:x,20,4');
+  });
+
+  it('a path draws its route and each footprint, a dangerous one in the dangerous colour', () => {
+    const strokes: string[] = []; let style = '';
+    const ctx = new Proxy({}, {
+      get: (_t, k) => (k === 'stroke' ? () => strokes.push(style) : () => {}),
+      set: (_t, k, v) => { if (k === 'strokeStyle') style = String(v); return true; },
+    }) as unknown as CanvasRenderingContext2D;
+    const start = { body: { base: { shape: 'circle' as const, a: 1, b: 1 }, height: 1 }, placement: { position: { x: 0, y: 0, z: 0 }, yaw: { degrees: 0 } } };
+    pathsOverlay([{ modelId: 'm', start, route: [O, { x: 2, y: 0 }], footprints: [{ at: O, dangerous: false }, { at: { x: 2, y: 0 }, dangerous: true }], dangerous: ['v'] }],
+      '#3366e6')((ctx), (p) => p, 10);
+    expect(strokes).toEqual([lineColour('#3366e6'), footprintColour({ at: O, dangerous: false }, '#3366e6'), footprintColour({ at: O, dangerous: true }, '#3366e6')]);
   });
 });

@@ -169,7 +169,9 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
             return (doc, state);
         });
         if (parsed is not var (d, s)) return null;
-        // The scene is made on the main thread, within the frame's budget: a table's files arrive together.
+        // The scene is made on the main thread, within the frame's budget: a table's files arrive together. Not on the pool: the
+        // rendering server runs a thread's resource creation on the main thread anyway, and its queue then stalled the main
+        // thread's own calls for 170-260 ms in one frame (a loaded layout's markers), where here each file takes its own 10-80 ms frame.
         await FrameBudget.Turn();
         var generated = FrameBudget.Use(() => d.GenerateScene(s));
         if (generated is not Node3D scene || _disposed && !builtin) { generated?.Free(); return null; }

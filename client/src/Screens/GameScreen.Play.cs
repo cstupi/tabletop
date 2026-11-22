@@ -204,7 +204,7 @@ public partial class GameScreen
         if (r.TryGetValue(SetupPart.Rail, out var rail)) HudPlacement.Fill(_rail!, rail);
         if (r.TryGetValue(SetupPart.Panel, out var panel)) HudPlacement.Fill(_toolPanel!, panel);
         if (r.TryGetValue(SetupPart.Hints, out var hints) && _hints is { } h && IsInstanceValid(h)) HudPlacement.Fill(h, hints);
-        if (setup) HudPlacement.Fill(_tableBox, r[SetupPart.Body]);
+        if (setup) { HudPlacement.Fill(_tableBox, r[SetupPart.Body]); HudPlacement.Fill(_veil, r[SetupPart.Body]); }
         else
         {
             HudPlacement.Fill(_sideColumn, r[SetupPart.Body]);

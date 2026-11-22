@@ -81,4 +81,10 @@ describe('MoveRuler', () => {
     expect(isShelfPlacement(region({ modelIds: [mover] }), p)).toBe(false);
     expect(isDisembark(region())).toBe(false);
   });
+
+  it('a dangerous crossing warns and never holds the commit', () => {
+    const line = 'Flayer Cavalry 1 crosses Toxic Smog: Dangerous terrain test';
+    expect(gate([read({ x: 0, y: 0 }, { x: 16, y: 0 }, 16)], 'strict', undefined, [line])).toEqual({ allowed: true, reason: `${line}.` });
+    expect(gate([read({ x: 0, y: 0 }, { x: 17, y: 0 }, 16)], 'strict', undefined, [line])).toEqual({ allowed: false, reason: `1 model past its allowance · ${line}.` });
+  });
 });

@@ -59,6 +59,8 @@
   import { relocations } from './relocations';
   import { PlayDrags } from './playDrag';
   import { Violations } from './violations';
+  import { KeptPathCache, volumeName } from './movePaths';
+  import { pathsOverlay } from './moveOverlays';
 
   let { connection, api, view = $bindable(null) }: { connection: GameConnection; api: Api; view?: View | null } = $props();
 
@@ -111,7 +113,8 @@
   const violations = new Violations((id) => connection.state.projection?.models.get(id)?.slot.name ?? null);   // the box names the model, as the server does
   const drops = new PendingDrops();
   const locks = new MarkerLocks();
-  const moves = moveHooks({ geometry: () => geometry, violations, enforcement: () => connection.state.game?.enforcement ?? 'strict', drops });
+  const moves = moveHooks({ geometry: () => geometry, violations, enforcement: () => connection.state.game?.enforcement ?? 'strict', drops,
+    terrainName: (v) => { const p = connection.state.projection; return p == null ? 'terrain' : volumeName(p.board.table, v, catalog); } });
   const drags = new PlayDrags({
     state: () => connection.state, box: () => box, hooks: () => moves, geometry: () => geometry, violations, drops, locks,
     send: (command) => connection.sendCommand(command),
@@ -229,7 +232,7 @@
   });
 
   // D2: the board's overlays (allowance rings, rulers, landing rings, violation labels) and the models in breach.
-  const warned = $derived.by(() => { void version; return new Set(violations.marked.keys()); });
+  const warned = $derived.by(() => { void version; return new Set([...violations.marked.keys(), ...violations.warned.keys()]); });
   const overlays = $derived.by(() => {
     void panel; void version;
     if (scene === null) return [];
@@ -261,6 +264,18 @@
     selected = new Set(p == null ? sel.modelIds : selectedModels(p, sel));
     box?.unit(sel.pieceId);
   }
+
+  // LastMovePath: the last activation's move path, kept for every player until the next activation starts.
+  const keptPaths = new KeptPathCache();
+  const keptDrawn = $derived.by((): Overlay | null => {
+    const p = shown, s = snap, game = snap?.game;
+    if (geometry === null || p === null || s === null || game == null) return null;
+    const paths = keptPaths.of(geometry, s.log, p);
+    if (paths.length === 0) return null;
+    const unit = p.models.get(paths[0]!.modelId)?.unitId;
+    const ordinal = unit === undefined ? 1 : teamOf(p, game, unit)?.ordinal ?? 1;
+    return pathsOverlay(paths, teamColour(ordinal));
+  });
 
   // D4: range rings for my selected unit when V has them on (RangeRingNode).
   const ringCache = new RangeRingCache();
@@ -487,7 +502,7 @@
     {#if scene === null || snap === null}
       <Loading text={waitText(snap)} />
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} floating={woundFloats}>
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...(keptDrawn === null ? [] : [keptDrawn]), ...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} floating={woundFloats}>
         {#snippet above(project, scale, size)}
           {#if unitActions !== null && box !== null}<UnitActions actions={unitActions} targets={unitTargets} {box} {panel} {scene} woundLine={actionWoundLine} {project} {scale} {size}
             names={unitName} onHoverUnit={(u) => { pointedUnit = u; }} />{/if}

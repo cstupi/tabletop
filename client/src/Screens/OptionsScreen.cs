@@ -61,6 +61,7 @@ public partial class OptionsScreen : CanvasLayer
         root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);
         _page.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        root.AddChild(new Backdrop());
         root.AddChild(_page);
         _dialog.SetAnchorsPreset(Control.LayoutPreset.Center);
         root.AddChild(_dialog);
@@ -76,7 +77,7 @@ public partial class OptionsScreen : CanvasLayer
     void Restyle()
     {
         foreach (var c in new Control[] { _page, _dialog }) c.Theme = Ui.Theme;
-        var bg = new StyleBoxFlat { BgColor = Ui.Background with { A = 1 } };
+        var bg = new StyleBoxEmpty();   // the page over the theme's backdrop
         bg.SetContentMarginAll(Space.XL);
         _page.AddThemeStyleboxOverride("panel", bg);
         if (_rail.GetChildCount() > 0) { Rail(); Show(_category); }

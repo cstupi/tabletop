@@ -20,11 +20,25 @@ public class LoadingViewTests
     }
 
     [Fact]
-    public void A_lobby_needs_no_board_and_setup_needs_its_draft()
+    public void A_lobby_needs_no_board_and_setup_needs_its_draft_drawn()
     {
         Assert.Null(LoadingView.Entry(State(status: GameStatus.Lobby, projection: false, tableReady: false)));
         Assert.Equal("Loading game…", LoadingView.Entry(State(status: GameStatus.Setup, projection: false))?.Text);
+        Assert.Equal("Loading game…", LoadingView.Entry(State(status: GameStatus.Setup, draft: true, projection: false, tableReady: false))?.Text);
         Assert.Null(LoadingView.Entry(State(status: GameStatus.Setup, draft: true, projection: false)));
+    }
+
+    [Fact]
+    public void The_curtain_stays_over_a_standing_table_until_its_meshes_are_in_and_drawn()
+    {
+        var connecting = LoadingView.Entry(State(SessionPhase.Connecting));
+        Assert.Same(connecting, LoadingView.Curtain(connecting, settled: true, 0, 0));
+        var models = LoadingView.Curtain(null, settled: false, 3, 12)!;
+        Assert.Equal("Loading models 3 of 12", models.Text);
+        Assert.True(models.HasBar);
+        Assert.Equal("Loading game…", LoadingView.Curtain(null, settled: false, 0, 0)?.Text);   // every file in: the settling frames
+        Assert.Null(LoadingView.Curtain(null, settled: true, 0, 0));
+        Assert.Null(LoadingView.Curtain(null, settled: true, 13, 14));                          // a late wave: the strip says it
     }
 
     [Fact]

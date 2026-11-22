@@ -11,7 +11,7 @@ public partial class KeyHintBar : PanelContainer
 {
     public override void _Ready()
     {
-        var box = SetupRail.Band(); box.ContentMarginTop = box.ContentMarginBottom = Space.XS; box.ContentMarginLeft = box.ContentMarginRight = Space.M;
+        var box = SetupRail.Band(); box.ContentMarginTop = box.ContentMarginBottom = Space.S; box.ContentMarginLeft = box.ContentMarginRight = Space.M;
         AddThemeStyleboxOverride("panel", box);
         MouseFilter = MouseFilterEnum.Ignore;
         var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", Space.L); AddChild(row);

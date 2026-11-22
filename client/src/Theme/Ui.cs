@@ -15,6 +15,8 @@ public static class Variation
     /// <summary>A tile lit while its match elsewhere is under the pointer, and the round icon buttons over the selected unit, plain and lit.</summary>
     /// <summary>A modal card drawn as a control (Options' Apply changes?): the dialogs' panel, L inside.</summary>
     public const string DialogCard = nameof(DialogCard);
+    /// <summary>A frameless button of an icon alone, S all round.</summary>
+    public const string IconOnly = nameof(IconOnly);
     public const string TileLit = nameof(TileLit), RoundTile = nameof(RoundTile), RoundTileLit = nameof(RoundTileLit);
 }
 
@@ -36,6 +38,22 @@ public static class Ui
         Changed?.Invoke();
     }
 
+    /// <summary>True when the window draws the UI above 1.2× (Options' UI scale, a high-DPI screen): theme images load at 2×. Main sets it
+    /// before it applies the theme.</summary>
+    public static bool HiDpi { get; set; }
+    static readonly Dictionary<string, Texture2D> Images = [];
+
+    /// <summary>A theme image at its 1× size: the 2× file shown at half its pixel size when HiDpi, so a nine-patch's margins stay in 1× pixels.</summary>
+    public static Texture2D Image(string path)
+    {
+        var key = $"{path}|{HiDpi}";
+        if (Images.TryGetValue(key, out var cached)) return cached;
+        if (!HiDpi) return Images[key] = GD.Load<Texture2D>(path);
+        var big = GD.Load<Texture2D>(UiTheme.At2x(path));
+        var t = ImageTexture.CreateFromImage(big.GetImage()); t.SetSizeOverride((Vector2I)(big.GetSize() / 2));
+        return Images[key] = t;
+    }
+
     public static Color Of(Rgba c) => new(c.R, c.G, c.B, c.A);
     public static Color Team(int ordinal) => Of(Current.Team(ordinal));
     public static Color Accent => Of(Current.Accent);
@@ -46,6 +64,8 @@ public static class Ui
     public static Color Text => Of(Current.Text);
     public static Color DimText => Of(Current.DimText);
     public static Color Background => Of(Current.Background);
+    /// <summary>The ink on a button face and the primary face: the theme's button text.</summary>
+    public static Color OnPrimary => Of(Current.ButtonText);
 
     /// <summary>A team column (spec 2026-11-07-lobby-and-setup-redesign-design.md): the panel, a thick left edge and a border in the team's
     /// colour; ordinal 0 (Watching) in the dim text colour. Highlighted: a drop would land here.</summary>
@@ -62,7 +82,7 @@ public static class Ui
     public static StyleBoxFlat TeamBand(int ordinal, bool compact = false)
     {
         var b = new StyleBoxFlat { BgColor = ordinal > 0 ? Team(ordinal) : DimText with { A = 0.25f } };
-        b.ContentMarginLeft = b.ContentMarginRight = compact ? Space.S : Space.M; b.ContentMarginTop = b.ContentMarginBottom = compact ? Space.XS : Space.S;
+        b.ContentMarginLeft = b.ContentMarginRight = compact ? Space.S : Space.M; b.ContentMarginTop = b.ContentMarginBottom = Space.S;   // S inside a filled box (spacing rule 5)
         return b;
     }
 
@@ -73,7 +93,7 @@ public static class Ui
     public static StyleBoxFlat MemberRow(bool mine)
     {
         var b = new StyleBoxFlat { BgColor = mine ? Accent with { A = 0.10f } : Accent with { A = 0 } };
-        b.SetCornerRadiusAll(Math.Min(Current.Shape.CornerRadius, 4)); b.ContentMarginLeft = b.ContentMarginRight = Space.S; b.ContentMarginTop = b.ContentMarginBottom = Space.XS;
+        b.SetCornerRadiusAll(Math.Min(Current.Shape.CornerRadius, 4)); b.SetContentMarginAll(Space.S);
         return b;
     }
 
@@ -83,7 +103,7 @@ public static class Ui
         var c = Of(colour);
         var b = new StyleBoxFlat { BgColor = c with { A = 0.2f }, BorderColor = c, CornerDetail = 6 };
         b.SetBorderWidthAll(1); b.SetCornerRadiusAll(Math.Max(3, Math.Min(Current.Shape.CornerRadius, 8)));
-        b.ContentMarginLeft = b.ContentMarginRight = Space.S; b.ContentMarginTop = b.ContentMarginBottom = Space.XS;
+        b.SetContentMarginAll(Space.S);   // S inside the border (spacing rule 5)
         return b;
     }
 
@@ -91,18 +111,12 @@ public static class Ui
     public static StyleBoxFlat EdgeBand(Color edge)
     {
         var b = new StyleBoxFlat { BgColor = edge with { A = 0.12f }, BorderColor = edge };
-        b.BorderWidthLeft = 6; b.ContentMarginLeft = b.ContentMarginRight = Space.S; b.ContentMarginTop = b.ContentMarginBottom = Space.XS;
+        b.BorderWidthLeft = 6; b.ContentMarginLeft = b.ContentMarginRight = Space.M; b.ContentMarginTop = b.ContentMarginBottom = Space.S;   // a title band: M across, S down
         return b;
     }
 
-    /// <summary>A floating panel over the table (the terrain hover): the theme's panel, opaque, with an accent border.</summary>
-    public static StyleBoxFlat FloatingPanel()
-    {
-        var b = new StyleBoxFlat { BgColor = Of(Current.Panel) with { A = 0.97f }, BorderColor = Of(Current.PanelBorder), CornerDetail = 6 };
-        b.SetBorderWidthAll(Math.Max(1, Current.Shape.BorderWidth)); b.SetCornerRadiusAll(Current.Shape.CornerRadius); b.SetContentMarginAll(Space.S);
-        b.ShadowColor = Background with { A = 0.5f }; b.ShadowSize = 6;
-        return b;
-    }
+    /// <summary>A floating panel over the table (the terrain hover, the key overlay): the theme's panel material, M inside its frame.</summary>
+    public static StyleBox FloatingPanel() => ThemeBuilder.Nine(Current.Materials.Panel, Space.M, Space.M);
 
     /// <summary>Null when the theme has no icon for the name.</summary>
     public static Texture2D? Icon(string name)

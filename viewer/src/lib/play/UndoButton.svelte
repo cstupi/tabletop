@@ -42,7 +42,7 @@
 </dialog>
 
 <style>
-  .flat { border: 0; background: none; box-shadow: none; clip-path: none; color: var(--text); }
+  .flat { border: 0; background: none; box-shadow: none; clip-path: none; border-image: none; color: var(--text); }
   dialog { max-width: 30rem; }
   h2 { margin-top: 0; }
   .rolls { white-space: pre-line; overflow-wrap: anywhere; }

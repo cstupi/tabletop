@@ -200,7 +200,7 @@
   .settings { margin: 0; }
   form { display: flex; flex-direction: column; gap: var(--space-3); }
   label { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-1); margin: 0; color: var(--dim); font-size: .95rem; }
-  label :global(input), label select { width: 100%; color: var(--text); font-size: 1rem; }
+  label :global(input), label select { width: 100%; color: var(--field-text); font-size: 1rem; }
   label small { font-size: .85rem; }
   fieldset { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3); }
   .foot { flex: none; margin-top: var(--space-4); }

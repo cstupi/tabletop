@@ -236,7 +236,7 @@ public partial class HeaderBar : PanelContainer
         public TileControls()
         {
             MouseFilter = MouseFilterEnum.Stop;
-            Frame.BorderWidthLeft = 6; Frame.ContentMarginLeft = Frame.ContentMarginRight = Space.S; Frame.ContentMarginTop = Frame.ContentMarginBottom = 0;
+            Frame.BorderWidthLeft = 6; Frame.SetContentMarginAll(Space.S);   // S inside the tile's border (spacing rule 5)
             AddThemeStyleboxOverride("panel", Frame);
             var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", Space.XS); AddChild(row);
             foreach (var c in new Control[] { Player, Title, Score, Vp, Dots, Turn }) row.AddChild(c);

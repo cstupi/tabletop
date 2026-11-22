@@ -46,4 +46,12 @@ public class MoveBandLookTests
         Assert.Equal([a, c], layers[0].Areas);
         Assert.Equal([c, b], layers[2].Areas);
     }
+
+    [Fact]
+    public void The_dangerous_band_draws_above_every_models_clear_and_difficult_bands()
+    {
+        Assert.True(MoveBandLook.Priority(MoveBand.Dangerous) > MoveBandLook.Priority(MoveBand.Clear));
+        Assert.True(MoveBandLook.Priority(MoveBand.Dangerous) > MoveBandLook.Priority(MoveBand.Difficult));
+        Assert.True(MoveBandLook.Lift(MoveBand.Dangerous) > MoveBandLook.Lift(MoveBand.Clear));
+    }
 }

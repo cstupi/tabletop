@@ -85,7 +85,7 @@
   .tools button { min-height: 1.75rem; min-width: 1.75rem }
   .move { display: block; margin: var(--space-1) 0 var(--space-2) var(--space-2) }
   .none { margin: var(--space-2) 0 }
-  .tag { font-size: 0.75em; padding: 0 var(--space-1); border: 1px solid var(--accent); color: var(--accent); border-radius: 0.6em; font-weight: 400 }
+  .tag { font-size: 0.75em; padding: var(--space-2); border: 1px solid var(--accent); color: var(--accent); border-radius: 0.6em; font-weight: 400 }
   .note { margin: 0 0 var(--space-1) var(--space-3); color: var(--dim) }
   .makeshared { margin: var(--space-2) 0 }
 </style>

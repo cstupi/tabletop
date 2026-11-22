@@ -135,8 +135,8 @@ public partial class DecisionBox
                 }
                 else row.AddChild(new Label { Text = "holds fire", ThemeTypeVariation = Variation.Dim, MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
                 chip.Pressed += () => { t.PickOnly(id); Callable.From(Show).CallDeferred(); };   // not inside the chip's own signal: Show frees it
-                chip.Ready += () => chip.CustomMinimumSize = new Vector2(row.GetCombinedMinimumSize().X + 20, 0);
-                chips.AddChild(DecisionTiles.Holding(chip, row, Space.S, Space.XS));
+                chip.Ready += () => chip.CustomMinimumSize = new Vector2(row.GetParent<Control>().GetCombinedMinimumSize().X, 0);   // the row and its padding
+                chips.AddChild(DecisionTiles.Holding(chip, row, Space.S, Space.S));
             }
             _input.Eligible = t.Candidates.ToHashSet(); Glow(t.Candidates);          // only units a picked group can shoot; two targets taken (p.8): nothing else glows
             fire.Disabled = t.Answer() is null; fire.TooltipText = fire.Disabled ? "No target" : "";

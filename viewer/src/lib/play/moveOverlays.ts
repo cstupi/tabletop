@@ -8,6 +8,7 @@ import type { MoveBands, XY } from '../geometry';
 import { bandColour, layers, STRIPE_SPACING, striped } from './moveBandLook';
 import { readoutText, type RulerReadout } from './moveRuler';
 import type { Held } from './modelDrag';
+import { footprintColour, lineColour, outline, type ModelPath } from './movePaths';
 import type { Violations } from './violations';
 
 /** `path`: the bent path the move is measured along (from `from` to `to`), drawn instead of the straight line. */
@@ -88,7 +89,35 @@ export const bandsOverlay = (areas: readonly MoveBands[], team: string): Overlay
   }
 };
 
-export const rulerOverlay = (lines: readonly RulerLine[]): Overlay => (ctx, project) => {
+/** MovePathNode: each model's route as a faint line and its base's outline at each footprint (the start's facing) in the team colour, a footprint
+ *  touching dangerous ground in the dangerous colour; one stroke per colour. */
+export const pathsOverlay = (paths: readonly ModelPath[], team: string): Overlay => (ctx, project) => {
+  if (paths.length === 0) return;
+  ctx.save();
+  ctx.lineWidth = 1.5; ctx.setLineDash([]);
+  ctx.strokeStyle = lineColour(team);
+  ctx.beginPath();
+  for (const path of paths) {
+    const points = path.route.map(project);
+    if (points.length < 2) continue;
+    ctx.moveTo(points[0]!.x, points[0]!.y);
+    for (const q of points.slice(1)) ctx.lineTo(q.x, q.y);
+  }
+  ctx.stroke();
+  for (const dangerous of [false, true]) {
+    const rings = paths.flatMap((path) => path.footprints.filter((f) => f.dangerous === dangerous)
+      .map((f) => outline(path.start.body.base, f.at, path.start.placement.yaw.degrees).map(project)));
+    if (rings.length === 0) continue;
+    ctx.strokeStyle = footprintColour({ at: { x: 0, y: 0 }, dangerous }, team);
+    ctx.lineWidth = dangerous ? 2 : 1.5;
+    ctx.beginPath();
+    for (const ring of rings) { ctx.moveTo(ring[0]!.x, ring[0]!.y); for (const q of ring.slice(1)) ctx.lineTo(q.x, q.y); ctx.closePath(); }
+    ctx.stroke();
+  }
+  ctx.restore();
+};
+
+export const rulerOverlay =(lines: readonly RulerLine[]): Overlay => (ctx, project) => {
   ctx.lineWidth = 1.5; ctx.font = '11px ui-monospace, monospace'; ctx.textAlign = 'center';
   for (const line of lines) {
     const points = (line.path ?? [line.from, line.to]).map(project);

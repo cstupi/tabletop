@@ -16,13 +16,17 @@ counted, running back and forth when it is not. Text is plain and short.
 | Socket not yet welcomed | Game screen curtain, "Connecting…" | "Connecting…" |
 | A first connect that failed and retries | Curtain, "Reconnecting…" | "Reconnecting…" |
 | Welcomed, until the board, the log caught up (`Session.CatchingUp`) and the board's print drawn | Curtain, "Loading game…" | "Loading game…" until the scene is built |
+| The table stands, its models and terrain meshes still loading, then two frames to draw them | Curtain, "Loading models 3 of 12", counted, then "Loading game…" | none |
 | A reconnect with the table already shown | Strip, "Reconnecting…" | header line, as before |
-| Models and terrain meshes still loading | Strip, "Loading models 3 of 12", counted | none (the board draws bases) |
+| A later wave of models (a late army), or meshes still loading 20 s after the table stood | Strip, "Loading models 3 of 12", counted | none (the board draws bases) |
+| Setup: a Random table or a loaded layout (from the click, through the server's answer, until its new meshes are drawn), or new meshes for over 150 ms | Veil over the table's box, "Laying out the table… 7 of 23", counted once meshes load | none |
 | The WebAssembly geometry download | none | strip, "Loading table tools 3 of 13", counted; setup blocks on it |
 
 - A curtain covers the window or the game screen and takes the mouse. Its panel shows only once the wait has lasted 200 ms
   (`LoadingGate`), so a short wait is the plain background, never a flashing panel; the warm-up's shows at once.
-- The strip is not blocking: the game starts with each model's base and hitbox, and its mesh takes their place as it arrives.
+- The veil (`LoadingVeil`, `TableLoad`) dims the table's box and takes its mouse; the top bar and the tool panel stay usable. It shows
+  only past 150 ms, so a tile of a kind already on the table never shows it.
+- The strip is not blocking: the table plays with each model's base and hitbox, and its mesh takes their place as it arrives.
   It sits in `HudPart.Loading`, the button row's height at the foot's centre, clear of both columns.
 - `LoadingView` (`client/src/Core/Loading.cs`) decides the line; `AssetProgress` counts the files a table loads, each once per wave,
   a wave ending when every file started has finished (loaded or failed), so a late army counts from one.
@@ -47,12 +51,17 @@ templates (`MeshLoader`, shared by every game) and the prints it loads stay for 
 
 The frame that applied the welcome, the board, the whole log and the first render is spread over frames:
 
-- `GodotDispatcher` runs posted work in order within a 12 ms budget a frame (`DispatchQueue`, `FrameBudget`); what is left runs in
-  the next frame. One action is never split.
+- `GodotDispatcher` runs posted work in order within an 8 ms budget a frame (`DispatchQueue`, `FrameBudget`), leaving a 60 Hz
+  frame room for its own process and draw; what is left runs in the next frame. One action is never split.
 - A board's print and the table's wood decode, take their normal maps and mipmaps on the thread pool (`PrintTextures.LoadAsync`);
   the slab drawn before stays until the new one is built. A built-in mesh's grains load the same way before the mesh is handed out
   (`TerrainLook.ApplyAsync`).
-- A mesh's scene is generated within the same budget (`FrameBudget.Turn`), one per frame when several arrive together.
+- A mesh file is parsed and given its levels of detail on the thread pool; its template scene is generated within the same budget
+  (`FrameBudget.Turn`), one per frame when several arrive together, and each piece takes a duplicate. A terrain piece's hitboxes share
+  one unit box and one unit cylinder, scaled.
+- The curtain stays until the table's meshes are in (`LoadSettled`, at most 20 s after the table stood). Behind it the unit card makes
+  its controls, the move warm-up runs and the loading's garbage is collected, and two more frames draw the new meshes, so their first
+  draw is not paid after it lifts.
 
 ## Measured
 

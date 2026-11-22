@@ -21,6 +21,13 @@ public static class MoveBandLook
         _ => TerrainEffects.Of(TerrainDeclarations.Dangerous).Colour with { A = DangerousAlpha },
     };
 
+    /// <summary>The band's draw order among see-through layers (a higher one draws later, over the rest), so a dangerous sliver of one model's area
+    /// stays visible under the clear area of another's.</summary>
+    public static int Priority(MoveBand band) => band == MoveBand.Dangerous ? 1 : 0;
+
+    /// <summary>The band's height over the slab, in inches: the dangerous band a hair over the others.</summary>
+    public static double Lift(MoveBand band) => band == MoveBand.Dangerous ? 0.035 : 0.03;
+
     /// <summary>Whether the band is striped.</summary>
     public static bool Striped(MoveBand band) => band == MoveBand.Dangerous;
 

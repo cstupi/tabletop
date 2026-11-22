@@ -189,11 +189,11 @@ public partial class RangeRingNode : Node3D
             }
         }
 
-        /// <summary>The theme's panel holding the kind's icon and the label; hidden until _Process places it.</summary>
+        /// <summary>The theme's quiet band holding the kind's icon and the label; hidden until _Process places it.</summary>
         static PanelContainer Label()
         {
-            var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
-            var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", 6); panel.AddChild(row);
+            var panel = new PanelContainer { ThemeTypeVariation = Variation.Quiet, MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };   // a flat band, S inside: the panel material is too heavy over the table
+            var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", Space.S); panel.AddChild(row);
             row.AddChild(new TextureRect { ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
                 CustomMinimumSize = new Vector2(22, 22), MouseFilter = Control.MouseFilterEnum.Ignore });
             row.AddChild(new Label { MouseFilter = Control.MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });

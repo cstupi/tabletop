@@ -18,45 +18,28 @@ public static partial class HomeLook
 
     static int Radius => Ui.Current.Shape.CornerRadius;
 
-    /// <summary>A card: the panel with a 6 px band in the status colour on its left edge and a 16 px inset.</summary>
-    public static StyleBoxFlat Card(GameStatus status)
+    /// <summary>A card inside Home's framed list: a flat inset box (a material inside the material's frame would double it), its status as a
+    /// band on its left edge, M inside (a box of several lines).</summary>
+    public static StyleBox Card(GameStatus status) => Inset(status, Space.M, Space.M);
+
+    /// <summary>A row of the framed list: the same inset box, M across and S down.</summary>
+    public static StyleBox Row(GameStatus status) => Inset(status, Space.M, Space.S);
+
+    static StyleBoxFlat Inset(GameStatus status, int x, int y)
     {
-        var edge = Status(status);
-        var b = new StyleBoxFlat { BgColor = Ui.Of(Ui.Current.Panel) with { A = 1 }, BorderColor = edge with { A = 0.55f }, CornerDetail = Ui.Current.Shape.Clipped ? 1 : 8 };
-        b.SetBorderWidthAll(1); b.BorderWidthLeft = 6; b.SetCornerRadiusAll(Radius);
-        b.SetContentMarginAll(Space.M);
+        var b = new StyleBoxFlat { BgColor = Ui.Background with { A = 0.55f }, BorderColor = Status(status) with { A = 0.7f }, CornerDetail = Ui.Current.Shape.Clipped ? 1 : 8 };
+        b.SetBorderWidthAll(1); b.BorderWidthLeft = 4; b.SetCornerRadiusAll(Math.Min(Radius, 4));
+        b.ContentMarginLeft = b.ContentMarginRight = x; b.ContentMarginTop = b.ContentMarginBottom = y;
         return b;
     }
 
-    /// <summary>A row of a list: the panel, a band on the left in the status colour, a thin rule.</summary>
-    public static StyleBoxFlat Row(GameStatus status)
-    {
-        var b = new StyleBoxFlat { BgColor = Ui.Of(Ui.Current.Panel) with { A = 1 }, BorderColor = Status(status) with { A = 0.9f } };
-        b.BorderWidthLeft = 4; b.SetCornerRadiusAll(Math.Min(Radius, 4));
-        b.ContentMarginLeft = b.ContentMarginRight = Space.M; b.ContentMarginTop = b.ContentMarginBottom = Space.S;
-        return b;
-    }
-
-    /// <summary>The primary action: filled in the accent, the background colour as ink.</summary>
+    /// <summary>The primary action: the theme's primary face (Variation.Primary), with a focus frame in the text colour.</summary>
     public static void Primary(Button b)
     {
-        foreach (var (state, mix) in new[] { ("normal", 0f), ("hover", 0.18f), ("pressed", 0.32f), ("focus", 0f) })
-        {
-            var s = new StyleBoxFlat { BgColor = Ui.Accent.Lerp(Ui.Text, mix) };
-            s.SetCornerRadiusAll(Math.Min(Radius, 6)); s.ContentMarginLeft = s.ContentMarginRight = Space.M; s.ContentMarginTop = s.ContentMarginBottom = Space.S;
-            if (state == "focus") { s.DrawCenter = false; s.BorderColor = Ui.Text; s.SetBorderWidthAll(1); }
-            b.AddThemeStyleboxOverride(state, s);
-        }
-        var disabled = new StyleBoxFlat { BgColor = Ui.Accent with { A = 0.35f } };
-        disabled.SetCornerRadiusAll(Math.Min(Radius, 6)); disabled.ContentMarginLeft = disabled.ContentMarginRight = Space.M; disabled.ContentMarginTop = disabled.ContentMarginBottom = Space.S;
-        b.AddThemeStyleboxOverride("disabled", disabled);
-        var ink = Ink;
-        foreach (var name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color" })
-            b.AddThemeColorOverride(name, ink);
+        b.ThemeTypeVariation = Variation.Primary;
+        var focus = new StyleBoxFlat { DrawCenter = false, BorderColor = Ui.Text }; focus.SetBorderWidthAll(1); focus.SetCornerRadiusAll(Math.Min(Radius, 6));
+        b.AddThemeStyleboxOverride("focus", focus);
     }
-
-    /// <summary>The ink on the accent: the background colour on a light accent (Sci-fi), the button text on a dark one (Fantasy).</summary>
-    static Color Ink => Ui.Accent.Luminance > 0.5f ? Ui.Background with { A = 1 } : Ui.Of(Ui.Current.ButtonText);
 
     /// <summary>An icon-only flat button's icon in the text colour, so it reads on every theme's background.</summary>
     public static void IconInk(Button b)

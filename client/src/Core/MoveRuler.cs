@@ -23,18 +23,22 @@ public static class MoveRuler
         new(distance, allowance is { } a ? Math.Max(0, a - distance) : null, allowance is { } b && distance > b + 1e-6, minimum is { } m && distance < m - 1e-6);
 
     /// <summary>The commit against every held model's readout and its contact marks (Violations.Marked): the models out of range are counted,
-    /// each contact reason named once with its count, and under strict any of them disables it; under warn and silent it goes and the server judges.</summary>
-    public static MoveGate Gate(IEnumerable<RulerReadout> readouts, Enforcement enforcement, IReadOnlyDictionary<Guid, string>? marked = null)
+    /// each contact reason named once with its count, and under strict any of them disables it; under warn and silent it goes and the server judges.
+    /// `warnings` (MovePaths.Lines: a dangerous terrain test a model's path owes) are named after them and never hold it: the move is legal.</summary>
+    public static MoveGate Gate(IEnumerable<RulerReadout> readouts, Enforcement enforcement, IReadOnlyDictionary<Guid, string>? marked = null,
+        IReadOnlyList<string>? warnings = null)
     {
         var all = readouts.ToList();
         int over = all.Count(r => r.OverAllowance), under = all.Count(r => r.UnderMinimum);
         var contacts = (marked?.Values ?? []).GroupBy(r => r).ToList();
-        if (over + under + contacts.Count == 0) return new MoveGate(true, null);
+        var warned = warnings ?? [];
+        if (over + under + contacts.Count == 0) return new MoveGate(true, warned.Count == 0 ? null : string.Join(" · ", warned) + ".");
         static string Models(int n, string what) => n == 1 ? $"1 model {what} its" : $"{n} models {what} their";
         var parts = new List<string>();
         if (over > 0) parts.Add($"{Models(over, "past")} allowance");
         if (under > 0) parts.Add($"{Models(under, "short of")} minimum");
         parts.AddRange(contacts.Select(g => g.Count() == 1 ? g.Key : $"{g.Key} ({g.Count()} models)"));
+        parts.AddRange(warned);
         return new MoveGate(enforcement != Enforcement.Strict, string.Join(" · ", parts) + ".");
     }
 

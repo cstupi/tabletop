@@ -19,7 +19,7 @@ public partial class HomeScreen : Control
     bool _loaded, _busy, _endedToo;
     LineEdit _search = null!;
     VBoxContainer _body = null!;
-    Label _status = null!, _hint = null!;
+    Label _status = null!, _hint = null!; PanelContainer _statusBox = null!;
     MenuButton _account = null!;
     Action? _onAccount, _onTheme;
 
@@ -52,6 +52,7 @@ public partial class HomeScreen : Control
     void Rebuild()
     {
         foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); }
+        AddChild(new Backdrop());
         var margin = new MarginContainer(); margin.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(margin);
         foreach (var side in new[] { "margin_left", "margin_right" }) margin.AddThemeConstantOverride(side, Space.XL);
         foreach (var side in new[] { "margin_top", "margin_bottom" }) margin.AddThemeConstantOverride(side, Space.XL);
@@ -61,10 +62,17 @@ public partial class HomeScreen : Control
         root.AddChild(Toolbar());
         var scroll = new ScrollContainer { SizeFlagsVertical = SizeFlags.ExpandFill, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve,
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
-        root.AddChild(scroll);
+        // The lists in one framed panel down to the page's margin: rows scroll inside the frame and are cut at its inner edge.
+        var frame = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
+        frame.AddThemeStyleboxOverride("panel", ThemeBuilder.Nine(Ui.Current.Materials.Panel, Space.M, Space.M));
+        root.AddChild(frame); frame.AddChild(scroll);
         scroll.AddChild(_body = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill });
         _body.AddThemeConstantOverride("separation", Space.S);
-        root.AddChild(_status = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
+        // The status line floats over the list's foot, shown only while it has words: the list runs down to the page's margin.
+        _statusBox = new PanelContainer { Visible = false, MouseFilter = MouseFilterEnum.Ignore };
+        _statusBox.SetAnchorsAndOffsetsPreset(LayoutPreset.CenterBottom, LayoutPresetMode.Minsize, Space.XL); _statusBox.GrowHorizontal = GrowDirection.Both; _statusBox.GrowVertical = GrowDirection.Begin;
+        AddChild(_statusBox);
+        _statusBox.AddChild(_status = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.Off });
         ShowName();
         Render();
     }
@@ -114,7 +122,7 @@ public partial class HomeScreen : Control
 
     static Button IconButton(string icon, string tip, Action a)
     {
-        var b = new Button { Icon = Ui.Icon(icon), TooltipText = tip, Flat = true, ThemeTypeVariation = Variation.FlatButton, ExpandIcon = false };
+        var b = new Button { Icon = Ui.Icon(icon), TooltipText = tip, Flat = true, ThemeTypeVariation = Variation.IconOnly, ExpandIcon = false };
         b.AddThemeConstantOverride("icon_max_width", 24); HomeLook.IconInk(b);
         b.Pressed += a;
         return b;
@@ -157,7 +165,7 @@ public partial class HomeScreen : Control
     void Show(string message, string variation = Variation.Warning)
     {
         if (!IsInstanceValid(this) || !IsInstanceValid(_status)) return;
-        _status.Text = message; _status.ThemeTypeVariation = variation;
+        _status.Text = message; _status.ThemeTypeVariation = variation; _statusBox.Visible = message.Length > 0;
     }
 
     void Render()

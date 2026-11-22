@@ -95,7 +95,7 @@
   .dot { width: .75rem; height: .75rem; border-radius: 50%; }
   .body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-1) 0 var(--space-2); }
   /* The team's band: its colour solid, the words in the background colour (Ui.TeamBand, Ui.OnBand). */
-  .team { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-2) var(--space-2) var(--space-1); padding: var(--space-1) var(--space-2); background: var(--team);
+  .team { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-2) var(--space-2) var(--space-1); padding: var(--space-2); background: var(--team);
     font-size: .8rem; color: var(--panel-solid); }
   .tname { flex: 1; text-transform: uppercase; }
   .you { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: .8rem; font-weight: inherit; }
@@ -108,8 +108,8 @@
   @media (hover: none) { .menu { visibility: visible; } }
   ul { list-style: none; margin: 0; padding: 0; }
   /* A row is a plain list entry, not a themed button. */
-  .row { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-1); width: 100%; min-height: 0; padding: var(--space-1) var(--space-2);
-    border: 0; border-radius: 0; clip-path: none; box-shadow: none; background: none; color: var(--text);
+  .row { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-1); width: 100%; min-height: 0; padding: var(--space-2);
+    border: 0; border-radius: 0; clip-path: none; border-image: none; box-shadow: none; background: none; color: var(--text);
     text-align: left; white-space: normal; font-size: .95rem; cursor: pointer; }
   .row:hover:not(:disabled) { background: var(--rule); color: var(--text); }
   .row.on, .row.on:hover:not(:disabled) { box-shadow: inset 3px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
@@ -119,7 +119,7 @@
   .done { display: inline-flex; color: var(--success); }
   .wounds { font-size: .7rem; letter-spacing: 1px; color: var(--dim); white-space: nowrap; }
   .tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-  .tag { font-size: .75rem; padding: 0 var(--space-1); border: 1px solid var(--rule); color: var(--dim); line-height: 1.4; }
+  .tag { font-size: .75rem; padding: var(--space-2); border: 1px solid var(--rule); color: var(--dim); line-height: 1.4; }
   .tag.aside { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
   .tag.warn { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); }
 </style>

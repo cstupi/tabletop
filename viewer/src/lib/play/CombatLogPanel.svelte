@@ -123,7 +123,7 @@
   .filter { min-height: 2rem; font-size: .9rem; }
   .detailed { display: flex; align-items: center; gap: var(--space-1); font-size: .9rem; }
   .flat { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; padding: var(--space-1); border: 0; border-radius: 0;
-    clip-path: none; box-shadow: none; background: none; color: var(--text); cursor: pointer; }
+    clip-path: none; border-image: none; box-shadow: none; background: none; color: var(--text); cursor: pointer; }
   .flat:hover:not(:disabled) { background: var(--rule); color: var(--accent); }
   .flat:disabled { opacity: .4; cursor: default; }
   .sheet { flex: 1; min-height: 0; margin: 0; padding-right: var(--space-1); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }

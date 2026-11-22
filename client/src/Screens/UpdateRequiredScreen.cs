@@ -10,9 +10,12 @@ public partial class UpdateRequiredScreen : Control
     public override void _Ready()
     {
         var url = Main.Instance.Session.Settings.DownloadUrl;
+        AddChild(new Backdrop());
+        var card = new PanelContainer { ThemeTypeVariation = Variation.Card };
+        card.SetAnchorsPreset(LayoutPreset.Center); card.GrowHorizontal = GrowDirection.Both; card.GrowVertical = GrowDirection.Both;
+        AddChild(card);
         var box = new VBoxContainer { CustomMinimumSize = new Vector2(420, 0) };
-        box.SetAnchorsPreset(LayoutPreset.Center); box.GrowHorizontal = GrowDirection.Both; box.GrowVertical = GrowDirection.Both;
-        AddChild(box); box.AddThemeConstantOverride("separation", Space.M);
+        card.AddChild(box); box.AddThemeConstantOverride("separation", Space.M);
         box.AddChild(new Label { Text = "This version of Tabletop is older than the server accepts. Download the current build, install it and start it again.", AutowrapMode = TextServer.AutowrapMode.WordSmart });
         box.AddChild(new LinkButton { Text = url, Uri = url });
         box.AddChild(new Label { Text = $"This is version {BuildInfo.Current.Version}.", ThemeTypeVariation = Variation.Dim });

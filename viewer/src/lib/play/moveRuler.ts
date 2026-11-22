@@ -30,17 +30,19 @@ export function readDistance(distance: number, allowance: number | null, minimum
 }
 
 /** The commit against every held model's readout and its contact marks: the models out of range are counted, each contact reason named
- *  once with its count, and under strict any of them disables it; under warn and silent it goes and the server judges. */
-export function gate(readouts: readonly RulerReadout[], enforcement: Enforcement, marked?: ReadonlyMap<string, string>): MoveGate {
+ *  once with its count, and under strict any of them disables it; under warn and silent it goes and the server judges. `warnings` (movePaths'
+ *  lines: a dangerous terrain test a model's path owes) are named after them and never hold it: the move is legal. */
+export function gate(readouts: readonly RulerReadout[], enforcement: Enforcement, marked?: ReadonlyMap<string, string>, warnings: readonly string[] = []): MoveGate {
   const over = readouts.filter((r) => r.overAllowance).length, under = readouts.filter((r) => r.underMinimum).length;
   const contacts = new Map<string, number>();
   for (const reason of marked?.values() ?? []) contacts.set(reason, (contacts.get(reason) ?? 0) + 1);
-  if (over + under + contacts.size === 0) return { allowed: true, reason: null };
+  if (over + under + contacts.size === 0) return { allowed: true, reason: warnings.length === 0 ? null : `${warnings.join(' · ')}.` };
   const models = (n: number, what: string): string => (n === 1 ? `1 model ${what} its` : `${n} models ${what} their`);
   const parts: string[] = [];
   if (over > 0) parts.push(`${models(over, 'past')} allowance`);
   if (under > 0) parts.push(`${models(under, 'short of')} minimum`);
   for (const [reason, n] of contacts) parts.push(n === 1 ? reason : `${reason} (${n} models)`);
+  parts.push(...warnings);
   return { allowed: enforcement !== 'strict', reason: `${parts.join(' · ')}.` };
 }
 
