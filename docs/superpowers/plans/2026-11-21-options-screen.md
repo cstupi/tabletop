@@ -83,3 +83,12 @@
 - Theme: `UiThemes.Adjusted` in `Main.ApplyTheme`; banner and mono sizes scale by `UiTheme.TextSize`; `TableView` redraws on `Ui.Changed` for team tints.
 - Video: `DisplayMode.Exclusive` → `ExclusiveFullscreen`; `GraphicsApplier.Resize`, `ScreenOf`.
 - [ ] Build 0 errors, tests pass, commit.
+
+### Task 5: The Options screen
+
+**Files:** create `client/src/Screens/OptionsScreen.cs` (shell, rail, footer, dialogs, keys), `OptionsScreen.Rows.cs` (rows), `OptionsScreen.Controls.cs` (bindings, capture, conflicts);
+icons `display`, `sound`, `accessibility` in both themes; delete `Screens/SettingsDialog.cs`; route Login, Home and `HeaderBar.SettingsRequested` (in `GameScreen.Play.cs`) to `OptionsScreen.Open(node)`;
+`client/AGENTS.md` (Adding an option, the `settings.json` list), `docs/design/client/core-and-screens.md`.
+
+- A `CanvasLayer` (layer 100) under `Main`; every key is the page's while open; Esc or ✕ closes (Apply / Discard / Cancel when dirty); an applied display or size change asks "Keep these settings?" for 15 s.
+- [ ] Build, `check-client` silent, tests pass; screenshots of every tab at 1280×720 and 1920×1080; a rebind shows in the key overlay; commit.

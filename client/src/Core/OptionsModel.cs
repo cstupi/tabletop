@@ -215,7 +215,7 @@ public sealed class OptionsModel
         Toggle("vsync", V, "VSync", "Frames wait for the screen's refresh. Default on.", s => s.VSync, (s, v) => s with { VSync = v }),
         Choice("fps-cap", V, "Frame rate limit", "The most frames a second the client draws. Default unlimited.",
             ClientSettings.FpsCaps.Select(c => c == 0 ? "Unlimited" : $"{c} fps").ToList(), s => Math.Max(0, Array.IndexOf(ClientSettings.FpsCaps, s.FpsCap)), (s, v) => s with { FpsCap = ClientSettings.FpsCaps[v] }),
-        Toggle("show-fps", V, "Show frame rate", "Frames a second in the window's top-left corner. Default off.", s => s.ShowFps, (s, v) => s with { ShowFps = v }),
+        Toggle("show-fps", V, "Show frame rate", "Frames a second in the window's top-right corner. Default off.", s => s.ShowFps, (s, v) => s with { ShowFps = v }),
 
         Toggle("sound", A, "Sound", "Table sound effects. Default on.", s => s.Sound, (s, v) => s with { Sound = v }),
         Slider("master-volume", A, "Master volume", "Every sound. Default 70 %.", 0, 100, 5, Percent, s => s.Volume, (s, v) => s with { Volume = v }),

@@ -18,7 +18,7 @@ public partial class HeaderBar : PanelContainer
     readonly HBoxContainer _top = new();
     readonly HBoxContainer _tiles = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }, _activation = new(), _waiting = new();
     readonly Button _gameOver = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, Visible = false, Alignment = HorizontalAlignment.Left };
-    readonly Button _settings = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Settings", FocusMode = FocusModeEnum.None };
+    readonly Button _settings = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Options", FocusMode = FocusModeEnum.None };
     // Session and Ui outlive the header: the subscriptions are fields and come off in _ExitTree.
     Action<RenderCause>? _onFrame; Action? _onTheme;
     string? _drawnTop, _drawnMiddle, _drawnWait;   // what each line last drew
@@ -66,7 +66,7 @@ public partial class HeaderBar : PanelContainer
     {
         Look.Icon(_roundIcon, "round", Ui.Accent);
         _settings.Icon = Ui.Icon("settings");
-        _settings.Text = _settings.Icon is null ? "Settings" : "";   // never a zero-width button
+        _settings.Text = _settings.Icon is null ? "Options" : "";   // never a zero-width button
     }
 
     /// <summary>The slot's width: the lines redraw at the fullest fit for it when it changes.</summary>

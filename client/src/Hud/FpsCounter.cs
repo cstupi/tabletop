@@ -3,7 +3,7 @@ using Tabletop.Client.Theming;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>Options → Video → Show frame rate: frames a second in the window's top-left corner, over every screen, twice a second.
+/// <summary>Options → Video → Show frame rate: frames a second in the window's top-right corner, over every screen, twice a second.
 /// Clicks pass through.</summary>
 public partial class FpsCounter : CanvasLayer
 {
@@ -14,9 +14,10 @@ public partial class FpsCounter : CanvasLayer
 
     public override void _Ready()
     {
-        _label.Position = new Vector2(Space.S, Space.S);
         _label.Theme = Ui.Theme; Ui.Changed += Restyle;
         AddChild(_label);
+        _label.GrowHorizontal = Control.GrowDirection.Begin;
+        _label.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopRight, Control.LayoutPresetMode.Minsize, Space.S);
     }
 
     void Restyle() => _label.Theme = Ui.Theme;

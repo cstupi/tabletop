@@ -144,7 +144,7 @@ public sealed class KeyBindings
         >= HotKey.Key1 and <= HotKey.Key9 => ((int)(k - HotKey.Key1) + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
         HotKey.Key0 => "0",
         HotKey.Enter or HotKey.KpEnter => "⏎",
-        HotKey.Escape => "Esc", HotKey.Shift => "⇧", HotKey.Backtab => "Tab", HotKey.Delete => "Del", HotKey.Insert => "Ins",
+        HotKey.Escape => "Esc", HotKey.Shift => "⇧", HotKey.Backtab => "⇧Tab", HotKey.Delete => "Del", HotKey.Insert => "Ins",
         HotKey.Pageup => "PgUp", HotKey.Pagedown => "PgDn", HotKey.Question => "?", HotKey.Slash => "/",
         HotKey.Left => "←", HotKey.Right => "→", HotKey.Up => "↑", HotKey.Down => "↓",
         HotKey.Comma => ",", HotKey.Period => ".", HotKey.Minus => "-", HotKey.Equal => "=", HotKey.Semicolon => ";", HotKey.Apostrophe => "'",
