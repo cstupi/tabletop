@@ -59,7 +59,11 @@ offers Swap. Reset tab restores the defaults. The bindings move from the `Hotkey
 today's switch exactly, overrides stored in `ClientSettings`); the key overlay and every key cap read the table, so a rebind shows
 everywhere. Option1–9, Confirm and Cancel are listed but not rebindable.
 
-**Video:** Display (window / borderless / fullscreen); Resolution (window size, windowed only, new); Quality preset; Render scale; VSync;
+**Video:** Display (window / borderless / fullscreen); Resolution (new, owner 2026-11-21: *"most games have predefined resolutions … that
+drop down"*): a dropdown of the common sizes 1280×720, 1366×768, 1600×900, 1920×1080, 2560×1440, 3840×2160 (16:9) and 1280×800,
+1440×900, 1680×1050, 1920×1200, 2560×1600 (16:10), only those that fit the current screen, plus the screen's own size marked
+"(native)", and "Custom" when the window was resized by hand. Windowed: sets the window size and centres it. Borderless and fullscreen
+use the screen's size: the row shows the native size, disabled, with its description saying Render scale sets the 3D resolution; Quality preset; Render scale; VSync;
 Frame rate limit; Show frame rate (new, a corner counter).
 
 **Audio:** Master volume; Effects volume (new); Interface volume (new); Mute when the window is in the background (new, off). Volumes are
