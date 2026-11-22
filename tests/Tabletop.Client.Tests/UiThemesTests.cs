@@ -14,7 +14,7 @@ public class UiThemesTests
             Assert.StartsWith($"res://content/themes/{t.Id}/", p);
             Assert.True(File.Exists(Path.Combine(ClientDir, p["res://".Length..])), $"{t.Id}: {p} is missing");
         }
-        Assert.Equal((72, 65), (UiThemes.Fantasy.Paths.Count(), UiThemes.SciFi.Paths.Count()));   // 2 fonts, 2 nine-patches, 6 faces, 62 icons; 3 fonts, 62 icons
+        Assert.Equal((73, 66), (UiThemes.Fantasy.Paths.Count(), UiThemes.SciFi.Paths.Count()));   // 2 fonts, 2 nine-patches, 6 faces, 63 icons; 3 fonts, 63 icons
     }
     [Fact] public void Every_theme_sets_fonts_six_teams_and_the_icons() => Assert.All(UiThemes.All, t =>
     {
