@@ -216,31 +216,31 @@
 <OfferDialog open={offering !== null} what={offering?.what ?? ''} assetIds={offering?.assetIds ?? null} folderId={offering?.folderId ?? null} onclose={() => (offering = null)} />
 <UploadDialog open={uploading} {folders} folderId={uploadTarget(folders, selected)} onclose={closeUpload} onuploaded={() => void loadAll()} />
 <style>
-  .layout { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: var(--s5); align-items: start }
+  .layout { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: var(--space-4); align-items: start }
   @media (max-width: 48rem) { .layout { grid-template-columns: minmax(0, 1fr); gap: 0 } }
-  .bar { display: flex; gap: var(--s2) var(--s3); align-items: center; flex-wrap: wrap; padding-bottom: var(--s3); border-bottom: 1px solid var(--rule) }
-  .bar label { display: inline-flex; align-items: center; gap: var(--s2); flex-wrap: wrap }
+  .bar { display: flex; gap: var(--space-2) var(--space-3); align-items: center; flex-wrap: wrap; padding-bottom: var(--space-3); border-bottom: 1px solid var(--rule) }
+  .bar label { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: wrap }
   .count { color: var(--dim); margin-left: auto }
-  .selbar { display: flex; gap: var(--s2) var(--s3); align-items: center; flex-wrap: wrap; padding: var(--s2) 0; min-height: 2.75rem }
-  .selbar.active { position: sticky; top: 0; z-index: 2; background: var(--panel-solid); padding: var(--s2) var(--s3); margin: var(--s2) calc(-1 * var(--s3)) 0; border-bottom: 2px solid var(--accent) }
-  .selbar .end { display: inline-flex; gap: var(--s2); margin-left: auto }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(10.5rem, 40%), 1fr)); gap: var(--s3); margin: var(--s4) 0 }
+  .selbar { display: flex; gap: var(--space-2) var(--space-3); align-items: center; flex-wrap: wrap; padding: var(--space-2) 0; min-height: 2.75rem }
+  .selbar.active { position: sticky; top: 0; z-index: 2; background: var(--panel-solid); padding: var(--space-2) var(--space-3); margin: var(--space-2) calc(-1 * var(--space-3)) 0; border-bottom: 2px solid var(--accent) }
+  .selbar .end { display: inline-flex; gap: var(--space-2); margin-left: auto }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(10.5rem, 40%), 1fr)); gap: var(--space-3); margin: var(--space-3) 0 }
   .row, .cell { display: block; position: relative; height: 100% }
-  .check { position: absolute; top: var(--s2); right: var(--s2); z-index: 1; width: 1.35rem; height: 1.35rem; margin: 0; cursor: pointer }
-  .tile { display: flex; flex-direction: column; gap: var(--s2); height: 100%; padding: var(--s2); color: var(--text); text-decoration: none; border: 1px solid var(--rule); background: var(--panel-solid); overflow-wrap: anywhere; -webkit-touch-callout: none; user-select: none }
+  .check { position: absolute; top: var(--space-2); right: var(--space-2); z-index: 1; width: 1.35rem; height: 1.35rem; margin: 0; cursor: pointer }
+  .tile { display: flex; flex-direction: column; gap: var(--space-2); height: 100%; padding: var(--space-2); color: var(--text); text-decoration: none; border: 1px solid var(--rule); background: var(--panel-solid); overflow-wrap: anywhere; -webkit-touch-callout: none; user-select: none }
   .tile :global(.icon) { color: var(--accent) }
   :global([data-theme='fantasy']) .tile :global(.icon) { color: var(--wood) }
   .tile > :global(.thumb) { aspect-ratio: 1; height: auto }
-  .label { display: flex; flex-direction: column; gap: var(--s1); padding: 0 var(--s1) var(--s1) }
-  .meta { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); color: var(--dim) }
-  .meta > span { display: inline-flex; align-items: center; gap: var(--s1) }
+  .label { display: flex; flex-direction: column; gap: var(--space-1); padding: 0 var(--space-1) var(--space-1) }
+  .meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); color: var(--dim) }
+  .meta > span { display: inline-flex; align-items: center; gap: var(--space-1) }
   .warn { color: var(--warning) }
   .tile:hover { border-color: var(--accent); color: var(--text) }
   .on .tile { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); background: var(--rule) }
   :global([data-theme='fantasy']) .tile { border-radius: 4px; background: #F1E6CA; border-color: #4A2F1B55 }
   :global([data-theme='fantasy']) .on .tile { border-color: var(--wood); box-shadow: inset 0 0 0 2px var(--wood); background: #E6D3A8 }
   :global([data-theme='scifi']) .tile { clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px) }
-  .usage { display: flex; flex-direction: column; gap: var(--s1); margin: 0 }
+  .usage { display: flex; flex-direction: column; gap: var(--space-1); margin: 0 }
   .meter { display: block; height: 6px; background: var(--rule); overflow: hidden }
   .meter > span { display: block; height: 100%; background: var(--accent) }
   .near .meter > span { background: var(--warning) }

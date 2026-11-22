@@ -12,9 +12,9 @@
   <a href="/library/shared" aria-current={current === 'shared' ? 'page' : undefined}>Shared by players</a>
 </nav>
 <style>
-  .tabs { display: flex; gap: var(--s4); margin: 0 0 var(--s4); border-bottom: 1px solid var(--rule); flex-wrap: wrap }
-  .tabs a { padding: var(--s2) 0; color: var(--dim); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px }
+  .tabs { display: flex; gap: var(--space-3); margin: 0 0 var(--space-3); border-bottom: 1px solid var(--rule); flex-wrap: wrap }
+  .tabs a { padding: var(--space-2) 0; color: var(--dim); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px }
   .tabs a:hover { color: var(--text) }
   .tabs a[aria-current='page'] { color: var(--text); border-bottom-color: var(--accent) }
-  .badge { display: inline-block; min-width: 1.4em; padding: 0 0.35em; border-radius: 0.7em; background: var(--accent); color: var(--panel-solid); font-size: 0.8em; text-align: center; line-height: 1.4em }
+  .badge { display: inline-block; min-width: 1.4em; padding: 0 var(--space-1); border-radius: 0.7em; background: var(--accent); color: var(--panel-solid); font-size: 0.8em; text-align: center; line-height: 1.4em }
 </style>

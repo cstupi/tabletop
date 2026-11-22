@@ -65,7 +65,7 @@
 {/if}
 <style>
   .title h2 { flex: 1 }
-  .thumbs { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s1) }
-  .more { align-self: center; color: var(--dim); padding: 0 var(--s2) }
+  .thumbs { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-1) }
+  .more { align-self: center; color: var(--dim); padding: 0 var(--space-2) }
   .dim { color: var(--dim) }
 </style>

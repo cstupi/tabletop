@@ -138,18 +138,18 @@
   </section>
 {/if}
 <style>
-  .offer-list { list-style: none; padding: 0; display: grid; gap: var(--s4); margin: 0 0 var(--s4) }
+  .offer-list { list-style: none; padding: 0; display: grid; gap: var(--space-3); margin: 0 0 var(--space-3) }
   .title h2 { flex: 0 1 auto }
   .when { margin-left: auto }
-  .assets { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s2); grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)) }
-  .asset { display: flex; flex-direction: column; align-items: stretch; gap: var(--s1); width: 100%; height: 100%; padding: var(--s2); white-space: normal; text-align: left; justify-content: flex-start }
+  .assets { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)) }
+  .asset { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-1); width: 100%; height: 100%; padding: var(--space-2); white-space: normal; text-align: left; justify-content: flex-start }
   .asset > :global(.thumb) { aspect-ratio: 1; height: auto }
   .name { overflow-wrap: anywhere; font-weight: 700 }
-  .held { display: inline-flex; align-items: center; gap: var(--s1); color: var(--success) }
-  .into { display: inline-flex; align-items: center; gap: var(--s1) }
+  .held { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--success) }
+  .into { display: inline-flex; align-items: center; gap: var(--space-1) }
   .foot { flex-wrap: wrap }
   .view { min-height: 20rem; background: var(--view-bg); display: grid; overflow: hidden }
-  .view > p { margin: auto; padding: var(--s5) }
+  .view > p { margin: auto; padding: var(--space-4) }
   .view img { max-width: 100%; max-height: 24rem; margin: auto }
   .dim { color: var(--dim) }
   .blocked ul { list-style: none; padding: 0; margin: 0 }

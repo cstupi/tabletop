@@ -7,49 +7,49 @@ body {
   font-family: var(--font-body); font-weight: var(--body-weight); font-size: var(--body-size); line-height: 1.45;
   -webkit-text-size-adjust: 100%;
 }
-main { max-width: var(--page); margin: 0 auto; padding: var(--s5) var(--s4) var(--s7); }
+main { max-width: var(--page); margin: 0 auto; padding: var(--space-4) var(--space-3) var(--space-6); }
 button, input, select, textarea { font: inherit; color: inherit; }
 img, canvas { max-width: 100%; }
-p { margin: var(--s2) 0; }
+p { margin: var(--space-2) 0; }
 small, .dim { color: var(--dim); font-size: .875em; }
 strong { font-weight: 700; }
 code, .num { font-family: var(--font-num); font-weight: var(--num-weight); font-variant-numeric: tabular-nums; font-size: .85em; }
 a { color: var(--link); text-underline-offset: .2em; text-decoration-thickness: 1px; }
 a:hover { color: var(--link-hover); }
-hr { border: 0; border-top: 1px solid var(--rule); margin: var(--s5) 0; }
+hr { border: 0; border-top: 1px solid var(--rule); margin: var(--space-4) 0; }
 
 /* Headings: the theme's display face. */
 h1, h2, h3, legend, th[scope='col'] { font-family: var(--font-display); font-weight: var(--display-weight); text-transform: var(--display-case); letter-spacing: var(--display-tracking); }
-h1 { font-size: clamp(1.35rem, 1rem + 1.6vw, 2rem); line-height: 1.2; margin: 0 0 var(--s5); }
-h1::after { content: ''; display: block; width: 4rem; height: 2px; margin-top: var(--s3); background: var(--accent); }
+h1 { font-size: clamp(1.35rem, 1rem + 1.6vw, 2rem); line-height: 1.2; margin: 0 0 var(--space-4); }
+h1::after { content: ''; display: block; width: 4rem; height: 2px; margin-top: var(--space-3); background: var(--accent); }
 h1 small { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: .6em; color: inherit; }
-h2 { font-size: 1.05rem; line-height: 1.3; margin: 0 0 var(--s3); color: var(--accent); }
+h2 { font-size: 1.05rem; line-height: 1.3; margin: 0 0 var(--space-3); color: var(--accent); }
 :where([data-theme='fantasy']) h2 { font-size: 1.2rem; color: var(--wood); }
 :where([data-theme='fantasy']) h1::after { width: 6rem; height: 1px; background: linear-gradient(90deg, var(--wood), transparent); box-shadow: 0 3px 0 -1px var(--brass); }
 
 /* Accessibility: a visible keyboard focus, a skip link, text for screen readers only. */
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .skip { position: absolute; left: -9999px; }
-.skip:focus { left: var(--s4); top: var(--s2); z-index: 10; background: var(--panel-solid); color: var(--link); padding: var(--s1) var(--s2); }
+.skip:focus { left: var(--space-3); top: var(--space-2); z-index: 10; background: var(--panel-solid); color: var(--link); padding: var(--space-1) var(--space-2); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 main:focus { outline: none; }
 
 /* Layout that works from phone to desktop width. */
 .scroll-x { overflow-x: auto; max-width: 100%; position: relative; }
-.stack > label, .stack > fieldset, .stack > p { display: block; margin: var(--s3) 0; }
-.stack > label > input:not([type='radio']):not([type='checkbox']), .stack > label > select { display: block; width: 100%; max-width: 32rem; margin-top: var(--s1); }
-.actions { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; margin: var(--s3) 0; }
-.auth { max-width: 30rem; margin: clamp(0rem, 6vh, 4rem) auto 0; }
-.page-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: var(--s3); }
-.back { display: inline-flex; align-items: center; gap: var(--s1); margin: 0 0 var(--s3); }
+.stack > label, .stack > fieldset, .stack > p { display: block; margin: var(--space-3) 0; }
+.stack > label > input:not([type='radio']):not([type='checkbox']), .stack > label > select { display: block; width: 100%; max-width: 32rem; margin-top: var(--space-1); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-3) 0; }
+.auth { max-width: 30rem; margin: var(--space-6) auto 0; }
+.page-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: var(--space-3); }
+.back { display: inline-flex; align-items: center; gap: var(--space-1); margin: 0 0 var(--space-3); }
 .icon { flex: none; vertical-align: -.2em; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
 .icon .line { stroke-width: var(--icon-stroke); }
 .icon .glow { stroke-width: var(--icon-glow); stroke-opacity: var(--icon-glow-opacity); }
 
 /* Panels. */
-.panel { position: relative; padding: var(--s5); margin: 0 0 var(--s5); color: var(--text); }
+.panel { position: relative; padding: var(--space-4); margin: 0 0 var(--space-4); color: var(--text); }
 .panel > :first-child { margin-top: 0; } .panel > :last-child { margin-bottom: 0; }
-@media (max-width: 40rem) { .panel { padding: var(--s4); } }
+@media (max-width: 40rem) { .panel { padding: var(--space-3); } }
 
 /* Sci-fi: clipped corners, a 1px line, the line drawn across each cut corner, and accent bars on the top and bottom edges. */
 :where([data-theme='scifi']) :where(.panel, dialog, button, .button, input:not([type='checkbox'], [type='radio'], [type='file'], [type='range']), select, textarea) {
@@ -81,14 +81,14 @@ main:focus { outline: none; }
   background: url('/themes/fantasy/paper.svg') 0 0 / 240px 240px, var(--panel);
   border: 2px solid var(--wood); border-radius: 6px;
   box-shadow: inset 0 0 0 4px var(--wood-band), inset 0 0 0 5.5px var(--brass), inset 0 0 2rem #4A2F1B1F, 0 2px 8px #2B211840;
-  padding: calc(var(--s5) + 4px);
+  padding: calc(var(--space-4) + var(--frame-inset));
 }
-@media (max-width: 40rem) { :where([data-theme='fantasy']) :where(.panel) { padding: calc(var(--s4) + 4px); } }
+@media (max-width: 40rem) { :where([data-theme='fantasy']) :where(.panel) { padding: calc(var(--space-3) + var(--frame-inset)); } }
 
 /* Buttons: the theme's button face; .primary for the main action, .danger for deletes, .quiet for a text-only button. */
 button, .button {
-  display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
-  min-height: 2.5rem; padding: var(--s1) var(--s4); cursor: pointer; text-decoration: none; white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: 2.5rem; padding: var(--space-1) var(--space-3); cursor: pointer; text-decoration: none; white-space: nowrap;
   background-color: var(--btn-bg); color: var(--button-text); line-height: 1.2;
   transition: background-color .12s, color .12s;
 }
@@ -99,9 +99,9 @@ button, .button {
 :where(button, .button).primary:hover:not(:disabled) { background-color: var(--primary-hover); color: var(--primary-text); }
 :where(button, .button).danger { background-color: var(--danger-bg); color: var(--danger-text); --line: var(--danger-line); }
 :where(button, .button).danger:hover:not(:disabled) { background-color: var(--danger-hover); color: var(--danger-text); }
-:where(button).quiet { background: none; border: 0; clip-path: none; box-shadow: none; color: var(--link); text-decoration: underline; text-underline-offset: .2em; padding-inline: var(--s1); min-height: 0; }
+:where(button).quiet { background: none; border: 0; clip-path: none; box-shadow: none; color: var(--link); text-decoration: underline; text-underline-offset: .2em; padding-inline: var(--space-1); min-height: 0; }
 :where(button).quiet:hover:not(:disabled) { background: none; color: var(--link-hover); }
-:where(button).icon-btn { min-height: 2rem; min-width: 2rem; padding: 0 var(--s1); }
+:where(button).icon-btn { min-height: 2rem; min-width: 2rem; padding: 0 var(--space-1); }
 :where([data-theme='scifi']) :where(button).icon-btn { --c: 4px; }
 :where([data-theme='fantasy']) :where(button, .button):not(.quiet) {
   border: 2px solid var(--btn-edge); border-radius: 4px;
@@ -122,7 +122,7 @@ button, .button {
 
 /* Inputs. */
 input:not([type='checkbox'], [type='radio'], [type='file'], [type='range']), select, textarea {
-  min-height: 2.5rem; padding: var(--s1) var(--s3); background-color: var(--input-bg); color: var(--text); max-width: 100%;
+  min-height: 2.5rem; padding: var(--space-1) var(--space-3); background-color: var(--input-bg); color: var(--text); max-width: 100%;
 }
 :where([data-theme='scifi']) :where(input:not([type='checkbox'], [type='radio'], [type='file'], [type='range']), select, textarea) { --c: 4px; --line: var(--input-line); }
 :where([data-theme='fantasy']) :where(input:not([type='checkbox'], [type='radio'], [type='file'], [type='range']), select, textarea) {
@@ -131,7 +131,7 @@ input:not([type='checkbox'], [type='radio'], [type='file'], [type='range']), sel
 :where([data-theme='fantasy']) :where(input, select, textarea):focus-visible { outline-offset: 1px; }
 input[type='number'] { width: 8rem; font-family: var(--font-num); font-weight: var(--num-weight); font-size: .95em; }
 ::placeholder { color: var(--dim); opacity: 1; }
-select { appearance: none; padding-right: 2rem; cursor: pointer; }
+select { appearance: none; padding-right: var(--space-5); cursor: pointer; }
 /* the select's arrow: an extra background layer in each theme */
 :where([data-theme='scifi']) select {
   background-image:
@@ -148,12 +148,12 @@ select { appearance: none; padding-right: 2rem; cursor: pointer; }
   background-size: 5px 5px, 5px 5px; background-position: right .9rem center, right calc(.9rem - 5px) center; background-repeat: no-repeat;
 }
 input[type='checkbox'], input[type='radio'], progress { accent-color: var(--accent); }
-input[type='checkbox'], input[type='radio'] { width: 1.05rem; height: 1.05rem; vertical-align: -.15em; margin: 0 var(--s1) 0 0; }
+input[type='checkbox'], input[type='radio'] { width: 1.05rem; height: 1.05rem; vertical-align: -.15em; margin: 0 var(--space-1) 0 0; }
 input[type='file'] { max-width: 100%; }
-input[type='file']::file-selector-button { font: inherit; margin-right: var(--s3); padding: var(--s1) var(--s3); border: 1px solid var(--btn-line); background: var(--btn-bg); color: var(--button-text); cursor: pointer; border-radius: 3px; }
-fieldset { border: 1px solid var(--rule); padding: var(--s2) var(--s3) var(--s3); margin: 0; min-width: 0; }
-fieldset > label { margin-right: var(--s4); display: inline-flex; align-items: center; gap: var(--s1); }
-legend { font-size: .75rem; padding: 0 var(--s1); color: var(--dim); }
+input[type='file']::file-selector-button { font: inherit; margin-right: var(--space-3); padding: var(--space-1) var(--space-3); border: 1px solid var(--btn-line); background: var(--btn-bg); color: var(--button-text); cursor: pointer; border-radius: 3px; }
+fieldset { border: 1px solid var(--rule); padding: var(--space-2) var(--space-3) var(--space-3); margin: 0; min-width: 0; }
+fieldset > label { margin-right: var(--space-3); display: inline-flex; align-items: center; gap: var(--space-1); }
+legend { font-size: .75rem; padding: 0 var(--space-1); color: var(--dim); }
 :where([data-theme='fantasy']) legend { font-size: .85rem; color: var(--wood); }
 progress { appearance: none; width: 100%; height: .5rem; border: 0; background: var(--rule); }
 progress::-webkit-progress-bar { background: var(--rule); }
@@ -162,7 +162,7 @@ progress::-moz-progress-bar { background: var(--accent); }
 
 /* Tables. */
 table { border-collapse: collapse; width: 100%; }
-th, td { text-align: left; vertical-align: top; padding: var(--s2) var(--s3); border-bottom: 1px solid var(--rule); }
+th, td { text-align: left; vertical-align: top; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--rule); }
 thead th { font-size: .7rem; color: var(--dim); white-space: nowrap; border-bottom-color: var(--panel-border); }
 :where([data-theme='fantasy']) thead th { font-size: .8rem; color: var(--wood); }
 tbody th { font-weight: inherit; }
@@ -173,42 +173,42 @@ thead th.num { font-family: var(--font-display); font-weight: var(--display-weig
 
 /* Messages. Failures get a box of their own so they read against the panel colour wherever they appear. */
 [role='alert'] {
-  display: flex; gap: var(--s2); align-items: baseline; padding: var(--s2) var(--s3); margin: var(--s3) 0;
+  display: flex; gap: var(--space-2); align-items: baseline; padding: var(--space-2) var(--space-3); margin: var(--space-3) 0;
   background: var(--panel-solid); color: var(--text); border-left: 3px solid var(--failure);
 }
 [role='alert']::before { content: '!'; flex: none; font-family: var(--font-display); font-weight: 700; color: var(--failure); }
 .saved { color: var(--success); }
-.notice { padding: var(--s2) var(--s3); margin: var(--s3) 0; background: var(--panel-solid); border-left: 3px solid var(--accent); }
-.empty { display: flex; flex-direction: column; align-items: center; gap: var(--s2); text-align: center; padding: var(--s6) var(--s4); color: var(--dim); }
+.notice { padding: var(--space-2) var(--space-3); margin: var(--space-3) 0; background: var(--panel-solid); border-left: 3px solid var(--accent); }
+.empty { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); text-align: center; padding: var(--space-5) var(--space-3); color: var(--dim); }
 .empty .icon { color: var(--accent); opacity: .8; }
 .empty p { max-width: 32rem; margin: 0; }
-.loading { display: flex; align-items: center; gap: var(--s3); color: var(--dim); padding: var(--s4) 0; }
+.loading { display: flex; align-items: center; gap: var(--space-3); color: var(--dim); padding: var(--space-3) 0; }
 .loading::before { content: ''; width: .6rem; height: .6rem; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
 :where([data-theme='fantasy']) .loading::before { border-radius: 50%; }
 @keyframes pulse { 0%, 100% { opacity: .25; transform: scale(.8); } 50% { opacity: 1; transform: scale(1); } }
 
 /* Dialogs. */
-dialog { color: var(--text); padding: var(--s5); }
+dialog { color: var(--text); padding: var(--space-4); }
 dialog::backdrop { background: #05080CB3; backdrop-filter: blur(2px); }
 :where([data-theme='fantasy']) dialog::backdrop { background: #2B21188C; }
 
 /* The shell: brand, main navigation and the theme switch. */
 .site-header { background: var(--header-bg); color: var(--header-text); border-bottom: 1px solid var(--header-line); position: relative; }
-:where([data-theme='scifi']) .site-nav::after { content: ''; position: absolute; left: var(--s4); bottom: -2px; width: 6rem; height: 3px; background: var(--accent); }
+:where([data-theme='scifi']) .site-nav::after { content: ''; position: absolute; left: var(--space-3); bottom: -2px; width: 6rem; height: 3px; background: var(--accent); }
 :where([data-theme='fantasy']) .site-header { border-bottom: 3px double var(--brass); background: linear-gradient(#ffffff0d, transparent), var(--header-bg); }
-.site-nav { position: relative; display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); align-items: center; max-width: var(--page); margin: 0 auto; padding: var(--s2) var(--s4); }
+.site-nav { position: relative; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: center; max-width: var(--page); margin: 0 auto; padding: var(--space-2) var(--space-3); }
 .site-header { --focus: var(--header-text); --link: var(--header-text); --link-hover: var(--header-current); }
-.brand { display: inline-flex; align-items: center; gap: var(--s2); font-family: var(--font-display); font-weight: var(--display-weight); text-transform: uppercase; letter-spacing: .14em; color: var(--header-text); text-decoration: none; font-size: 1.05rem; }
+.brand { display: inline-flex; align-items: center; gap: var(--space-2); font-family: var(--font-display); font-weight: var(--display-weight); text-transform: uppercase; letter-spacing: .14em; color: var(--header-text); text-decoration: none; font-size: 1.05rem; }
 .brand .icon { color: var(--header-current); }
-.site-nav .links { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); align-items: center; }
-.site-nav .links a { display: inline-flex; align-items: center; gap: var(--s1); padding: var(--s1) 0; color: var(--header-text); text-decoration: none; border-bottom: 2px solid transparent; }
+.site-nav .links { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); align-items: center; }
+.site-nav .links a { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-1) 0; color: var(--header-text); text-decoration: none; border-bottom: 2px solid transparent; }
 .site-nav .links a:hover { color: var(--header-current); }
 .site-nav .links a[aria-current='page'] { color: var(--header-current); border-bottom-color: var(--header-current); }
 .site-nav .push { margin-left: auto; }
-.site-nav button, .site-nav .seg > button { min-height: 2.1rem; padding: 0 var(--s3); font-size: .95rem; }
+.site-nav button, .site-nav .seg > button { min-height: 2.1rem; padding: 0 var(--space-3); font-size: .95rem; }
 @media (max-width: 40rem) {
-  .site-nav { gap: var(--s2) var(--s3); }
-  .site-nav .links { order: 3; width: 100%; justify-content: space-between; flex-wrap: nowrap; gap: var(--s1) var(--s3); }
+  .site-nav { gap: var(--space-2) var(--space-3); }
+  .site-nav .links { order: 3; width: 100%; justify-content: space-between; flex-wrap: nowrap; gap: var(--space-1) var(--space-3); }
   .site-nav .links a { min-width: 0; }   /* one row: the account name gives way, with an ellipsis */
   .site-nav .label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
@@ -222,19 +222,19 @@ dialog::backdrop { background: #05080CB3; backdrop-filter: blur(2px); }
 }
 
 /* The shared vocabulary (UX redesign index → Shared vocabulary): card, tile, chip, key cap, pips, quiet band, the ▸ menu, thumbnails. */
-.cards { display: grid; gap: var(--s4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); margin: 0 0 var(--s5); padding: 0; list-style: none; }
-.panel.card, .card { display: flex; flex-direction: column; gap: var(--s2); margin: 0; padding: var(--s4); min-width: 0; }
-:where([data-theme='fantasy']) .panel.card { padding: calc(var(--s4) + 4px); }
-.card > .title { display: flex; align-items: center; gap: var(--s2); min-width: 0; margin: 0; }
+.cards { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); margin: 0 0 var(--space-4); padding: 0; list-style: none; }
+.panel.card, .card { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-3); min-width: 0; }
+:where([data-theme='fantasy']) .panel.card { padding: calc(var(--space-3) + var(--frame-inset)); }
+.card > .title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; margin: 0; }
 .card > .title :where(h2, h3) { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 1.05rem; }
-.card > .foot { display: flex; align-items: center; gap: var(--s2); margin-top: auto; padding-top: var(--s2); }
+.card > .foot { display: flex; align-items: center; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); }
 .card > .foot > .end { margin-left: auto; }
-.card .facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); color: var(--dim); margin: 0; }
+.card .facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); color: var(--dim); margin: 0; }
 .card :where(.icon) { color: var(--accent); }
 :where([data-theme='fantasy']) .card :where(.icon) { color: var(--wood); }
 .card :where(button, .button) :where(.icon) { color: inherit; }
 
-.chip { display: inline-flex; align-items: center; gap: var(--s1); padding: 0 .55em; min-height: 1.5em; border: 1px solid currentColor; border-radius: .8em;
+.chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); min-height: 1.5em; border: 1px solid currentColor; border-radius: .8em;
   font-family: var(--font-num); font-weight: var(--num-weight); font-size: .75rem; line-height: 1.4; color: var(--accent); white-space: nowrap; flex: none; }
 .chip.status-lobby, .chip.status-ended, .chip.status-declined, .chip.status-withdrawn { color: var(--dim); }
 .chip.status-setup, .chip.status-waiting { color: var(--warning); }
@@ -245,20 +245,20 @@ dialog::backdrop { background: #05080CB3; backdrop-filter: blur(2px); }
 :where([data-theme='fantasy']) .chip.status-accepted { color: var(--success); }
 :where([data-theme='fantasy']) .chip:is(.status-declined, .status-withdrawn) { color: var(--dim); }
 
-kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 1.5em; padding: 0 .35em; margin-left: auto; border: 1px solid currentColor; border-radius: 3px;
+kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 1.5em; padding: 0 var(--space-1); margin-left: auto; border: 1px solid currentColor; border-radius: 3px;
   font-family: var(--font-num); font-size: .75em; line-height: 1.5; opacity: .8; }
 
-.tiles { display: grid; gap: var(--s2); grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr)); }
-.tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s1); min-height: 4.5rem; padding: var(--s2); text-align: center; white-space: normal; }
+.tiles { display: grid; gap: var(--space-2); grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr)); }
+.tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); min-height: 4.5rem; padding: var(--space-2); text-align: center; white-space: normal; }
 .tile.wide { flex-direction: row; justify-content: flex-start; min-height: 3rem; text-align: left; }
 
-.pips { display: inline-flex; gap: 3px; vertical-align: middle; }
+.pips { display: inline-flex; gap: var(--space-1); vertical-align: middle; }
 .pips > span { width: .6rem; height: .6rem; border-radius: 50%; border: 1.5px solid var(--accent); }
 .pips > span.on { background: var(--accent); }
 :where([data-theme='fantasy']) .pips > span { border-color: var(--wood); }
 :where([data-theme='fantasy']) .pips > span.on { background: var(--wood); }
 
-.quiet-band { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) var(--s3); color: var(--dim); border-left: 3px solid var(--rule); background: var(--rule); }
+.quiet-band { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); color: var(--dim); border-left: 3px solid var(--rule); background: var(--rule); }
 
 /* Thumbnails: the picture management stores for a mesh, or the kind icon on the same square. */
 .thumb { display: inline-grid; place-items: center; flex: none; width: var(--thumb, 3rem); height: var(--thumb, 3rem); overflow: hidden; background: var(--view-bg); border: 1px solid var(--rule); }
@@ -271,7 +271,7 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 .menu { position: relative; display: inline-block; }
 .menu > summary { list-style: none; cursor: pointer; }
 .menu > summary::-webkit-details-marker { display: none; }
-.menu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: flex; flex-direction: column; gap: var(--s1); min-width: 12rem; padding: var(--s2);
+.menu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: flex; flex-direction: column; gap: var(--space-1); min-width: 12rem; padding: var(--space-2);
   background: var(--panel-solid); color: var(--text); border: 1px solid var(--panel-border); box-shadow: 0 6px 18px #0006; --focus: var(--accent); }
 .menu-list > :where(button, .button) { justify-content: flex-start; width: 100%; }
 :where([data-theme='fantasy']) .menu-list { border: 2px solid var(--wood); border-radius: 4px; background: var(--panel); color: var(--text); }

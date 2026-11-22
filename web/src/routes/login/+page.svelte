@@ -85,6 +85,6 @@
 </div>
 
 <style>
-  .method { margin: 0 0 var(--s3); }
+  .method { margin: 0 0 var(--space-3); }
   .method > button { flex: 1 1 auto; }
 </style>

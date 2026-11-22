@@ -150,33 +150,33 @@
 {/if}
 {#if error}<p role="alert">{error}</p>{/if}
 <style>
-  .head { margin: 0 0 var(--s4) }
-  .name-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3) }
+  .head { margin: 0 0 var(--space-3) }
+  .name-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3) }
   .name-row h1 { margin: 0; min-width: 0; overflow-wrap: anywhere }
   .name-row h1::after { display: none }
   .rename input { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 1.4rem; width: min(28rem, 70vw) }
-  .forge { display: inline-flex; align-items: center; gap: var(--s1) }
+  .forge { display: inline-flex; align-items: center; gap: var(--space-1) }
   .push { flex: 1 }
-  .facts-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); margin-top: var(--s3); padding-top: var(--s3); border-top: 2px solid var(--accent) }
+  .facts-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 2px solid var(--accent) }
   :global([data-theme='fantasy']) .facts-row { border-top-color: var(--wood) }
   .facts { margin: 0; color: var(--dim) }
   .status { min-width: 4rem; margin: 0 }
-  .unit { padding: var(--s3) var(--s4) var(--s3) calc(var(--s4) + 6px); margin-bottom: var(--s3); border-left: 6px solid var(--dim) }
-  :global([data-theme='fantasy']) .unit { padding-left: calc(var(--s4) + 10px) }
-  .unit-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); margin: 0 0 var(--s2); padding-bottom: var(--s2); border-bottom: 1px solid var(--rule) }
+  .unit { padding: var(--space-3); margin-bottom: var(--space-3); border-left: 6px solid var(--dim) }
+  :global([data-theme='fantasy']) .unit { padding: calc(var(--space-3) + var(--frame-inset)) }
+  .unit-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-2); padding-bottom: var(--space-2); border-bottom: 1px solid var(--rule) }
   .unit-head h2 { margin: 0; font-size: 1.05rem; flex: 1; min-width: 0 }
-  .count { margin-left: var(--s2); color: var(--dim); font-size: .85em }
-  .stats { display: inline-flex; gap: var(--s3) }
-  .stat { display: inline-flex; align-items: center; gap: var(--s1) }
+  .count { margin-left: var(--space-2); color: var(--dim); font-size: .85em }
+  .stats { display: inline-flex; gap: var(--space-3) }
+  .stat { display: inline-flex; align-items: center; gap: var(--space-1) }
   .stat :global(.icon) { color: var(--accent) }
   :global([data-theme='fantasy']) .stat :global(.icon) { color: var(--wood) }
-  .slot { display: grid; grid-template-columns: minmax(7rem, 11rem) minmax(12rem, 1fr) auto auto; align-items: center; gap: var(--s2) var(--s3); padding: var(--s1) 0 }
-  .slot.sub { margin-left: var(--s5) }
+  .slot { display: grid; grid-template-columns: minmax(7rem, 11rem) minmax(12rem, 1fr) auto auto; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-1) 0 }
+  .slot.sub { margin-left: var(--space-4) }
   .slot-name { overflow-wrap: anywhere }
   .marks { display: block }
-  .cell { display: inline-flex; align-items: center; gap: var(--s1); min-width: 0; flex-wrap: wrap }
+  .cell { display: inline-flex; align-items: center; gap: var(--space-1); min-width: 0; flex-wrap: wrap }
   .cell :global(.icon) { color: var(--dim) }
-  .mesh-btn { justify-content: flex-start; gap: var(--s3); min-height: 3.25rem; padding: var(--s1) var(--s3) var(--s1) var(--s1); min-width: 0; max-width: 100%; text-align: left; white-space: normal }
+  .mesh-btn { justify-content: flex-start; gap: var(--space-3); min-height: 3.25rem; padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1); min-width: 0; max-width: 100%; text-align: left; white-space: normal }
   .mesh-btn .mesh-name { flex: 1; min-width: 0; overflow-wrap: anywhere }
   .mesh-btn.none .mesh-name { color: var(--dim); font-style: italic }
   .base { flex-wrap: nowrap; min-width: max-content }
@@ -184,7 +184,7 @@
   .tall { flex-wrap: nowrap }
   input.height { width: 5.5rem }
   .unit { overflow: visible }
-  .per { margin: var(--s1) 0 0; gap: var(--s1) }
+  .per { margin: var(--space-1) 0 0; gap: var(--space-1) }
   .chev { display: inline-flex; transition: transform .15s }
   .per[aria-expanded='true'] .chev { transform: rotate(90deg) }
   @media (max-width: 60rem) {

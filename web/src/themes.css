@@ -8,8 +8,11 @@
 @font-face { font-family: 'EB Garamond'; src: url('/themes/fantasy/fonts/EBGaramond-Variable.ttf') format('truetype'); font-weight: 400 800; font-display: swap; }
 
 :root {
-  /* spacing scale */
-  --s1: .25rem; --s2: .5rem; --s3: .75rem; --s4: 1rem; --s5: 1.5rem; --s6: 2rem; --s7: 3rem;
+  /* The spacing scale (docs/superpowers/specs/2026-11-21-spacing-rules-design.md): every padding, margin and gap is a step.
+     The viewer imports this file, so it is the one definition for both apps. */
+  --space-1: 4px; --space-2: 8px; --space-3: 16px; --space-4: 24px; --space-5: 32px; --space-6: 48px;
+  /* Fantasy's wood band drawn inside a panel's edge (an inset shadow, a border): a panel's padding adds it so text clears the band. */
+  --frame-inset: 4px;
   --page: 72rem;
 }
 

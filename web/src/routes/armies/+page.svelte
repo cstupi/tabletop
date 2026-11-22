@@ -98,8 +98,8 @@
   {#if next}<div class="actions"><button onclick={() => load(true)} disabled={loadingMore || !!busy}>{loadingMore ? 'Loading…' : 'Load more'}</button></div>{/if}
 {/if}
 <style>
-  .import { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s3); align-items: center; margin: 0 0 var(--s5) }
-  .field { flex: 1 1 22rem; display: flex; align-items: center; gap: var(--s2) }
+  .import { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: center; margin: 0 0 var(--space-4) }
+  .field { flex: 1 1 22rem; display: flex; align-items: center; gap: var(--space-2) }
   .field input { flex: 1; min-width: 0 }
   .help { flex-basis: 100%; margin: 0; min-height: 0 }
   .help:empty { display: none }
