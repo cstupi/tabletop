@@ -20,6 +20,18 @@ public class CombatLogTests
         return (CombatLog.Build(a.Log, n), a.Log, n);
     }
 
+    [Fact]
+    public void Only_a_step_with_rolls_a_reroll_an_edit_or_an_undo_touches_the_latest_roll()
+    {
+        static IReadOnlyList<GameEvent> Log(params EventPayload[] p) => p.Select((x, i) => new GameEvent(i + 1, Samples.P1, x, null)).ToList();
+        var quiet = Log(Round1, new ModelsMoved([Samples.Deploy]), new StepCompleted(Samples.Frame, "move", null, [], []));
+        Assert.False(CombatLog.TouchesRolls(quiet, 0));
+        var rolled = Log(Round1, new StepCompleted(Samples.Frame, "roll-to-hit", null, [Samples.Hit], []), new ModelsMoved([Samples.Deploy]));
+        Assert.True(CombatLog.TouchesRolls(rolled, 0));
+        Assert.False(CombatLog.TouchesRolls(rolled, 2));                       // only the events from the index on
+        Assert.True(CombatLog.TouchesRolls(Log(Round1, new Undone(1)), 1));
+    }
+
     /// <summary>The one roll a single step of a shooting frame records, as the log builds it.</summary>
     static RollEntry Line(RollRecord roll)
     {

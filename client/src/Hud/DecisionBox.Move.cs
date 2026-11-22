@@ -17,7 +17,7 @@ public partial class DecisionBox
     // What AskAnswers.FacingOf needs from the disembark render: the exit distance, the board's volumes and its size.
     double _exitWithin; IReadOnlyList<WorldVolume> _volumes = []; TableSize _size = new(72, 48);
     /// <summary>The open move's per-model regions and the team colour they draw in; null outside a move and for a disembark.</summary>
-    MoveRegions? _regions; Color _regionColour;
+    MoveRegions? _regions; Color _regionColour; Label? _measuring;
     /// <summary>The whole unit's area as vertex arrays, built on the pool from the Ask's opening (PrepareArea), so a plain drag's pickup draws it in
     /// its own frame with no work but handing them to Godot.</summary>
     volatile UnitMeshes? _unitMeshes;
@@ -70,6 +70,8 @@ public partial class DecisionBox
             // Each model's own region from where it stands: the lead's shows first, then each pickup's held models'.
             var regions = MoveRegions.Of(p, legal with { Allowance = remaining }, _view.Volumes, _view.Size);
             _regions = regions; _regionColour = Palette.Team(ordinal);
+            // The area is measured on the thread pool (a long charge among much terrain takes a while): the card says so until it draws.
+            Add(_measuring = new Label { Text = "Measuring…", ThemeTypeVariation = Variation.Dim });
             ShowRegions([lead.Id]);
             PrepareArea(regions, legal.ModelIds, lead.Id);                          // every model's reach and the unit's area, before a pickup needs them
             // An Aircraft must move at least its minimum (p.13): the region is the ring beyond it, and a model short of it shows red. Where the table
@@ -78,11 +80,12 @@ public partial class DecisionBox
             minimum = regions.Minimum(lead.Id);
             Add(DecisionTiles.Bar(out setBar));
             _input.Allowance = remaining; _input.Region = legal; _input.Reach = regions;
-            // Every mesh a pickup shows (rulers, landing rings, the area's bands, the paths) made and drawn once under the slab now, before any pickup.
+            // Every mesh a pickup shows (rulers, landing rings, the area's bands, the paths) made and drawn once under the slab, in the next frame:
+            // the Ask's own frame carries the card, and a pickup comes later than that.
             var leadAt = ((OnTable)lead.Location).Placement.Position;
-            _input.PrepareHold([.. legal.ModelIds.Where(id => p.Models.GetValueOrDefault(id)?.Location is OnTable).Select(id => p.Models[id].Slot.Base)], leadAt);
-            _region?.Warm(leadAt, _regionColour);
-            _view.Paths.Warm(leadAt, _regionColour);
+            IReadOnlyList<Base> bases = [.. legal.ModelIds.Where(id => p.Models.GetValueOrDefault(id)?.Location is OnTable).Select(id => p.Models[id].Slot.Base)];
+            var askId = ask.Id; var colour = _regionColour;
+            Screens.FrameBudget.Next(() => { if (IsInstanceValid(this) && _renderedAsk == askId) WarmAsk(bases, leadAt, colour); });
             // Drawn and committed agree: a rebuilt Ask (a refusal) or an Esc starts from the server's positions.
             void StartMove() { _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position); _input.Proposed = _proposed; _view.Snap(legal.ModelIds); }
             StartMove();
@@ -137,7 +140,9 @@ public partial class DecisionBox
             var why = _gate.Allowed ? "" : _gate.Reason ?? ""; commit.TooltipText = why; if (stop is not null) stop.TooltipText = why;
             reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null && !RepeatsRefusal(_gate.Reason);
         };
-        _regate();
+        // The first gate (the readouts, the contacts, the bar, the commit's state) in the next frame: the Ask's own frame carries the card.
+        var gated = ask.Id;
+        Screens.FrameBudget.Next(() => { if (IsInstanceValid(this) && _renderedAsk == gated) _regate?.Invoke(); });
     }
 
     /// <summary>p.15: "only one model needs to reach the Transport for everyone to embark". A click on a listed container answers the
@@ -167,11 +172,14 @@ public partial class DecisionBox
         var request = ++_regionRequest; var colour = _regionColour;
         // The whole unit's, built from the Ask's opening: drawn in this frame. Else area and vertex arrays on the pool, one wait for the main
         // thread's turn at the end.
-        if (_unitMeshes is { } unit && ReferenceEquals(unit.Regions, regions) && unit.Ids.SetEquals(modelIds.Where(regions.Has))) { _region.ShowBands(unit.Meshes, colour); return; }
+        if (_unitMeshes is { } unit && ReferenceEquals(unit.Regions, regions) && unit.Ids.SetEquals(modelIds.Where(regions.Has))) { _region.ShowBands(unit.Meshes, colour); Measured(); return; }
         var meshes = await Task.Run(async () => MoveRegionNode.MeshesOf(await regions.AreaAsync(modelIds).ConfigureAwait(false)));
         if (request != _regionRequest || !ReferenceEquals(regions, _regions) || _region is null || !IsInstanceValid(_region)) return;
         _region.ShowBands(meshes, colour);
+        Measured();
     }
+
+    void Measured() { if (_measuring is { } m && IsInstanceValid(m)) m.Visible = false; }
     int _regionRequest;
 
     /// <summary>MoveRegions.Prepare (the lead's area first, then every reach and the unit's area), then the unit's vertex arrays, all on the pool.</summary>
@@ -188,6 +196,28 @@ public partial class DecisionBox
             // Uploaded into the area's hidden set on the main thread now, so the pickup only swaps it in.
             Callable.From(() => { if (_unitMeshes == made && _region is not null && IsInstanceValid(_region)) _region.Stage(made.Meshes, colour); }).CallDeferred();
         });
+    }
+
+    /// <summary>Behind the loading curtain: what a move Ask's opening makes and draws once (PrepareHold's rulers and landing rings, the area's
+    /// bands, the paths) for my team's largest unit on the table, so the first move Ask neither creates those nodes nor compiles their
+    /// pipelines. Each Ask still draws them once (WarmAsk).</summary>
+    public void WarmMove()
+    {
+        if (_s.Projection is not { } p || _region is null || !IsInstanceValid(_region)) return;
+        var models = p.Models.Values.Where(m => m.Location is OnTable).GroupBy(m => m.UnitId)
+            .OrderByDescending(g => p.Units.TryGetValue(g.Key, out var u) && _s.Game?.Participants.FirstOrDefault(x => x.Id == u.ParticipantId)?.TeamId == _s.MyTeamId)
+            .ThenByDescending(g => g.Count()).FirstOrDefault()?.ToList();
+        if (models is null || models.Count == 0) return;
+        var at = ((OnTable)models[0].Location).Placement.Position;
+        WarmAsk([.. models.Select(m => m.Slot.Base)], at, Palette.Team(MyOrdinal));
+    }
+
+    /// <summary>The move's meshes drawn once under the slab at `at`, before any pickup.</summary>
+    void WarmAsk(IReadOnlyList<Base> bases, Point3 at, Color colour)
+    {
+        _input.PrepareHold(bases, at);
+        if (_region is not null && IsInstanceValid(_region)) _region.Warm(at, colour);
+        _view.Paths.Warm(at, colour);
     }
 
     /// <summary>How far a ghost has moved: along its path round what it may not pass (MoveRegions.Route), else in a straight line.</summary>

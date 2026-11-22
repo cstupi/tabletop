@@ -25,6 +25,25 @@ public class LoadSettledTests
         Assert.True(settled.Done);
     }
 
+    /// <summary>The settling work as steps, one a frame after the settling frame, a step repeating until it says it is done; the quiet frames
+    /// count from the last step.</summary>
+    [Fact]
+    public void Settling_steps_run_one_a_frame_and_the_quiet_frames_follow_the_last()
+    {
+        var settled = new LoadSettled(quietFrames: 1); var ran = new List<string>(); var waits = 0;
+        Assert.True(settled.Update(standing: true, modelsDone: 0, modelsTotal: 0, T0));
+        settled.Then(() => ran.Add("a"));
+        settled.Then(() => { ran.Add("wait"); return ++waits == 2; });
+        settled.Then(() => ran.Add("b"));
+        Assert.False(settled.Update(true, 0, 0, T0)); Assert.Equal(["a"], ran);
+        Assert.False(settled.Update(true, 0, 0, T0)); Assert.Equal(["a", "wait"], ran);
+        Assert.False(settled.Update(true, 0, 0, T0)); Assert.Equal(["a", "wait", "wait"], ran);
+        Assert.False(settled.Update(true, 0, 0, T0)); Assert.Equal(["a", "wait", "wait", "b"], ran);
+        Assert.False(settled.Done);
+        Assert.False(settled.Update(true, 0, 0, T0));
+        Assert.True(settled.Done);
+    }
+
     [Fact]
     public void A_table_with_no_files_settles_as_it_stands()
     {

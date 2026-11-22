@@ -27,7 +27,7 @@ public sealed class CombatLogState
         get
         {
             if (_undoDone) return _undo;
-            if (_pendingUndoTo is not { } to) _undo = UndoPlan.Of(_log, Names, Entries);
+            if (_pendingUndoTo is not { } to) _undo = UndoPlan.Of(_log, Names, () => Entries);
             else
             {
                 IReadOnlyList<GameEvent> pending = [.. _log, new GameEvent((_log.Count == 0 ? 0 : _log[^1].Seq) + 1, null, new Undone(to), null)];

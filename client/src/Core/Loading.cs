@@ -89,8 +89,8 @@ public sealed class LoadingGate(TimeSpan delay)
 }
 
 /// <summary>Entering a game is over once its table stands with every file of its loading wave in. <see cref="Update"/> is true once, the frame the
-/// client does its settling work behind the curtain (the unit card's controls, the move warm-up, the loading's garbage); <see cref="Done"/>
-/// follows <paramref name="quietFrames"/> frames later, so the new meshes' first draws are paid behind the curtain too. A wave still loading
+/// client starts its settling work behind the curtain (the unit card's controls, the move warm-up, the play warm-up, the loading's garbage),
+/// queued as steps (<see cref="Then(Func{bool})"/>) a frame apart; <see cref="Done"/> follows <paramref name="quietFrames"/> frames after the last, so the new meshes' first draws are paid behind the curtain too. A wave still loading
 /// <paramref name="patience"/> after the table stood settles anyway, and the strip shows the rest. Main thread only.</summary>
 public sealed class LoadSettled(int quietFrames = 2, TimeSpan? patience = null)
 {
@@ -98,12 +98,24 @@ public sealed class LoadSettled(int quietFrames = 2, TimeSpan? patience = null)
     TimeSpan? _standingSince;
     int _after = -1;
 
-    public bool Done => _after >= quietFrames;
+    readonly Queue<Func<bool>> _steps = new();
+
+    public bool Done => _after >= quietFrames && _steps.Count == 0;
+
+    /// <summary>A step of the settling work, run in a frame of its own after the settling frame (so no frame behind the curtain carries all of
+    /// it), repeated each frame until it returns true. The quiet frames count from the last step.</summary>
+    public void Then(Func<bool> step) => _steps.Enqueue(step);
+    public void Then(Action step) => Then(() => { step(); return true; });
 
     /// <summary>Per frame. <paramref name="standing"/>: the table stands (<see cref="LoadingView.Entry"/> has nothing to say).</summary>
     public bool Update(bool standing, int modelsDone, int modelsTotal, TimeSpan now)
     {
-        if (_after >= 0) { if (_after < quietFrames) _after++; return false; }
+        if (_after >= 0)
+        {
+            if (_steps.TryPeek(out var step)) { if (step()) _steps.Dequeue(); return false; }
+            if (_after < quietFrames) _after++;
+            return false;
+        }
         if (!standing) return false;
         _standingSince ??= now;
         if (modelsDone < modelsTotal && now - _standingSince.Value < _patience) return false;

@@ -8,14 +8,21 @@ namespace Tabletop.Client.Core;
 /// caused it, and is part of that answer. A pass on a window (an Ask with a WindowKind: before-attacking, a reaction) is no action either:
 /// undoing it alone only reopens the window it passed, so it goes with the action before it. The engine events after it go with it. The target is the live seq
 /// immediately before the action, 0 when none: the server accepts only a live seq. LostRolls: each live roll, as the combat log's line,
-/// once, when it or a live reroll or hand edit of it is after the target, ordered by the earliest such seq.
+/// once, when it or a live reroll or hand edit of it is after the target, ordered by the earliest such seq. They are read from the combat log on
+/// first use (a press), so the button's every render does not build the log.
 /// </summary>
-public sealed record UndoPlan(long ToSeq, GameEvent Action, string Tooltip, IReadOnlyList<string> LostRolls)
+public sealed class UndoPlan(long toSeq, GameEvent action, string tooltip, Func<IReadOnlyList<string>> lostRolls)
 {
+    public long ToSeq { get; } = toSeq;
+    public GameEvent Action { get; } = action;
+    public string Tooltip { get; } = tooltip;
+    IReadOnlyList<string>? _lost;
+    public IReadOnlyList<string> LostRolls => _lost ??= lostRolls();
+
     public static UndoPlan? Of(IReadOnlyList<GameEvent> log, Names n) => Of(log, n, null);
 
-    /// <summary>With the combat log already built over this log (CombatLogState), so the plan does not build it again.</summary>
-    public static UndoPlan? Of(IReadOnlyList<GameEvent> log, Names n, IReadOnlyList<LogEntry>? entries)
+    /// <summary>With the combat log over this log as CombatLogState builds it (once, shared), so the plan does not build it again.</summary>
+    public static UndoPlan? Of(IReadOnlyList<GameEvent> log, Names n, Func<IReadOnlyList<LogEntry>>? entries)
     {
         var live = EventApplier.EffectiveLog(log);
         var at = -1;
@@ -25,7 +32,7 @@ public sealed record UndoPlan(long ToSeq, GameEvent Action, string Tooltip, IRea
         for (var i = live.Count - 1; i >= 0 && at < 0; i--) if (live[i].Actor is not null && live[i].Payload is not (Undone or AskClosed) && !WindowPass(live[i])) at = i;
         if (at < 0) return null;
         var to = at == 0 ? 0 : live[at - 1].Seq;
-        return new UndoPlan(to, live[at], "Undo: " + LogText.Describe(live[at], n), Lost(entries ?? CombatLog.Build(log, n), to));
+        return new UndoPlan(to, live[at], "Undo: " + LogText.Describe(live[at], n), () => Lost(entries?.Invoke() ?? CombatLog.Build(log, n), to));
     }
 
     static IReadOnlyList<string> Lost(IReadOnlyList<LogEntry> entries, long to)

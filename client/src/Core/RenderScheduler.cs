@@ -8,7 +8,9 @@ public enum RenderCause { None = 0, Events = 1, Game = 2, Board = 4, Facts = 8 }
 /// One render per dispatcher turn for the parts that redraw from Session's current state (performance review → finding 4).
 /// Session marks each EventsApplied, GameChanged, BoardChanged and FactsChanged; the first mark posts one Flush through the
 /// dispatcher, and every mark before it runs folds into it. On Godot the post is a deferred call, so the batches already
-/// queued for this frame land first and the parts render once, in subscription order, before the frame ends.
+/// queued for this frame land first and the parts render once, in subscription order. The flush posts each part's render as its own
+/// dispatcher action, so the dispatcher's frame budget spreads a heavy render (an Ask's card, the dice tray, the header) over frames
+/// instead of one long frame; a part that unsubscribed before its turn is skipped.
 /// </summary>
 public sealed class RenderScheduler(IDispatcher dispatcher)
 {
@@ -29,6 +31,13 @@ public sealed class RenderScheduler(IDispatcher dispatcher)
     {
         var causes = _pending;
         _pending = RenderCause.None;    // a mark raised by a render posts its own flush
-        if (causes != RenderCause.None) Render?.Invoke(causes);
+        if (causes == RenderCause.None || Render is not { } parts) return;
+        foreach (var part in parts.GetInvocationList())
+        {
+            var render = (Action<RenderCause>)part;
+            dispatcher.Post(() => { if (Subscribed(render)) render(causes); });
+        }
     }
+
+    bool Subscribed(Action<RenderCause> part) => Render is { } all && !ReferenceEquals(Delegate.Remove(all, part), all);
 }

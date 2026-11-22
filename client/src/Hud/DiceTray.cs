@@ -49,8 +49,17 @@ public partial class DiceTray : PanelContainer
         if (_s is not null) { _s.Frame.Render -= _onFrame; _s.HudChanged -= _onHud; }
     }
 
+    /// <summary>The log the latest roll was read from and how long it was: a later batch that touches no roll (CombatLog.TouchesRolls) keeps it,
+    /// so a move or a step without dice does not build the combat log.</summary>
+    IReadOnlyList<GameEvent>? _readLog; int _readCount; Tabletop.Protocol.Projection? _readFrom;
+
     void Render()
     {
+        var log = _s.Log;
+        var same = _s.Projection is not null && ReferenceEquals(log, _readLog) && log.Count >= _readCount && ReferenceEquals(_s.Projection.Board, _readFrom?.Board)
+            && !CombatLog.TouchesRolls(log, _readCount);
+        (_readLog, _readCount, _readFrom) = (log, log.Count, _s.Projection);
+        if (same) { Visible = _shown is not null && !_covered; return; }
         var latest = _s.Projection is not null ? _s.CombatLog?.Latest : null;
         Visible = latest is not null && !_covered;
         var changed = latest is not null && (_shown is null || _shown.Record.Id != latest.Record.Id || !_shown.Dice.SequenceEqual(latest.Dice));

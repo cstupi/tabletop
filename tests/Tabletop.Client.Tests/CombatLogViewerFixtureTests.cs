@@ -72,7 +72,7 @@ public class CombatLogViewerFixtureTests
         var names = new Names(game, projection);
         var entries = CombatLog.Build(events, names);
         var latest = CombatLog.Latest(entries);
-        var plan = UndoPlan.Of(events, names, entries);
+        var plan = UndoPlan.Of(events, names, () => entries);
         return new JsonObject
         {
             ["name"] = name,

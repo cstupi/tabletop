@@ -99,6 +99,18 @@ public class UndoPlanTests
         Assert.Equal(3L, plan.Action.Seq);
     }
 
+    /// <summary>The button renders on every batch and reads only the target and the tooltip: the combat log is built when a press reads the lost rolls, once.</summary>
+    [Fact]
+    public void The_lost_rolls_build_the_combat_log_on_first_read_only()
+    {
+        var (_, log, n) = Plan(Engine(Round1), Me(Move));
+        var built = 0;
+        var plan = UndoPlan.Of(log, n, () => { built++; return CombatLog.Build(log, n); });
+        Assert.Equal(0, built);
+        Assert.Empty(plan!.LostRolls); Assert.Empty(plan.LostRolls);
+        Assert.Equal(1, built);
+    }
+
     [Fact]
     public void A_range_with_no_rolls_loses_none()
     {

@@ -148,14 +148,13 @@ public partial class GameScreen : Control
         // megabytes) is collected; the curtain lifts LoadSettled's frames later, once the new meshes have drawn.
         if (_session.GameId is not null && _settled.Update(table is null && _session.Phase == SessionPhase.Connected, done, total, now))
         {
-            _card?.Prebuild();
-            if (_session.Projection is { } p) MoveWarmup.Run(p, Table.Volumes, Table.Size);
             // The rest of a pickup's first frame compiled on the pool meanwhile (MoveWarmup.Precompile).
             _ = System.Threading.Tasks.Task.Run(() => MoveWarmup.Precompile(typeof(TableInput), typeof(DecisionBox), typeof(MovePathNode), typeof(RulerNode),
                 typeof(LandingMarks), typeof(ViolationMarks), typeof(MoveRegionNode), typeof(DragBodies), typeof(Geometry.Collision), typeof(Geometry.Contacts),
                 typeof(ContactCheck), typeof(MoveRuler), typeof(MovePaths), typeof(MovePathCache), typeof(Geometry.SweptPath), typeof(Geometry.Movement),
-                typeof(MarkLabels), typeof(Violations), typeof(KeepAwayArea), typeof(DecisionCard), typeof(MoveRegions), typeof(Geometry.MoveReach), typeof(RulerPath)));
-            GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+                typeof(MarkLabels), typeof(Violations), typeof(KeepAwayArea), typeof(DecisionCard), typeof(MoveRegions), typeof(Geometry.MoveReach), typeof(RulerPath),
+                typeof(HoverLabels), typeof(RangeRingNode), typeof(BattleFx), typeof(BattleEffects), typeof(SoundPlayer), typeof(SoundCues)));
+            QueueSettling();
         }
         var entry = LoadingView.Curtain(table, _entered || _session.GameId is null || _settled.Done, done, total);
         if (entry is null && _session.Phase == SessionPhase.Connected) _entered = true;
