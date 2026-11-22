@@ -214,7 +214,7 @@ public partial class UnitCard : VBoxContainer
             case UnitCardPart.Rules:
                 if (m.Rules.Count == 0) break;
                 Caption(box, "Rules");
-                var rules = Kids(box.Take("flow", () => new HFlowContainer())).Begin();
+                var rules = Kids(box.Take("flow", () => Chips(new HFlowContainer()))).Begin();
                 foreach (var r in m.Rules) RuleChip(rules, r);
                 rules.End();
                 break;
@@ -331,7 +331,7 @@ public partial class UnitCard : VBoxContainer
             Look.Text(cells.Take("range", () => new Label()), w.Range);
             Look.Text(cells.Take("attacks", () => new Label()), w.Attacks);
             var ap = cells.Take("ap", () => new Label { MouseFilter = MouseFilterEnum.Stop }); Look.Text(ap, w.Ap); Look.Tip(ap, w.ApRule is { } r ? Tooltip(r) : "");
-            var flow = Kids(cells.Take("rules", () => new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill })).Begin();
+            var flow = Kids(cells.Take("rules", () => Chips(new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }))).Begin();
             foreach (var rule in w.Rules) RuleChip(flow, rule);
             flow.End();
         }
@@ -389,5 +389,12 @@ public partial class UnitCard : VBoxContainer
                 r.Within switch { true => Variation.Success, false => Variation.Warning, null => "" });
         lines.End();
         _strip.Visible = true;
+    }
+
+    /// <summary>A flow of rule chips: a step apart across, more than a chip's own padding, so neighbours never read as one; a half-step between lines.</summary>
+    static HFlowContainer Chips(HFlowContainer flow)
+    {
+        flow.AddThemeConstantOverride("h_separation", Space.S); flow.AddThemeConstantOverride("v_separation", Space.XS);
+        return flow;
     }
 }
