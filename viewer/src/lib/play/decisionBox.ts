@@ -15,7 +15,7 @@ import { confirmLabel, mine as myAsk, spendableBy, answeredBy, type AskView } fr
 import { actionsOf, numberActions, type CardAction } from './cardActions';
 import { CasualtyPick } from './casualtyPick';
 import { groupsOf, headOf, keyCap, quietOf, unitPips, type AllowanceBar, type CardHead, type OptionGroup, type OptionTile, type RevealChip } from './decisionCard';
-import { choicesOf, clickAnswers, othersPiece, decisionOf, number as numberChoices, unitNamed, type Numbered } from './decisionView';
+import { choicesOf, clickAnswers, narrowed, othersPiece, decisionOf, number as numberChoices, unitNamed, type Numbered } from './decisionView';
 import { midDeploy, offTable, pickable, type MidDeploy } from './deployView';
 import { drawnKey, setAsideChipOf, setAsideCommand, type SetAsideChip } from './setAsideView';
 import { Names } from './names';
@@ -60,6 +60,8 @@ export interface DecisionHost {
   rules(): RuleTexts; send(command: Command): Promise<SendOutcome>;
   /** Every Refused, including one for a send that already settled (GameConnection.onRefused). */
   onRefused(listener: (refused: Refused) => void): () => void;
+  /** The selected unit or model (TableInput.Selected): an activation drawn with one selected starts narrowed to it. */
+  selected?(): string | null;
 }
 
 /** DecisionBox.Move.cs's half, filled by D2; null renders a move's title and hint with no controls. */
@@ -325,7 +327,7 @@ export class DecisionBox {
   #renderChoose(mine: AskView, game: GameInfo, names: Names): void {
     const options = mine.ask.legal as Options;
     const all = options.choices;
-    let narrowed = false;
+    let isNarrowed = false;
     const full = this.#numbered;
     const send = (c: AskOption) => () => this.#send(mine.ask, { kind: 'chosen', optionId: c.id });
     const show = (shown: readonly AskOption[], numbered: readonly Numbered[]): void => {
@@ -344,9 +346,10 @@ export class DecisionBox {
       });
       this.#segment(items);
     };
-    show(all, full);
-    this.handlers.onNumber = (option) => this.#send(mine.ask, { kind: 'chosen', optionId: option });
     const p0 = this.#host.state().projection;
+    const kept = p0 === null ? null : narrowed(options, p0, this.#host.selected?.() ?? null);
+    if (kept !== null) { isNarrowed = true; show(kept, numberChoices(kept)); } else show(all, full);   // drawn again with a unit selected: its keys stay
+    this.handlers.onNumber = (option) => this.#send(mine.ask, { kind: 'chosen', optionId: option });
     this.#eligible = p0 === null ? new Set() : clickAnswers(options, mine.ask, p0, game);
     this.handlers.onTarget = (clicked) => {
       const p = this.#host.state().projection;
@@ -358,10 +361,10 @@ export class DecisionBox {
       const p = this.#host.state().projection;
       if (p === null) return;
       const hits = choicesOf(options, p, unit);
-      if (hits.length === 0) { if (narrowed) { narrowed = false; show(all, full); } return; }
-      narrowed = true; show(hits, numberChoices(hits));
+      if (hits.length === 0) { if (isNarrowed) { isNarrowed = false; show(all, full); } return; }
+      isNarrowed = true; show(hits, numberChoices(hits));
     };
-    this.handlers.onCancel = () => { if (!narrowed) return false; narrowed = false; show(all, full); return true; };
+    this.handlers.onCancel = () => { if (!isNarrowed) return false; isNarrowed = false; show(all, full); return true; };
   }
 
   /** The glow a model draws in for the open Ask: lit by the hovered option, else a pick's ghost, else the Ask's glow. */
