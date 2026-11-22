@@ -28,6 +28,9 @@
   import { ReplayTimeline } from './replayTimeline';
   import { replayCardOf, replayHeaderOf, terrainNamer, unitSelection } from './replayView';
   import { parseCatalog } from '../setup/catalog';
+  import { KeptPathCache } from '../play/movePaths';
+  import { pathsOverlay } from '../play/moveOverlays';
+  import { teamOf } from '../play/sheetFocus';
   import type { Auth } from '../shell/auth';
   import { watchUrl } from '../shell/route';
   import Board from '../components/Board.svelte';
@@ -114,6 +117,16 @@
     return projection === null || game === null ? null : sceneOfPlay(projection, game, geometry?.zonePolygons ?? (() => []), namer, undefined, snap?.zones ?? undefined, snap?.markerRange ?? undefined);
   });
   const extent = $derived(scene === null ? undefined : extentOf(scene));
+  // LastMovePath at the position: the last activation's move path until the next activation starts.
+  const keptPaths = new KeptPathCache();
+  const keptDrawn = $derived.by(() => {
+    void version;
+    if (geometry === null || player === null || projection === null || game === null) return [];
+    const paths = keptPaths.of(geometry, player.timeline.shown, projection);
+    if (paths.length === 0) return [];
+    const unit = projection.models.get(paths[0]!.modelId)?.unitId;
+    return [pathsOverlay(paths, teamColour(unit === undefined ? 1 : teamOf(projection, game, unit)?.ordinal ?? 1))];
+  });
   const header = $derived.by(() => { void version; return projection === null || game === null ? null : replayHeaderOf(projection, game); });
   const card = $derived.by(() => {
     void version;
@@ -177,7 +190,7 @@
     <div class="stage">
       {#if scene !== null && !$tools.finished}<Loading strip text={tableToolsText($tools)} done={$tools.done} total={$tools.total} />{/if}
       {#if scene !== null}
-        <Board {scene} bind:view {extent} models="circles" selected={drawnSelection} interaction={{ onSelect: (hit) => select(hit) }} />
+        <Board {scene} bind:view {extent} overlays={keptDrawn} models="circles" selected={drawnSelection} interaction={{ onSelect: (hit) => select(hit) }} />
       {:else if snap?.closeReason != null}
         <p class="pad" role="alert">{snap.closeReason}</p>
       {:else if loading}

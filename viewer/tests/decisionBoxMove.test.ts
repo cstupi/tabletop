@@ -142,6 +142,20 @@ describe('the move Ask', () => {
     expect(r.disabled('commit')).toBe(false);
   });
 
+  it('a path crossing dangerous ground warns, marks its model and never holds the commit, even under strict', () => {
+    const r = moveRig({ enforcement: 'strict' });
+    const [a] = r.ids as [string, string];
+    r.openMove(region({ modelIds: r.ids, allowance: 100 }));
+    r.box.dragged(a, at(45, 10));
+    expect(r.disabled('commit')).toBe(false);
+    expect(r.reason()).toMatch(/^.+ crosses terrain: Dangerous terrain test\.$/);
+    expect(r.violations.warned.get(a)).toBe('Dangerous terrain test');
+    expect(r.hooks.paths().find((p) => p.modelId === a)?.footprints.some((f) => f.dangerous)).toBe(true);
+    r.box.dragged(a, at(12, 10));
+    expect(r.reason()).toBe('');
+    expect(r.violations.warned.size).toBe(0);
+  });
+
   it('under warn the reason shows and Commit sends', () => {
     const r = moveRig({ enforcement: 'warn' });
     const [a] = r.ids as [string, string];
