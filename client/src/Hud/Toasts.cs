@@ -3,11 +3,12 @@ using Tabletop.Client.Theming;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>Top right, in every status: the newest three messages stacked, each gone after 4 s.</summary>
+/// <summary>Top right, in every status: the newest three messages stacked, each gone after Toast duration (4 s by default).</summary>
 public partial class Toasts : VBoxContainer
 {
     const int Kept = 3;
-    const double Seconds = 4;
+    /// <summary>How long a toast stays: Options → Interface → Toast duration, which Main sets.</summary>
+    public static double Seconds { get; set; } = 4;
 
     public Toasts() => MouseFilter = MouseFilterEnum.Ignore;
 

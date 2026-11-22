@@ -45,7 +45,7 @@ public partial class FloatingText : Control
                 _live.Add((WorldFrame.ToGodot(r.At!.Value) + Vector3.Up * (2.2f + 0.6f * i++), label, 0));
             }
         }
-        if (_pendingNumbers.Remove(e.Seq, out var numbers) && _s.Settings.Animate)
+        if (_pendingNumbers.Remove(e.Seq, out var numbers) && _s.Settings.Animate && _s.Settings.WoundNumbers)
             foreach (var n in numbers)
             {
                 var label = _spareNumbers.Count > 0 ? _spareNumbers.Pop() : NewNumber();

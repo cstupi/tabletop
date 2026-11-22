@@ -60,9 +60,9 @@ public static class ThemeBuilder
         Variant(t, Variation.DieFace, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Dice.Mark), 1, 2));
         Variant(t, Variation.DieMiss, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Failure), 2, 2));
         foreach (var (v, c) in new[] { (Variation.Dim, u.DimText), (Variation.Accent, u.Accent), (Variation.Success, u.Success), (Variation.Failure, u.Failure), (Variation.Warning, u.Warning) }) LabelVariant(t, v, c: C(c));
-        LabelVariant(t, Variation.Display, u.Display); LabelVariant(t, Variation.Mono, UiThemes.Mono, C(u.Text)); LabelVariant(t, Variation.Numerals, u.Numerals, C(u.Dice.Mark)); LabelVariant(t, Variation.Banner, u.Display with { Size = 48 }, C(u.Accent));
+        LabelVariant(t, Variation.Display, u.Display); LabelVariant(t, Variation.Mono, UiThemes.Mono with { Size = UiThemes.Scaled(UiThemes.Mono.Size, u.TextSize) }, C(u.Text)); LabelVariant(t, Variation.Numerals, u.Numerals, C(u.Dice.Mark)); LabelVariant(t, Variation.Banner, u.Display with { Size = UiThemes.Scaled(48, u.TextSize) }, C(u.Accent));
         t.SetColor("font_outline_color", Variation.Banner, C(u.Background)); t.SetConstant("outline_size", Variation.Banner, 6);
-        LabelVariant(t, Variation.BannerDetail, u.Display with { Size = 24 }, C(u.Text));
+        LabelVariant(t, Variation.BannerDetail, u.Display with { Size = UiThemes.Scaled(24, u.TextSize) }, C(u.Text));
         t.SetColor("font_outline_color", Variation.BannerDetail, C(u.Background)); t.SetConstant("outline_size", Variation.BannerDetail, 4);
         Vocabulary(t, u);
         return t;

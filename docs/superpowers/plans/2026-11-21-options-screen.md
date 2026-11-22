@@ -70,3 +70,16 @@
 
 - [ ] Tests: every category but Controls has rows; Set is pending until Apply; Revert restores; ResetTab touches only its tab; a conflicting Bind without swap reports, with swap gives the other intent the old key; Quality resets Render scale; NeedsConfirm on display/resolution only; colour-blind palette distinct under deuteranopia, protanopia and tritanopia simulation and ≥ 3:1 against both themes' panels, none within 40° hue of Success.
 - [ ] Implement; run tests; commit.
+
+### Task 4: Wire the settings into the client
+
+**Files:** `client/src/Main.cs`, `Table/OrbitCamera.cs`, `Table/TableInput.cs`, `Table/TableInput.Keys.cs`, `Table/SoundPlayer.cs`, `Table/FloatingText.cs`, `Table/TableView.cs`, `Table/GraphicsApplier.cs`,
+`Hud/LogDrawer.cs`, `Hud/DecisionBox.cs`, `Hud/Toasts.cs`, `Theme/ThemeBuilder.cs`; create `Table/HotkeyInput.cs`, `Table/AudioBuses.cs`, `Hud/FpsCounter.cs`, `client/default_bus_layout.tres`; test `CameraFocusTests`.
+
+- Camera: `CameraFocus.ZoomStep(zoomIn, speedPercent, invert)` (10 % a step at 100 %), `EdgePan(pointer, size)` (8 px band), `HeldIntents` polled through `HotkeyInput.Held`; speeds scale pan, orbit, right-drag; Reduce motion snaps `Centre`.
+- Keys: `Hotkeys.Bindings = settings.Keys` in `Main`; a binding, theme, text size or colour-blind change rebuilds the theme (`Ui.Changed`), so every cap redraws.
+- Audio: Effects/Interface buses in the layout (and `AudioBuses.Ensure`); `SoundPlayer` voices on Effects; Master = `Volume`; Mute in background on focus out.
+- Interface: `Window.ContentScaleFactor = UiScale/100`; `gui/timers/tooltip_delay_sec`; `Toasts.Seconds`; `FpsCounter` (`ShowFps`).
+- Theme: `UiThemes.Adjusted` in `Main.ApplyTheme`; banner and mono sizes scale by `UiTheme.TextSize`; `TableView` redraws on `Ui.Changed` for team tints.
+- Video: `DisplayMode.Exclusive` → `ExclusiveFullscreen`; `GraphicsApplier.Resize`, `ScreenOf`.
+- [ ] Build 0 errors, tests pass, commit.

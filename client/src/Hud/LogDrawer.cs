@@ -6,14 +6,15 @@ using Tabletop.Client.Theming;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>Lower right: a button (`≡ Log G`, held down while open) that opens the log above it. G toggles it. GameScreen.Layout places both through Place.</summary>
+/// <summary>Lower right: a button (`≡ Log G`, held down while open, the cap the log key's binding) that opens the log above it. The log key toggles it. GameScreen.Layout places both through Place.</summary>
 public partial class LogDrawer : Control
 {
     Session _s = null!;
     readonly PanelContainer _drawer = new() { Visible = false };
     readonly CombatLogPanel _log = new();
     public CombatLogPanel CombatLog => _log;
-    readonly Button _toggle = HudBits.CapButton("log", "Log", "G", "Open or close the log");
+    readonly Button _toggle = HudBits.CapButton("log", "Log", Hotkeys.Bindings.Cap(Intent.ToggleLog), "Open or close the log");
+    string _cap = Hotkeys.Bindings.Cap(Intent.ToggleLog);
     /// <summary>The Log button, whose height the Hud's button row takes.</summary>
     public Control Toggle => _toggle;
     /// <summary>The open log panel; hidden while the drawer is closed.</summary>
@@ -34,12 +35,14 @@ public partial class LogDrawer : Control
         inner.AddChild(_log); _log.Bind(session, view, message => Reported?.Invoke(message));
         AddChild(_drawer); AddChild(_toggle);
         _toggle.Pressed += Flip;
-        Ui.Changed += Refill;
+        Ui.Changed += Refill; session.SettingsChanged += OnSettings;
         SetOpen(session.Settings.LogOpen);
     }
 
-    void Refill() => HudBits.Fill(_toggle, "log", "Log", "G");
-    public override void _ExitTree() => Ui.Changed -= Refill;
+    void Refill() { _cap = Hotkeys.Bindings.Cap(Intent.ToggleLog); HudBits.Fill(_toggle, "log", "Log", _cap); }
+    /// <summary>A rebind of the log's key shows on the button.</summary>
+    void OnSettings() { if (Hotkeys.Bindings.Cap(Intent.ToggleLog) != _cap) Refill(); }
+    public override void _ExitTree() { Ui.Changed -= Refill; if (_s is not null) _s.SettingsChanged -= OnSettings; }
 
     public void Flip() { SetOpen(!_drawer.Visible); _s.UpdateSettings(x => x with { LogOpen = _drawer.Visible }); }
 

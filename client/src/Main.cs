@@ -17,7 +17,9 @@ public partial class Main : Node
     public HttpClient Http { get; } = ClientHttp.Create();
     Node? _screen;
     string _settingsPath = "", _warmupPath = "";
-    bool _warming = true;   // no screen until the shader warm-up has run (or was not needed)
+    bool _warming = true;
+    string _themeKey = "";
+    readonly FpsCounter _fps = new();   // no screen until the shader warm-up has run (or was not needed)
     readonly GodotDispatcher _dispatcher = new();
 
     public override void _Ready()
@@ -32,10 +34,19 @@ public partial class Main : Node
         Session = new Session(management, new ClientGameSocketFactory(), store, settings, s => s.Save(_settingsPath), _dispatcher);
         // A first start's Quality follows the GPU: Low where it shares the CPU's memory.
         if (!ClientSettings.NamesQuality(_settingsPath)) Session.UpdateSettings(s => s with { Quality = GraphicsSettings.FirstQuality(GraphicsApplier.Gpu()) });
+        Hotkeys.Bindings = Session.Settings.Keys;
+        AudioBuses.Ensure();
         ApplyTheme();
+        AddChild(_fps);
+        ApplyInterface();
         GetWindow().MinSize = new Vector2I(GraphicsSettings.MinWindowWidth, GraphicsSettings.MinWindowHeight);
         ApplyGraphics(start: true);
-        Session.SettingsChanged += () => { if (UiThemes.Resolve(Session.Settings.Theme) != Ui.Current) ApplyTheme(); ApplyGraphics(start: false); };
+        Session.SettingsChanged += () =>
+        {
+            // A theme, its text size or team colours, or a key binding: every part draws again with the new theme (and the new key caps).
+            if (ThemeKey(Session.Settings) != _themeKey) { Hotkeys.Bindings = Session.Settings.Keys; ApplyTheme(); }
+            ApplyGraphics(start: false); ApplyInterface();
+        };
         Cache = new AssetCache(data.Cache, Http);
         // Built-in content: the saved server catalog, else the packed one; a release's new version syncs while signed in. Its files come
         // from the cache, from res:// where this build packs them (a development run), else on demand.
@@ -73,7 +84,12 @@ public partial class Main : Node
         if (r != Session.Settings.Window) Session.UpdateSettings(s => s with { Window = r });
     }
 
-    public override void _Notification(int what) { if (what == NotificationWMCloseRequest) SaveWindowRect(); }
+    public override void _Notification(int what)
+    {
+        if (what == NotificationWMCloseRequest) SaveWindowRect();
+        else if (what is (int)NotificationApplicationFocusIn or (int)NotificationApplicationFocusOut && Session is not null)
+            AudioBuses.Apply(Session.Settings, what == NotificationApplicationFocusIn);   // Mute in background
+    }
 
     /// <summary>What outlives the screens (the built-in meshes' templates, the prints) goes before Godot's servers do.</summary>
     public override void _ExitTree()
@@ -82,9 +98,24 @@ public partial class Main : Node
         MeshLoader.FreeBuiltins(); PrintTextures.Clear();
     }
 
+    /// <summary>What the built theme depends on: the theme, its text size and team colours, and the key bindings the parts draw as caps.</summary>
+    static string ThemeKey(ClientSettings s) => $"{UiThemes.Resolve(s.Theme).Id}|{s.TextSize}|{s.ColourBlind}|{string.Join(",", s.KeyOverrides.OrderBy(k => k.Key).Select(k => $"{k.Key}={string.Join("/", k.Value)}"))}";
+
+    /// <summary>Options → Interface and Audio: the UI scale (the window's content scale), the tooltip delay, the toast time, the bus volumes, the frame counter.</summary>
+    void ApplyInterface()
+    {
+        var s = Session.Settings; var w = GetWindow();
+        if (!Mathf.IsEqualApprox(w.ContentScaleFactor, s.UiScale / 100f)) w.ContentScaleFactor = s.UiScale / 100f;
+        ProjectSettings.SetSetting("gui/timers/tooltip_delay_sec", s.TooltipMs / 1000.0);
+        Toasts.Seconds = s.ToastSeconds;
+        AudioBuses.Apply(s, w.HasFocus());
+        _fps.Visible = s.ShowFps;
+    }
+
     void ApplyTheme()
     {
-        Ui.Apply(UiThemes.Resolve(Session.Settings.Theme), theme =>
+        _themeKey = ThemeKey(Session.Settings);
+        Ui.Apply(UiThemes.Adjusted(UiThemes.Resolve(Session.Settings.Theme), Session.Settings.TextSize, Session.Settings.ColourBlind), theme =>
         {
             GetTree().Root.Theme = theme;
             if (_screen is Control c) c.Theme = theme;

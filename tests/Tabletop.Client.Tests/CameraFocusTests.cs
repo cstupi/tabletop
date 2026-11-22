@@ -150,4 +150,24 @@ public class CameraFollowMeleeTests
             Assert.Contains(run.Moves, m => m.Seq == e.Seq && m.Kind == "follow");
         Assert.Contains(run.Moves, m => m.Kind == "side");
     }
+
+    [Fact]
+    public void Zoom_steps_follow_the_zoom_speed_and_the_invert_setting()
+    {
+        Assert.Equal(0.9, CameraFocus.ZoomStep(zoomIn: true, speedPercent: 100, invert: false), 9);
+        Assert.Equal(1.1, CameraFocus.ZoomStep(zoomIn: false, speedPercent: 100, invert: false), 9);
+        Assert.Equal(1.2, CameraFocus.ZoomStep(zoomIn: true, speedPercent: 200, invert: true), 9);
+        Assert.Equal(0.95, CameraFocus.ZoomStep(zoomIn: true, speedPercent: 50, invert: false), 9);
+    }
+
+    [Fact]
+    public void The_pointer_at_an_edge_pans_toward_it()
+    {
+        var size = new Point2(1280, 720);
+        Assert.Equal((0, 0), CameraFocus.EdgePan(new Point2(640, 360), size));
+        Assert.Equal((1, 0), CameraFocus.EdgePan(new Point2(640, 2), size));
+        Assert.Equal((-1, 1), CameraFocus.EdgePan(new Point2(1279, 719), size));
+        Assert.Equal((0, -1), CameraFocus.EdgePan(new Point2(0, 300), size));
+        Assert.Equal((0, 0), CameraFocus.EdgePan(new Point2(-50, 300), size));   // outside the window
+    }
 }

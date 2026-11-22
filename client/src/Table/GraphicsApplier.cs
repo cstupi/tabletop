@@ -16,7 +16,8 @@ public static class GraphicsApplier
         if (DisplayServer.WindowGetVsyncMode() != vsync) DisplayServer.WindowSetVsyncMode(vsync);
         if (Engine.MaxFps != s.FpsCap) Engine.MaxFps = s.FpsCap;
         var full = window.Mode is Window.ModeEnum.Fullscreen or Window.ModeEnum.ExclusiveFullscreen;
-        if (s.Display == DisplayMode.Fullscreen) { if (!full) window.Mode = Window.ModeEnum.Fullscreen; }
+        var mode = s.Display == DisplayMode.Exclusive ? Window.ModeEnum.ExclusiveFullscreen : Window.ModeEnum.Fullscreen;
+        if (s.Display != DisplayMode.Windowed) { if (window.Mode != mode) window.Mode = mode; }
         else if (full)
         {
             window.Mode = Window.ModeEnum.Windowed;
@@ -30,6 +31,21 @@ public static class GraphicsApplier
         if (GraphicsSettings.Place(saved, Screens()) is not { } r) return;
         window.Size = new Vector2I(r.Width, r.Height);
         window.Position = new Vector2I(r.X, r.Y);
+    }
+
+    /// <summary>Options → Video → Resolution: the window at the rect's size and place, when windowed.</summary>
+    public static void Resize(Window window, WindowRect r)
+    {
+        if (window.Mode != Window.ModeEnum.Windowed) return;
+        window.Size = new Vector2I(r.Width, r.Height);
+        window.Position = new Vector2I(r.X, r.Y);
+    }
+
+    /// <summary>The rect of the screen the window is on: its position and native size.</summary>
+    public static WindowRect ScreenOf(Window window)
+    {
+        var at = DisplayServer.ScreenGetPosition(window.CurrentScreen); var size = DisplayServer.ScreenGetSize(window.CurrentScreen);
+        return new WindowRect(at.X, at.Y, size.X, size.Y);
     }
 
     public static void ApplyAtlas(GraphicsProfile p)
