@@ -5,7 +5,8 @@ namespace Tabletop.Client.Table;
 /// The bar over the acting unit during every step of my activation (spec 2026-11-21-actions-over-unit-design.md, UnitActionsView): a round icon
 /// button per option the decision box offers, in the box's order, then the card's foot actions (the primary lit, a dim one with its reason as
 /// tooltip), centred above the unit's tallest model and above its marker row and name label, following the camera each frame, inside the table's
-/// view and off the Hud's panels (UnitActionsPlace). A click answers as the box's tile or button does; the pointer on an option lights its tile,
+/// view and off the Hud's panels (UnitActionsPlace), held still while the pointer is over it or a drag or press is in progress and eased to its
+/// place otherwise (UnitActionsHold). A click answers as the box's tile or button does; the pointer on an option lights its tile,
 /// and on a tile lights its button. While I pick shooting targets, a target icon stands over each enemy unit I may shoot; a click on it is the
 /// table's click on that unit. Its CanvasLayer inherits no theme, so it sets its own.
 /// </summary>
@@ -17,6 +18,7 @@ public partial class UnitActionsNode : Control
     readonly List<(Button Button, CardAction Action)> _acts = new();
     readonly List<(Button Button, UnitTarget Target)> _targets = new();
     readonly List<HudRect> _covered = new();
+    readonly UnitActionsHold _hold = new();
     UnitActions? _shown; string? _lit; bool _dirty = true, _targetsDirty = true; UnitMarkerNodes? _markers; HoverLabels? _labels; int _labelLines = 1;
     Action? _onDirty, _onTheme, _onTargets; Action<Guid>? _onUnit; Action<string?>? _onTile;
 
@@ -152,11 +154,11 @@ public partial class UnitActionsNode : Control
     {
         if (_dirty) Render();
         if (_targetsDirty) RenderTargets();
-        if (_shown is not { } v) { foreach (var (b, _) in _targets) b.Visible = false; return; }
+        if (_shown is not { } v) { _hold.Reset(); foreach (var (b, _) in _targets) b.Visible = false; return; }
         SyncActs();
         var cam = _view.Camera; var screen = GetViewportRect().Size; var view = new HudRect(0, 0, screen.X, screen.Y); var covered = Covered();
         var top = WorldFrame.ToGodot(v.Anchor);
-        if (cam.IsPositionBehind(top)) _row.Visible = false;
+        if (cam.IsPositionBehind(top)) { _row.Visible = false; _hold.Reset(); }
         else
         {
             var models = cam.UnprojectPosition(top).Y;
@@ -164,6 +166,11 @@ public partial class UnitActionsNode : Control
             var size = _row.GetCombinedMinimumSize();
             var at = UnitActionsPlace.Rect(cam.UnprojectPosition(top).X, models, size.X, size.Y, view, covered, Space.S,
                 Labels()?.NameBox(v.UnitId, _labelLines));                                               // above its name label, shown or not
+            // Held still while the pointer is over it or anything is held (a drag, a press): a drag moves the name label under it, and a
+            // click aimed at Commit right after must land. Otherwise it eases to its place.
+            var held = _row.Visible && new Rect2(_row.Position, _row.Size).Grow(Space.S).HasPoint(GetLocalMousePosition())
+                || _input.EscState.Holding || Godot.Input.IsMouseButtonPressed(MouseButton.Left);
+            at = _hold.Step(v.UnitId, at, held, (float)delta);
             _row.Position = new Vector2(at.X, at.Y); _row.Size = size; _row.Visible = true;
         }
         foreach (var (b, t) in _targets)

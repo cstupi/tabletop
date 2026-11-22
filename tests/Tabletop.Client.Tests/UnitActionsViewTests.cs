@@ -160,3 +160,41 @@ public class UnitActionsViewTests
         Assert.Equal(new HudRect(580, 104, 120, 40), UnitActionsPlace.Rect(640, 68, 120, 40, view, [header], 8));   // under the header
     }
 }
+
+public class UnitActionsHoldTests
+{
+    static readonly Guid A = Guid.NewGuid(), B = Guid.NewGuid();
+
+    [Fact]
+    public void The_first_place_is_taken_at_once_and_a_held_bar_keeps_its_place()
+    {
+        var hold = new UnitActionsHold();
+        Assert.Equal(new HudRect(100, 200, 120, 40), hold.Step(A, new HudRect(100, 200, 120, 40), held: false, 0.016f));
+        // The models were dragged and the name label moved 20 px up: under the pointer the bar stays.
+        Assert.Equal(new HudRect(100, 200, 120, 40), hold.Step(A, new HudRect(100, 180, 120, 40), held: true, 0.016f));
+        Assert.Equal(new HudRect(100, 200, 160, 40), hold.Step(A, new HudRect(100, 180, 160, 40), held: true, 0.016f));   // a new button widens it in place
+    }
+
+    [Fact]
+    public void Let_go_it_eases_to_the_new_place_without_a_jump()
+    {
+        var hold = new UnitActionsHold();
+        hold.Step(A, new HudRect(100, 200, 120, 40), false, 0.016f);
+        var want = new HudRect(100, 180, 120, 40);
+        var first = hold.Step(A, want, false, 0.016f);
+        Assert.True(first.Y < 200 && first.Y > 195, $"{first}");   // a fifth of the gap or less in one frame
+        var at = first;
+        for (var i = 0; i < 60; i++) at = hold.Step(A, want, false, 0.016f);
+        Assert.Equal(want, at);   // settled within a second
+    }
+
+    [Fact]
+    public void Another_unit_or_a_hidden_bar_takes_its_place_at_once()
+    {
+        var hold = new UnitActionsHold();
+        hold.Step(A, new HudRect(100, 200, 120, 40), false, 0.016f);
+        Assert.Equal(new HudRect(600, 300, 120, 40), hold.Step(B, new HudRect(600, 300, 120, 40), false, 0.016f));
+        hold.Reset();
+        Assert.Equal(new HudRect(10, 10, 120, 40), hold.Step(B, new HudRect(10, 10, 120, 40), true, 0.016f));
+    }
+}

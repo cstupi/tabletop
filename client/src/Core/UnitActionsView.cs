@@ -101,3 +101,25 @@ public static class UnitActionsPlace
         return best ?? want;
     }
 }
+
+/// <summary>Where the bar stands from frame to frame: it holds still while held (the pointer over it, a drag or a press in progress), so a
+/// click aimed at it after a drag lands where it was aimed, and otherwise eases to where UnitActionsPlace wants it, never jumping. The first
+/// place after it was hidden, or for another unit, is taken at once.</summary>
+public sealed class UnitActionsHold
+{
+    /// <summary>The ease's rate per second: the gap closes by 1 - e^(-Rate·dt) a frame, nine tenths of it in about 0.19 s.</summary>
+    public const float Rate = 12;
+    HudRect? _at; Guid _unit;
+
+    public HudRect Step(Guid unit, HudRect want, bool held, float dt)
+    {
+        if (_at is not { } at || unit != _unit) { _unit = unit; return (_at = want).Value; }
+        if (held) return (_at = at with { W = want.W, H = want.H }).Value;
+        var k = 1 - MathF.Exp(-Rate * Math.Max(0, dt));
+        float Ease(float from, float to) => Math.Abs(to - from) < 0.5f ? to : from + (to - from) * k;
+        return (_at = want with { X = Ease(at.X, want.X), Y = Ease(at.Y, want.Y) }).Value;
+    }
+
+    /// <summary>The bar was hidden: its next place is taken at once.</summary>
+    public void Reset() => _at = null;
+}
