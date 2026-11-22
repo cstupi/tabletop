@@ -5,7 +5,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Panels;
 
-/// <summary>A section heading that shows and hides the body under it: the section's icon, its title with its facts, room for the section's
+/// <summary>A section heading that shows and hides the body under it (the terrain card's Mesh and Volumes): its title with its facts, room for the section's
 /// one action (<see cref="Actions"/>), and ▸ closed or ▾ open at the right. Its state is kept in the game screen's <see cref="SetupFolds"/>.</summary>
 public partial class Fold : VBoxContainer
 {
@@ -20,23 +20,16 @@ public partial class Fold : VBoxContainer
     {
         _title = title;
         var open = folds.IsOpen(fold, status);
-        AddThemeConstantOverride("separation", 6);
-        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 6); AddChild(row);
+        AddThemeConstantOverride("separation", Space.S);
+        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S); AddChild(row);
         _head = new Button { Flat = true, ThemeTypeVariation = Variation.FlatButton, ToggleMode = true, ButtonPressed = open, Alignment = HorizontalAlignment.Left,
             FocusMode = FocusModeEnum.None, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis };
-        if (SetupFolds.Icon(fold) is { } key)
-        {
-            _head.Icon = Ui.Icon(key);
-            _head.AddThemeConstantOverride("icon_max_width", 20);
-            foreach (var state in new[] { "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_hover_pressed_color", "icon_focus_color" })
-                _head.AddThemeColorOverride(state, Ui.Accent);
-        }
         _head.Toggled += on => { Body.Visible = on; folds.Set(fold, on, status); Refresh(); };
         row.AddChild(_head);
-        Actions.AddThemeConstantOverride("separation", 4); row.AddChild(Actions);
+        Actions.AddThemeConstantOverride("separation", Space.XS); row.AddChild(Actions);
         row.AddChild(_arrow = new Label { ThemeTypeVariation = Variation.Dim, MouseFilter = MouseFilterEnum.Ignore, SizeFlagsVertical = SizeFlags.ShrinkCenter });
         Body.Visible = open;
-        Body.AddThemeConstantOverride("separation", 8);
+        Body.AddThemeConstantOverride("separation", Space.S);
         AddChild(Body);
         Refresh();
     }
