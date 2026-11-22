@@ -20,10 +20,10 @@ public partial class LoginScreen : Control
     public override void _Ready()
     {
         var session = Main.Instance.Session;
+        AddChild(new Backdrop());
         var center = new CenterContainer(); center.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(center);
         var card = new PanelContainer { CustomMinimumSize = new Vector2(CardWidth, 0) };
-        var frame = new StyleBoxFlat { BgColor = Ui.Of(Ui.Current.Panel) with { A = 1 }, BorderColor = Ui.Accent with { A = 0.5f } };
-        frame.SetBorderWidthAll(1); frame.SetCornerRadiusAll(Ui.Current.Shape.CornerRadius); frame.SetContentMarginAll(Space.XL);
+        var frame = ThemeBuilder.Nine(Ui.Current.Materials.Panel, Space.XL, Space.XL);
         card.AddThemeStyleboxOverride("panel", frame);
         center.AddChild(card);
         var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", Space.M); card.AddChild(box);

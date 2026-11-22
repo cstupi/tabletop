@@ -10,28 +10,47 @@ public static class ThemeBuilder
     {
         var t = new Godot.Theme { DefaultFont = FontOf(u.Body), DefaultFontSize = u.Body.Size };
         var s = u.Shape; Color C(Rgba c) => Ui.Of(c);
-        StyleBox panel = Box(s.PanelNinePatch, s.PanelMargin, s, C(u.Panel), C(u.PanelBorder), s.BorderWidth);
+        var m = u.Materials;
+        // Panels and buttons are the theme's materials (spec 2026-11-21-theme-materials-design.md): nine-patches whose drawn frame (the
+        // material's inset) sits outside the padding. A text button pads M across and S down, so every text button is as tall.
+        StyleBox panel = Nine(m.Panel, Space.S, Space.S);
         foreach (var type in new[] { "PanelContainer", "Panel", "TabContainer" }) t.SetStylebox("panel", type, panel);
         // Every dialog (AcceptDialog, ConfirmationDialog): even L padding, L between the content and the button row (buttons_separation),
         // each button at least DialogButtonWidth wide; DialogLayout right-aligns the row and spaces its buttons L apart, Cancel left of the
         // primary (project.godot gui/common/swap_cancel_ok = Cancel First on every platform).
-        StyleBox dialogPanel = Box(s.PanelNinePatch, s.PanelMargin, s, C(u.Panel) with { A = 1 }, C(u.PanelBorder), s.BorderWidth); dialogPanel.SetContentMarginAll(Space.L);
+        StyleBox dialogPanel = Nine(m.Panel, Space.L, Space.L);
         t.SetStylebox("panel", "AcceptDialog", dialogPanel); Variant(t, Variation.DialogCard, "PanelContainer", "panel", dialogPanel);
         t.SetConstant("buttons_separation", "AcceptDialog", Space.L); t.SetConstant("buttons_min_width", "AcceptDialog", DialogButtonWidth);
         // A popup floats over other controls: its panel is opaque, or the text under it reads through a translucent panel colour.
-        StyleBox popup = Box(s.PanelNinePatch, s.PanelMargin, s, C(u.Panel) with { A = 1 }, C(u.PanelBorder), s.BorderWidth);
+        StyleBox popup = Nine(m.Panel, Space.S, Space.S);
         foreach (var type in new[] { "TooltipPanel", "PopupPanel", "PopupMenu" }) t.SetStylebox("panel", type, popup);
-        StyleBox Btn(float light) { var b = Box(s.ButtonNinePatch, s.ButtonMargin, s, C(u.Background).Lightened(light), C(u.PanelBorder), s.BorderWidth); if (b is StyleBoxTexture x) x.ModulateColor = light >= 0 ? Grey.Lightened(light) : Grey.Darkened(-light); return b; }
-        foreach (var (state, light) in new[] { ("normal", 0f), ("hover", 0.15f), ("pressed", 0.3f), ("disabled", -0.2f) }) t.SetStylebox(state, "Button", Btn(light));
-        t.SetStylebox("focus", "Button", new StyleBoxEmpty()); t.SetStylebox("tab_selected", "TabContainer", Btn(0.3f)); t.SetStylebox("tab_unselected", "TabContainer", Btn(0f)); t.SetStylebox("tab_hovered", "TabContainer", Btn(0.15f));
-        t.SetStylebox("normal", "LineEdit", Flat(s, C(u.Panel), C(u.PanelBorder), 1)); t.SetStylebox("focus", "LineEdit", Flat(s, C(u.Panel), C(u.Accent), 1)); t.SetStylebox("panel", "ItemList", Flat(s, C(u.Panel), C(u.PanelBorder), 1));
-        foreach (var type in new[] { "Label", "LineEdit", "ItemList", "TooltipLabel", "PopupMenu", "TabContainer" }) t.SetColor("font_color", type, C(u.Text));
+        foreach (var (state, face) in new[] { ("normal", m.Button), ("hover", m.ButtonHover), ("pressed", m.ButtonPressed), ("hover_pressed", m.ButtonPressed), ("disabled", m.ButtonDisabled) })
+            t.SetStylebox(state, "Button", Nine(face, Space.M, Space.S, stretchDown: true));
+        t.SetStylebox("focus", "Button", new StyleBoxEmpty());
+        t.SetStylebox("tab_selected", "TabContainer", Nine(m.ButtonPressed, Space.M, Space.S, true)); t.SetStylebox("tab_unselected", "TabContainer", Nine(m.Button, Space.M, Space.S, true));
+        t.SetStylebox("tab_hovered", "TabContainer", Nine(m.ButtonHover, Space.M, Space.S, true));
+        // Inputs and dropdowns: the field cut into the material (fantasy's parchment groove, sci-fi's scanline screen), in its own ink.
+        var field = Nine(m.Input, Space.S, Space.S); var focus = Flat(s, C(u.Accent) with { A = 0 }, C(u.Accent), 2); focus.DrawCenter = false;
+        foreach (var type in new[] { "LineEdit", "TextEdit" })
+        {
+            t.SetStylebox("normal", type, field); t.SetStylebox("focus", type, focus); t.SetStylebox("read_only", type, field);
+            t.SetColor("font_color", type, C(m.FieldText)); t.SetColor("font_placeholder_color", type, C(m.FieldDim));
+            t.SetColor("caret_color", type, m.FieldText == u.Text ? C(u.Accent) : C(m.FieldText)); t.SetColor("selection_color", type, C(u.Accent) with { A = 0.35f });
+            t.SetColor("font_uneditable_color", type, C(m.FieldDim));
+        }
+        foreach (var (state, light) in new[] { ("normal", 1f), ("hover", 1.08f), ("pressed", 0.9f), ("hover_pressed", 0.9f), ("disabled", 0.7f) })
+        { var b = Nine(m.Input, Space.M, Space.S); b.ModulateColor = new Color(light, light, light); t.SetStylebox(state, "OptionButton", b); }
+        t.SetStylebox("focus", "OptionButton", new StyleBoxEmpty());
+        foreach (var name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color" }) t.SetColor(name, "OptionButton", C(m.FieldText));
+        t.SetColor("font_disabled_color", "OptionButton", C(m.FieldDim)); t.SetConstant("modulate_arrow", "OptionButton", 1); t.SetConstant("arrow_margin", "OptionButton", Space.S);
+        t.SetStylebox("panel", "ItemList", Flat(s, C(u.Panel), C(u.PanelBorder), 1));
+        foreach (var type in new[] { "Label", "ItemList", "TooltipLabel", "PopupMenu", "TabContainer" }) t.SetColor("font_color", type, C(u.Text));
         t.SetColor("default_color", "RichTextLabel", C(u.Text)); t.SetColor("selection_color", "RichTextLabel", C(u.Accent) with { A = 0.35f });
         t.SetStylebox("focus", "RichTextLabel", new StyleBoxEmpty());
         foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color" }) t.SetColor(name, "Button", C(u.ButtonText));
         // Disabled text on the button face: the face's own text colour, faded, which reads on a dark face (fantasy) and a light one alike.
         t.SetColor("font_pressed_color", "Button", C(u.Accent)); t.SetColor("font_disabled_color", "Button", C(u.ButtonText) with { A = 0.5f });
-        foreach (var type in new[] { "LineEdit", "SpinBox" }) t.SetColor("font_placeholder_color", type, C(u.DimText));
+        t.SetColor("font_placeholder_color", "SpinBox", C(m.FieldDim));
         // A check box drawn in the theme's colours: the default icons are dark grey, which a dark panel hides.
         foreach (var (name, on, colour) in new[] { ("checked", true, C(u.Accent)), ("unchecked", false, C(u.Text)), ("checked_disabled", true, C(u.DimText)), ("unchecked_disabled", false, C(u.DimText)) })
         {
@@ -81,11 +100,25 @@ public static class ThemeBuilder
         StyleBoxFlat Pad(StyleBoxFlat b, int x, int y) { b.ContentMarginLeft = b.ContentMarginRight = x; b.ContentMarginTop = b.ContentMarginBottom = y; return b; }
         var cap = Pad(Flat(s, C(u.Background) with { A = 0.35f }, C(u.DimText), 1, 0), Space.XS, 0); cap.SetCornerRadiusAll(3);
         LabelVariant(t, Variation.KeyCap, u.Numerals with { Size = Math.Max(11, u.Body.Size - 4) }, C(u.DimText)); t.SetStylebox("normal", Variation.KeyCap, cap);
-        Variant(t, Variation.Card, "PanelContainer", "panel", Flat(s, C(u.Panel) with { A = 1 }, C(u.PanelBorder), Math.Max(1, s.BorderWidth), Space.S));
+        var m = u.Materials;
+        Variant(t, Variation.Card, "PanelContainer", "panel", Nine(m.Panel, Space.S, Space.S));
         Variant(t, Variation.Quiet, "PanelContainer", "panel", Pad(Flat(s, C(u.Panel) with { A = 0.8f }, C(u.PanelBorder) with { A = 0.5f }, 1, 0), Space.S, Space.S));
         // A tile, and the same lit (its hover look at rest: the matching control under the pointer elsewhere) and round (an icon alone: the
         // action buttons over the selected unit).
-        foreach (var (variation, lit, round) in new[] { (Variation.Tile, false, false), (Variation.TileLit, true, false), (Variation.RoundTile, false, true), (Variation.RoundTileLit, true, true) })
+        // A tile is a button of the material, S all round inside its frame.
+        foreach (var (variation, lit) in new[] { (Variation.Tile, false), (Variation.TileLit, true) })
+        {
+            t.SetTypeVariation(variation, "Button");
+            foreach (var (state, face) in new[] { ("normal", lit ? m.ButtonHover : m.Button), ("hover", m.ButtonHover), ("pressed", m.ButtonPressed), ("hover_pressed", m.ButtonPressed), ("disabled", m.ButtonDisabled) })
+                t.SetStylebox(state, variation, Nine(face, Space.S, Space.S, stretchDown: true));
+            t.SetStylebox("focus", variation, new StyleBoxEmpty());
+            foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color" }) t.SetColor(name, variation, C(u.ButtonText));
+            t.SetColor("font_disabled_color", variation, C(u.ButtonText) with { A = 0.5f });
+        }
+        // An icon alone, frameless: S all round (spec 2026-11-21-theme-materials-design.md → Button padding).
+        t.SetTypeVariation(Variation.IconOnly, "Button");
+        foreach (var state in new[] { "normal", "hover", "pressed", "disabled", "hover_pressed", "focus" }) { var empty = new StyleBoxEmpty(); empty.SetContentMarginAll(Space.S); t.SetStylebox(state, Variation.IconOnly, empty); }
+        foreach (var (variation, lit, round) in new[] { (Variation.RoundTile, false, true), (Variation.RoundTileLit, true, true) })
         {
             t.SetTypeVariation(variation, "Button");
             var hover = (C(u.Background).Lerp(C(u.Accent), 0.18f), C(u.Accent));
@@ -101,12 +134,24 @@ public static class ThemeBuilder
             t.SetColor("font_disabled_color", variation, C(u.DimText));
         }
         t.SetTypeVariation(Variation.Primary, "Button");
-        foreach (var (state, shade) in new[] { ("normal", 0f), ("hover", 0.15f), ("pressed", 0.3f) })
-            t.SetStylebox(state, Variation.Primary, Pad(Flat(s, C(u.Accent).Lightened(shade), C(u.Accent).Lightened(shade), 1, 0), Space.M, Space.S));
-        t.SetStylebox("disabled", Variation.Primary, Pad(Flat(s, C(u.Accent) with { A = 0.22f }, C(u.Accent) with { A = 0.4f }, 1, 0), Space.M, Space.S));
+        // The one lit action: the primary face (fantasy's red lacquer, sci-fi's lit key), brighter under the pointer, darker pressed.
+        foreach (var (state, light) in new[] { ("normal", 1f), ("hover", 1.15f), ("pressed", 0.85f), ("hover_pressed", 0.85f) })
+        { var b = Nine(m.Primary, Space.M, Space.S, stretchDown: true); b.ModulateColor = new Color(light, light, light); t.SetStylebox(state, Variation.Primary, b); }
+        t.SetStylebox("disabled", Variation.Primary, Nine(m.ButtonDisabled, Space.M, Space.S, stretchDown: true));
         t.SetStylebox("focus", Variation.Primary, new StyleBoxEmpty());
-        foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color" }) t.SetColor(name, Variation.Primary, C(u.Background) with { A = 1 });
-        t.SetColor("font_disabled_color", Variation.Primary, C(u.Text) with { A = 0.5f });
+        foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "font_hover_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color" }) t.SetColor(name, Variation.Primary, C(u.ButtonText));
+        t.SetColor("font_disabled_color", Variation.Primary, C(u.ButtonText) with { A = 0.5f });
+    }
+
+    /// <summary>A material's nine-patch: corners fixed, edges and centre tiled (stretched down when stretchDown: a button's glass or
+    /// lacquer shading runs top to bottom), the content margin its frame's inset plus the padding.</summary>
+    public static StyleBoxTexture Nine(ThemeImage m, int padX, int padY, bool stretchDown = false)
+    {
+        var b = new StyleBoxTexture { Texture = Ui.Image(m.Path), AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.TileFit,
+            AxisStretchVertical = stretchDown ? StyleBoxTexture.AxisStretchMode.Stretch : StyleBoxTexture.AxisStretchMode.TileFit };
+        b.SetTextureMarginAll(m.Margin);
+        b.ContentMarginLeft = b.ContentMarginRight = m.Inset + padX; b.ContentMarginTop = b.ContentMarginBottom = m.Inset + padY;
+        return b;
     }
 
     /// <summary>A square box outline in the colour, filled inside when on: the check box's icon at the body text's size.</summary>
@@ -126,9 +171,6 @@ public static class ThemeBuilder
     /// <summary>A dialog button's least width (a size, not spacing): Cancel and a one-word primary both read as buttons.</summary>
     public const int DialogButtonWidth = 120;
 
-    // A nine-patch button modulated from grey, so lightening for hover and pressed shows.
-    static readonly Color Grey = new(0.85f, 0.85f, 0.85f);
-
     static void Variant(Godot.Theme t, string v, string baseType, string name, StyleBox box) { t.SetTypeVariation(v, baseType); t.SetStylebox(name, v, box); }
 
     static void LabelVariant(Godot.Theme t, string v, ThemeFont? f = null, Color? c = null)
@@ -137,12 +179,6 @@ public static class ThemeBuilder
         t.SetTypeVariation(v, "Label");
         if (f is not null) { t.SetFont("font", v, FontOf(f)); t.SetFontSize("font_size", v, f.Size); t.SetFont("normal_font", v, FontOf(f)); t.SetFontSize("normal_font_size", v, f.Size); }
         if (c is { } col) { t.SetColor("font_color", v, col); t.SetColor("default_color", v, col); }
-    }
-
-    static StyleBox Box(string? ninePatch, int margin, PanelShape s, Color bg, Color border, int width)
-    {
-        if (ninePatch is null) return Flat(s, bg, border, width);
-        var b = new StyleBoxTexture { Texture = GD.Load<Texture2D>(ninePatch) }; b.SetTextureMarginAll(margin); b.SetContentMarginAll(Space.S); return b;
     }
 
     static StyleBoxFlat Flat(PanelShape s, Color bg, Color border, int width, int? padding = null)

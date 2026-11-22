@@ -72,8 +72,9 @@ public static class HudBits
     {
         foreach (var c in b.GetChildren()) { b.RemoveChild(c); c.QueueFree(); }
         var pad = new MarginContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        foreach (var edge in new[] { "margin_left", "margin_right" }) pad.AddThemeConstantOverride(edge, Space.S);
-        foreach (var edge in new[] { "margin_top", "margin_bottom" }) pad.AddThemeConstantOverride(edge, Space.XS);
+        var inset = Ui.Current.Materials.Button.Inset;   // a text button: M across, S down, inside the face's drawn frame
+        foreach (var edge in new[] { "margin_left", "margin_right" }) pad.AddThemeConstantOverride(edge, inset + Space.M);
+        foreach (var edge in new[] { "margin_top", "margin_bottom" }) pad.AddThemeConstantOverride(edge, inset + Space.S);
         var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", Space.S); pad.AddChild(row);
         // The button face's own text colour: the theme's button text, which reads on a dark face (Fantasy) and a light one alike.
         var ink = Ui.Of(Ui.Current.ButtonText);
@@ -90,7 +91,7 @@ public static class HudBits
     /// <summary>A flat button of the theme's icon alone in the text colour (the accent on hover), its words in the tooltip.</summary>
     public static Button IconButton(string icon, string tooltip, int size = 16)
     {
-        var b = new Button { Flat = true, ThemeTypeVariation = Variation.FlatButton, FocusMode = Control.FocusModeEnum.None, TooltipText = tooltip, Icon = Ui.Icon(icon),
+        var b = new Button { Flat = true, ThemeTypeVariation = Variation.IconOnly, FocusMode = Control.FocusModeEnum.None, TooltipText = tooltip, Icon = Ui.Icon(icon),
             SizeFlagsVertical = Control.SizeFlags.ShrinkBegin };
         if (b.Icon is null) b.Text = tooltip;   // never a zero-width button
         b.AddThemeConstantOverride("icon_max_width", size);

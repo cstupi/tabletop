@@ -99,8 +99,11 @@ public partial class Main : Node
         MeshLoader.FreeBuiltins(); PrintTextures.Clear();
     }
 
-    /// <summary>What the built theme depends on: the theme, its text size and team colours, and the key bindings the parts draw as caps.</summary>
-    static string ThemeKey(ClientSettings s) => $"{UiThemes.Resolve(s.Theme).Id}|{s.TextSize}|{s.ColourBlind}|{string.Join(",", s.KeyOverrides.OrderBy(k => k.Key).Select(k => $"{k.Key}={string.Join("/", k.Value)}"))}";
+    /// <summary>The theme images at 2× when the UI draws above 1.2× (the UI scale times the screen's own scale).</summary>
+    static bool HiDpi(ClientSettings s) => s.UiScale / 100f * DisplayServer.ScreenGetScale() > 1.2f;
+
+    /// <summary>What the built theme depends on: the theme, its text size and team colours, whether its images are at 2×, and the key bindings the parts draw as caps.</summary>
+    static string ThemeKey(ClientSettings s) => $"{UiThemes.Resolve(s.Theme).Id}|{s.TextSize}|{s.ColourBlind}|{HiDpi(s)}|{string.Join(",", s.KeyOverrides.OrderBy(k => k.Key).Select(k => $"{k.Key}={string.Join("/", k.Value)}"))}";
 
     /// <summary>Options → Interface and Audio: the UI scale (the window's content scale), the tooltip delay, the toast time, the bus volumes, the frame counter.</summary>
     void ApplyInterface()
@@ -115,7 +118,7 @@ public partial class Main : Node
 
     void ApplyTheme()
     {
-        _themeKey = ThemeKey(Session.Settings);
+        _themeKey = ThemeKey(Session.Settings); Ui.HiDpi = HiDpi(Session.Settings);
         Ui.Apply(UiThemes.Adjusted(UiThemes.Resolve(Session.Settings.Theme), Session.Settings.TextSize, Session.Settings.ColourBlind), theme =>
         {
             GetTree().Root.Theme = theme;

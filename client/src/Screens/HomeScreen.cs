@@ -52,6 +52,7 @@ public partial class HomeScreen : Control
     void Rebuild()
     {
         foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); }
+        AddChild(new Backdrop());
         var margin = new MarginContainer(); margin.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(margin);
         foreach (var side in new[] { "margin_left", "margin_right" }) margin.AddThemeConstantOverride(side, Space.XL);
         foreach (var side in new[] { "margin_top", "margin_bottom" }) margin.AddThemeConstantOverride(side, Space.XL);
@@ -114,7 +115,7 @@ public partial class HomeScreen : Control
 
     static Button IconButton(string icon, string tip, Action a)
     {
-        var b = new Button { Icon = Ui.Icon(icon), TooltipText = tip, Flat = true, ThemeTypeVariation = Variation.FlatButton, ExpandIcon = false };
+        var b = new Button { Icon = Ui.Icon(icon), TooltipText = tip, Flat = true, ThemeTypeVariation = Variation.IconOnly, ExpandIcon = false };
         b.AddThemeConstantOverride("icon_max_width", 24); HomeLook.IconInk(b);
         b.Pressed += a;
         return b;
