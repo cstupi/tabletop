@@ -158,4 +158,13 @@ public partial class TableInput
     }
 
     void HideRulers() { foreach (var r in _rulers) r.Hide(); }
+
+    /// <summary>A move Ask's rulers and landing rings made when it opens, hidden: a pickup's first frame, the heaviest of a drag, only places them.</summary>
+    public void PrepareHold(IReadOnlyList<Base> bases)
+    {
+        while (_rulers.Count < bases.Count) { var r = new RulerNode(); _view.AddChild(r); _rulers.Add(r); }
+        if (_drag is not null) return;
+        _marks.Show([.. bases.Select(b => (new Point3(0, 0, 0), new Yaw(0), b))]);
+        _marks.Clear();
+    }
 }

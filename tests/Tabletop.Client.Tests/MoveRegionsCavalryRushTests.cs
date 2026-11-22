@@ -9,7 +9,7 @@ namespace Tabletop.Client.Tests;
 /// <summary>
 /// A 16" Rush (Fast) of five cavalry on 60 × 35 mm ovals, 4.43" tall, from 4.8" off the table's edge, on a 72 × 48 table with eighteen terrain
 /// pieces and fifty other models, a squad of them standing on a 3" steep hill: the table and Ask of a game where no reach area showed for the rush.
-/// The area is drawn when the thread pool has built it (MoveRegions.BandsAsync), so it has to build in seconds.
+/// The area is drawn when the thread pool has built it (MoveRegions.AreaAsync), so it has to build in seconds.
 /// </summary>
 [Collection(TimingCollection.Name)]
 public class MoveRegionsCavalryRushTests(ITestOutputHelper output)
@@ -117,12 +117,11 @@ public class MoveRegionsCavalryRushTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task Every_riders_area_builds_at_once_in_the_order_asked()
+    public async Task Every_riders_area_builds_at_once_as_one()
     {
         var (regions, ids) = Rush();
-        var areas = await regions.BandsAsync(ids);
-        Assert.Equal(ids.Length, areas.Count);
-        Assert.All(areas, a => Assert.NotEmpty(a.Clear));
-        Assert.Equal(ids.Select(regions.Bands), areas);
+        var area = await regions.AreaAsync(ids);
+        Assert.NotEmpty(area.Clear);
+        Assert.Same(regions.Area(ids), area);
     }
 }

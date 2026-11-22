@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Tabletop.Geometry;
 
 /// <summary>A closed convex outline on the table plane in world coordinates. Every base and every footprint becomes one of these.</summary>
@@ -106,6 +108,7 @@ internal abstract record Outline
         _ => throw new ArgumentOutOfRangeException(nameof(a)),
     };
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     internal static Point2 ClosestOnSegment(Point2 a, Point2 b, Point2 p)
     {
         var ab = b - a;

@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Tabletop.Geometry;
 
 /// <summary>
@@ -66,6 +68,7 @@ internal sealed class MoveShape
     }
 
     /// <summary>SegmentDistance(Core, a, b) &lt; limit, exactly: settled on the coarse bounds when they clear the limit by Slack, else measured.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     bool SegmentWithin(Point2 a, Point2 b, double limit)
     {
         if (_around is not null)
@@ -80,6 +83,7 @@ internal sealed class MoveShape
     }
 
     /// <summary>Clip(a, b) is not null for a core with no radius, exactly: settled on the circles about Centre when they clear it by Slack.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     bool Enters(Point2 a, Point2 b)
     {
         if (Core.Length < 3) return false;
@@ -161,12 +165,14 @@ internal sealed class MoveShape
     }
 
     /// <summary>Signed distance from p to the core: negative inside a polygon core.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public double CoreSigned(Point2 p) => CoreSigned(_core, p);
 
     /// <summary>
     /// Outside, the least distance to an edge, each measured as ClosestOnSegment does; an edge whose line is already farther than the least so far
     /// (its line distance bounds its segment distance from below, by more than the rounding in either) cannot be the least, so is not measured.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     static double CoreSigned(Edged polygon, Point2 p)
     {
         var core = polygon.Points;
@@ -194,12 +200,15 @@ internal sealed class MoveShape
     }
 
     /// <summary>How far p is outside the shape; negative inside.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public double Depth(Point2 p) => CoreSigned(p) - Radius;
 
     /// <summary>The base at p meets the obstacle.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public bool Holds(Point2 p) => Depth(p) < -Tolerance.Distance;
 
     /// <summary>The nearest point of the shape's boundary to p, from outside (p itself when inside).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public Point2 Nearest(Point2 p)
     {
         if (Core.Length == 1) { var d = p - Core[0]; var len = d.Length; return len <= Radius || len < 1e-12 ? p : Core[0] + d * (Radius / len); }
@@ -216,6 +225,7 @@ internal sealed class MoveShape
     }
 
     /// <summary>Some point of the segment a–b is inside the shape.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public bool Blocks(Point2 a, Point2 b)
     {
         if (Radius > Tolerance.Distance) return SegmentWithin(a, b, Radius - Tolerance.Distance);
@@ -228,6 +238,7 @@ internal sealed class MoveShape
     /// vertex. Each meets the line in an interval found in closed form, and the shape is convex, so their union is the one interval from the least
     /// start to the greatest end.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public (double T0, double T1)? Interval(Point2 a, Point2 b)
     {
         if (Radius <= Tolerance.Distance) return Core.Length >= 3 ? Clip(a, b) : null;
@@ -236,6 +247,7 @@ internal sealed class MoveShape
         var rho = Radius - Tolerance.Distance;
         if (d.Dot(d) < 1e-24) return (0, 1);
         double lo = double.PositiveInfinity, hi = double.NegativeInfinity;
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         void Take((double, double)? span)
         {
             if (span is not var (t0, t1)) return;
@@ -299,6 +311,7 @@ internal sealed class MoveShape
     }
 
     /// <summary>Narrows [t0, t1] to where lo ≤ x0 + t·dx ≤ hi; false when that leaves nothing.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     static bool Between(ref double t0, ref double t1, double x0, double dx, double lo, double hi)
     {
         if (Math.Abs(dx) < 1e-15) return x0 >= lo && x0 <= hi;
@@ -312,6 +325,7 @@ internal sealed class MoveShape
     /// Interval(a, b) is not null, known before it is computed: the segment comes inside by clearly more than its rounding. False only says
     /// "not known".
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public bool SurelyEnters(Point2 a, Point2 b)
     {
         if (Radius <= Tolerance.Distance) return Enters(a, b);
@@ -319,6 +333,7 @@ internal sealed class MoveShape
     }
 
     /// <summary>Unsigned distance from the segment to a core: 0 when they meet.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     static double SegmentDistance(Edged polygon, Point2 a, Point2 b)
     {
         var core = polygon.Points;

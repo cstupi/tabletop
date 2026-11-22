@@ -5,18 +5,19 @@ namespace Tabletop.Geometry.Tests;
 
 /// <summary>
 /// Oval bases among many bodies and surfaces (CavalryRushScene): each rider's reach area, and routes and clamps across the table, are what the
-/// implementation before MoveShape's closed-form Interval and coarse bounds and MoveSpace's per-body rests answered, bit for bit.
+/// implementation before MoveShape's closed-form Interval and coarse bounds and MoveSpace's per-body rests answered, bit for bit; the area's triangles as ReachMesh walks
+/// them now, which ReachMeshReferenceTests holds to the plain walk's area.
 /// </summary>
 [Collection(TimingCollection.Name)]
 public class CavalryRushTests(ITestOutputHelper output)
 {
     static readonly Dictionary<string, string> Expected = new()
     {
-        ["0"] = "16464 0D68A397C083FDA93CEFB731A678AF48 83DBBB7729D11E8B65021743ACEE4443 C34116DC5BCE714567466D80070D6CE7",
-        ["1"] = "16590 31EFF812B7BFF00B6E5AE5A3D4205D91 94056EAB404B1D6BA609729A5141A285 AFD3935A9C9A3C0010730113D0A8DF32",
-        ["2"] = "16755 2E1DC5E83DBB2A08B5519042E5AF1A20 05145CB9BC15D32BB95532B48EC2BD99 03BD0DE55708CDB933429F0D447C2F50",
-        ["3"] = "17895 21C93BDB67A0BE565A1F244151F49057 E4C8007718BEB70A0E604DAEAE4B893A 49EE463A6C4E66A3B47061C31BAFA9F2",
-        ["4"] = "19527 D083CD50930651F33A95A83019F7B555 BF06C0E374C9411F32853876D023DA7D F07293DE4D609BE06ABA434C6B0BD3D9",
+        ["0"] = "9300 8D2EAAD10829CE49748B1036DF95D4B7 83DBBB7729D11E8B65021743ACEE4443 C34116DC5BCE714567466D80070D6CE7",
+        ["1"] = "9378 34A9E6338A41D73991757052C0AA1116 94056EAB404B1D6BA609729A5141A285 AFD3935A9C9A3C0010730113D0A8DF32",
+        ["2"] = "9435 F0C9FF160790C07658894E4A83433245 05145CB9BC15D32BB95532B48EC2BD99 03BD0DE55708CDB933429F0D447C2F50",
+        ["3"] = "10077 4146AB2AC6CEF513F5A3D8AE24678838 E4C8007718BEB70A0E604DAEAE4B893A 49EE463A6C4E66A3B47061C31BAFA9F2",
+        ["4"] = "10899 2833C3506EF561513B4527FDEBF1F4A9 BF06C0E374C9411F32853876D023DA7D F07293DE4D609BE06ABA434C6B0BD3D9",
     };
 
     static string Digest(IEnumerable<Point2> points) => ReferenceScene.Digest(points.SelectMany(p => new[] { p.X, p.Y }));

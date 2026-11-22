@@ -145,4 +145,32 @@ public class ContactCheckTests
         Assert.Empty(ContactCheck.Placement(Deployed, To((S0, new Placement(new Point3(40.5, 30, 4), new Yaw(0)))), [deck]));
         Assert.Equal(ContactKind.OnBase, ContactCheck.Placement(Deployed, To((S0, At(40.5, 30))), [deck])[S0].Kind);
     }
+
+    [Fact]
+    public void The_asks_reaches_give_the_contacts_a_search_per_landing_gives()
+    {
+        // A drag frame asks the Ask's MoveRegions whether a path round the models reaches each landing before searching one (ContactTerms.RoundModels):
+        // across the squad, through the gaps and past the allowance, capped and not, a wall and difficult ground in the way, the answers are the same.
+        var wall = new WorldVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Solid, Footprint.Rect(1, 6), new Point2(0, 0), new Yaw(0), 0, 3, TerrainDeclarations.Impassable, null),
+            new TerrainTransform(new Point3(18, 12, 0), new Yaw(0), 1));
+        var wood = new WorldVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Circle(2), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.Difficult, null),
+            new TerrainTransform(new Point3(12, 15, 0), new Yaw(0), 1));
+        IReadOnlyList<WorldVolume> volumes = [wall, wood];
+        var checkedCrosses = 0;
+        foreach (var allowance in new[] { 4.0, 6.0, 9.0 })
+        {
+            var legal = new MoveRegion([S0], allowance, [wall.Id], [wood.Id], 6, Separation: 1);
+            var regions = MoveRegions.Of(Deployed, legal, volumes, new TableSize(72, 48));
+            foreach (var unit in new double?[] { null, 3 })
+                for (var x = 4.0; x <= 22; x += 0.35)
+                    for (var y = 4.0; y <= 18; y += 0.35)
+                    {
+                        var to = To((S0, At(x, y)));
+                        var searched = ContactCheck.Move(Deployed, legal, to, volumes, new TableSize(72, 48), unit);
+                        Assert.Equal(searched, ContactCheck.Move(Deployed, legal, to, volumes, new TableSize(72, 48), unit, regions));
+                        if (searched.GetValueOrDefault(S0)?.Kind == ContactKind.Crosses) checkedCrosses++;
+                    }
+        }
+        Assert.True(checkedCrosses > 10, $"{checkedCrosses} landings cross");
+    }
 }

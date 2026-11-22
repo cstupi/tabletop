@@ -18,6 +18,10 @@ public partial class DecisionBox
     double _exitWithin; IReadOnlyList<WorldVolume> _volumes = []; TableSize _size = new(72, 48);
     /// <summary>The open move's per-model regions and the team colour they draw in; null outside a move and for a disembark.</summary>
     MoveRegions? _regions; Color _regionColour;
+    /// <summary>The whole unit's area as vertex arrays, built on the pool from the Ask's opening (PrepareArea), so a plain drag's pickup draws it in
+    /// its own frame with no work but handing them to Godot.</summary>
+    volatile UnitMeshes? _unitMeshes;
+    sealed record UnitMeshes(MoveRegions Regions, IReadOnlySet<Guid> Ids, MoveRegionNode.BandMeshes Meshes);
     /// <summary>The move's commit against where its ghosts stand, read again on every drag and reset.</summary>
     Action? _regate; MoveGate _gate = new(true, null);
     /// <summary>The last commit, until the server answers it; a refusal turns it into the stash and the verdict the re-render puts back.</summary>
@@ -67,13 +71,14 @@ public partial class DecisionBox
             var regions = MoveRegions.Of(p, legal with { Allowance = remaining }, _view.Volumes, _view.Size);
             _regions = regions; _regionColour = Palette.Team(ordinal);
             ShowRegions([lead.Id]);
-            _ = regions.Prepare();                                                  // every model's reach, before a pickup clamps them on this thread
+            PrepareArea(regions, legal.ModelIds, lead.Id);                          // every model's reach and the unit's area, before a pickup needs them
             // An Aircraft must move at least its minimum (p.13): the region is the ring beyond it, and a model short of it shows red. Where the table
             // has no room for it, the least is as far as the table allows in the direction the model goes (MoveRegions.Minimum).
             // The bar's mark is that least; the bar reads the farthest ghost's path over the allowance, or the cap once it holds.
             minimum = regions.Minimum(lead.Id);
             Add(DecisionTiles.Bar(out setBar));
             _input.Allowance = remaining; _input.Region = legal; _input.Reach = regions;
+            _input.PrepareHold([.. legal.ModelIds.Where(id => p.Models.GetValueOrDefault(id)?.Location is OnTable).Select(id => p.Models[id].Slot.Base)]);   // rulers and rings before the first pickup
             // Drawn and committed agree: a rebuilt Ask (a refusal) or an Esc starts from the server's positions.
             void StartMove() { _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position); _input.Proposed = _proposed; _view.Snap(legal.ModelIds); }
             StartMove();
@@ -102,6 +107,7 @@ public partial class DecisionBox
             Foot(stop = Act(CardActions.Stop, Stop));
         }
         var starts = MovePaths.Starts(p, legal);
+        var pathCache = _regions is null ? null : new MovePathCache(_regions, starts, legal, _view.Volumes);   // a ghost's path swept again only when it moves
         _regate = () =>
         {
             if (_proposed is not { } proposed || !IsInstanceValid(commit)) return;
@@ -110,10 +116,10 @@ public partial class DecisionBox
             var readouts = unit is null ? [] : legal.ModelIds.Where(id => p.Models[id].Location is OnTable && proposed.ContainsKey(id))
                 .Select(id => MoveRuler.Read(Moved(p, id, proposed[id].Horizontal, unit < allowance), unit, _regions?.Minimum(id, proposed[id].Horizontal))).ToList();
             var placed = proposed.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
-            _input.Violations.Measure(legal.ModelIds, KeepAwayArea.With(ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit), legal.Separation, names.Unit),
+            _input.Violations.Measure(legal.ModelIds, KeepAwayArea.With(ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit, _regions), legal.Separation, names.Unit),
                 p, legal.KeepAway, placed, names.Unit));
             // Each moved model's path and footprints, and a warning where its swept base crosses dangerous ground: never holding the commit.
-            var paths = _regions is null ? [] : MovePaths.Proposed(_regions, starts, legal, _view.Volumes, proposed.ToDictionary(kv => kv.Key, kv => kv.Value.Horizontal), unit < allowance);
+            var paths = pathCache?.Proposed(proposed.ToDictionary(kv => kv.Key, kv => kv.Value.Horizontal), unit < allowance) ?? [];
             _input.Violations.Warn(legal.ModelIds, MovePaths.Marks(paths));
             _view.Paths.Show(paths, _regionColour);
             var warnings = MovePaths.Lines(paths, id => _input.Violations.Subject?.Invoke(id) ?? names.Model(id), v => MovePaths.VolumeName(p.Board.Table, v));
@@ -144,18 +150,33 @@ public partial class DecisionBox
 
     Yaw? NodeYaw(Guid modelId) => _view.PieceAt(modelId) is { } n && IsInstanceValid(n) ? WorldFrame.YawFrom(n.Rotation.Y) : null;
 
-    /// <summary>Each of these models' own region, those the move holds; the outline stays on the last held models after the drop. Drawn when the
-    /// thread pool has them (MoveRegions.BandsAsync): a long move among much terrain takes longer than a frame, and the table and the drag keep
-    /// running meanwhile. A newer request, or an Ask that has gone, drops an older answer.</summary>
+    /// <summary>These models' area as one (MoveRegions.Area), those the move holds; it stays on the last held models after the drop. Drawn when the
+    /// thread pool has it and its vertex arrays (MoveRegions.AreaAsync, MoveRegionNode.MeshesOf): a long move among much terrain takes longer than a
+    /// frame, and the table and the drag keep running meanwhile. A newer request, or an Ask that has gone, drops an older answer.</summary>
     async void ShowRegions(IReadOnlyList<Guid> modelIds)
     {
         if (_regions is not { } regions || _region is null || !IsInstanceValid(_region)) return;
         var request = ++_regionRequest; var colour = _regionColour;
-        var shown = await regions.BandsAsync(modelIds);
+        // The whole unit's, built from the Ask's opening: drawn in this frame. Else area and vertex arrays on the pool, one wait for the main
+        // thread's turn at the end.
+        if (_unitMeshes is { } unit && ReferenceEquals(unit.Regions, regions) && unit.Ids.SetEquals(modelIds.Where(regions.Has))) { _region.ShowBands(unit.Meshes, colour); return; }
+        var meshes = await Task.Run(async () => MoveRegionNode.MeshesOf(await regions.AreaAsync(modelIds).ConfigureAwait(false)));
         if (request != _regionRequest || !ReferenceEquals(regions, _regions) || _region is null || !IsInstanceValid(_region)) return;
-        if (shown.Count > 0) _region.ShowBands(shown, colour);
+        _region.ShowBands(meshes, colour);
     }
     int _regionRequest;
+
+    /// <summary>MoveRegions.Prepare (the lead's area first, then every reach and the unit's area), then the unit's vertex arrays, all on the pool.</summary>
+    void PrepareArea(MoveRegions regions, IReadOnlyList<Guid> ids, Guid lead)
+    {
+        _unitMeshes = null;
+        _ = Task.Run(async () =>
+        {
+            await regions.Prepare(lead).ConfigureAwait(false);
+            var unit = ids.Where(regions.Has).ToHashSet();
+            _unitMeshes = new UnitMeshes(regions, unit, MoveRegionNode.MeshesOf(regions.Area([.. unit])));
+        });
+    }
 
     /// <summary>How far a ghost has moved: along its path round what it may not pass (MoveRegions.Route), else in a straight line.</summary>
     double Moved(Projection p, Guid id, Point2 to, bool capped)

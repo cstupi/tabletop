@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Tabletop.Geometry;
 
 /// <summary>
@@ -153,14 +155,17 @@ internal sealed partial class MoveSpace
     };
 
     /// <summary>Whether the table holds the base at p: always when there is no table to hold it to.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public bool InBox(Point2 p) => _box is not { } b
         || (p.X >= b.X0 - Tolerance.Distance && p.X <= b.X1 + Tolerance.Distance && p.Y >= b.Y0 - Tolerance.Distance && p.Y <= b.Y1 + Tolerance.Distance);
 
     public bool HasTable => _box is not null;
 
     /// <summary>The base centred at p meets this obstacle: in plan, and for a body in height too.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     bool HoldsAt(Obstacle o, Point2 p) => o.Shape.Holds(p) && (o.Group != Bodies || o.AlwaysMeets || MeetsInHeight(o, p));
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     bool MeetsInHeight(Obstacle o, Point2 p)
     {
         var bottom = RestAt(o.Rests ?? [], p);
@@ -169,6 +174,7 @@ internal sealed partial class MoveSpace
 
     /// <summary>Where the base centred at p rests (Collision.Rest with floors) over these surfaces, highest first: the first whose footprint
     /// shares interior with the base, else the table.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     double RestAt(Rest[] rests, Point2 p)
     {
         if (rests.Length == 0) return 0;
@@ -191,6 +197,7 @@ internal sealed partial class MoveSpace
     /// only counts where the heights meet, so never covers) or wholly off the table; Edge when the boundary of an obstacle of the groups in `mask`, or
     /// the table's, may cross it; else Free.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public Cover Straddles(Point2 centre, double half, int mask, int covers)
     {
         var r = half * Math.Sqrt(2);
@@ -211,6 +218,7 @@ internal sealed partial class MoveSpace
     }
 
     /// <summary>The base centred at p meets an obstacle of these groups, or the table does not hold it.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public bool Blocked(Point2 p, int mask)
     {
         if (!InBox(p)) return true;
@@ -224,6 +232,7 @@ internal sealed partial class MoveSpace
     /// impassable volume the base already stands in does not hold it on a line heading out of it — the core's signed distance growing from the first
     /// step, which on a straight line from a convex shape it then does all the way — so a base a hand move left in one may leave it, never along it or deeper in.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public bool Clear(Point2 a, Point2 b, int mask, bool fromStart = false)
     {
         if (!InBox(a) || !InBox(b)) return false;
@@ -242,6 +251,7 @@ internal sealed partial class MoveSpace
     }
 
     /// <summary>A body the segment's plan meets is met where, at some sample of the part inside it, the heights overlap too.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     bool Crosses(Obstacle o, Point2 a, Point2 b)
     {
         // Every sample lies inside the shape, where such a body always meets the base: met as soon as some part is surely inside.
@@ -266,6 +276,7 @@ internal sealed partial class MoveSpace
 
     /// <summary>Whether the base centred anywhere on a–b meets the body in height: true at every height it can rest at there (the table, or a
     /// surface of the body's Rests whose bounding circle comes within the base's of the segment), false at none of them, null when they differ.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     bool? MeetsAlong(Obstacle o, Point2 a, Point2 b)
     {
         var height = _mover.Body.Height;
@@ -287,6 +298,7 @@ internal sealed partial class MoveSpace
     }
 
     /// <summary>The first point along a–b where the way is no longer clear, a itself clear (bisected to 1e-4 of the length).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public Point2 Reach(Point2 a, Point2 b, int mask, bool fromStart)
     {
         if (Clear(a, b, mask, fromStart)) return b;
@@ -296,6 +308,7 @@ internal sealed partial class MoveSpace
     }
 
     /// <summary>The volumes of these groups the base meets anywhere along the path, sampled every Collision.Step, by id.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public HashSet<Guid> Touched(IReadOnlyList<Point2> path, int mask)
     {
         var touched = new HashSet<Guid>();
