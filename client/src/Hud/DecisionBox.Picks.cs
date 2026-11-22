@@ -74,7 +74,7 @@ public partial class DecisionBox
     Button Row(Guid unit, int key, Names names, Action pressed)
     {
         var b = new Button { FocusMode = FocusModeEnum.None, ThemeTypeVariation = Variation.Tile, SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", 10);
+        var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", Space.S);
         var ordinal = names.TeamOfUnit(unit) is { } t ? _s.Game?.Teams.FirstOrDefault(x => x.Id == t)?.Ordinal ?? 0 : 0;
         row.AddChild(DecisionTiles.Icon("army", 20, ordinal > 0 ? Ui.Team(ordinal) : null));
         row.AddChild(new Label { Text = names.Piece(unit), SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
@@ -82,7 +82,7 @@ public partial class DecisionBox
         row.AddChild(DecisionTiles.Cap(DecisionCard.KeyCap(key)));
         b.Pressed += pressed;
         b.MouseEntered += () => Light([unit]); b.MouseExited += () => Light(null);
-        return DecisionTiles.Holding(b, row, 10, 8);
+        return DecisionTiles.Holding(b, row, Space.S, Space.S);
     }
 
     /// <summary>declare_targets: weapon groups as chips, all picked to start (p.8: one group per weapon type), each aimed group carrying its
@@ -91,7 +91,7 @@ public partial class DecisionBox
     void RenderTargets(Ask ask, Assignment legal, Names names)
     {
         var t = Targets = new TargetAssignment(legal);
-        var chips = new HFlowContainer(); chips.AddThemeConstantOverride("h_separation", 8); chips.AddThemeConstantOverride("v_separation", 8); Add(chips);
+        var chips = new HFlowContainer(); chips.AddThemeConstantOverride("h_separation", Space.S); chips.AddThemeConstantOverride("v_separation", Space.S); Add(chips);
         void Fire() { if (t.Answer() is { } answer) Send(ask, answer); }
         bool ClearTargets() { if (!t.CanClear) return false; t.Clear(); Show(); return true; }
         Button fire = Act("Fire", DecisionCard.Enter, Fire, primary: true, icon: "shoot"), clear = null!;
@@ -105,7 +105,7 @@ public partial class DecisionBox
                 var id = g.Id;
                 var aimed = t.Assigned.TryGetValue(id, out var unit);
                 var chip = new Button { ToggleMode = true, ButtonPressed = t.Picked.Contains(id), FocusMode = FocusModeEnum.None, ThemeTypeVariation = Variation.Tile };
-                var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", 8);
+                var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", Space.S);
                 row.AddChild(new Label { Text = TargetAssignment.Chip(g), MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
                 if (aimed)
                 {
@@ -119,7 +119,7 @@ public partial class DecisionBox
                 else row.AddChild(new Label { Text = "holds fire", ThemeTypeVariation = Variation.Dim, MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
                 chip.Pressed += () => { t.PickOnly(id); Callable.From(Show).CallDeferred(); };   // not inside the chip's own signal: Show frees it
                 chip.Ready += () => chip.CustomMinimumSize = new Vector2(row.GetCombinedMinimumSize().X + 20, 0);
-                chips.AddChild(DecisionTiles.Holding(chip, row, 10, 6));
+                chips.AddChild(DecisionTiles.Holding(chip, row, Space.S, Space.XS));
             }
             _input.Eligible = t.Candidates.ToHashSet(); Glow(t.Candidates);          // only units a picked group can shoot; two targets taken (p.8): nothing else glows
             fire.Disabled = t.Answer() is null;
@@ -141,7 +141,7 @@ public partial class DecisionBox
         var pick = new CasualtyPick(legal, left);
         var unit = legal.Targets.Select(id => p.Models.GetValueOrDefault(id)?.UnitId).FirstOrDefault(u => u is not null);
         Head(new CardHead("wound", pick.Title, unit is { } u ? names.Unit(u) : null), MyOrdinal);
-        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 14); Add(row);
+        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.M); Add(row);
         var count = new Label { ThemeTypeVariation = Variation.Display, VerticalAlignment = VerticalAlignment.Center }; row.AddChild(count);
         var pips = new Label { VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.Arbitrary, SizeFlagsHorizontal = SizeFlags.ExpandFill };
         pips.AddThemeColorOverride("font_color", Ui.Failure); row.AddChild(pips);

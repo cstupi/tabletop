@@ -17,7 +17,7 @@ public partial class TurnBanner : PanelContainer
     {
         _s = session; MouseFilter = MouseFilterEnum.Ignore; Visible = false;
         var lines = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = MouseFilterEnum.Ignore };
-        _head.AddThemeConstantOverride("separation", 14); _parts.AddThemeConstantOverride("separation", 24);
+        _head.AddThemeConstantOverride("separation", Space.M); _parts.AddThemeConstantOverride("separation", Space.L);
         _head.AddChild(_text); lines.AddChild(_head); lines.AddChild(_detail); lines.AddChild(_parts); AddChild(lines);
         _banners.Seed(session.Projection?.Scheduler.ActiveTeamId);
         _onEvents = batch =>

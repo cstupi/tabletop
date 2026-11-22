@@ -95,14 +95,14 @@ public partial class TerrainCard : VBoxContainer
         var s = _s;
         var all = c.Effects.Aggregate(Tabletop.Geometry.TerrainDeclarations.None, (d, e) => d | e.Flag);
         var band = new PanelContainer(); band.AddThemeStyleboxOverride("panel", Ui.EdgeBand(Ui.Of(TerrainTiles.KindOf(all).Colour))); _body.AddChild(band);
-        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", 10); band.AddChild(head);
+        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", Space.S); band.AddChild(head);
         head.AddChild(new Label { Text = c.Name, ThemeTypeVariation = Variation.Display, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis });
         if (c.Height.Length > 0) head.AddChild(new Label { Text = $"{c.Height} high", ThemeTypeVariation = Variation.Dim, VerticalAlignment = VerticalAlignment.Center });
         var remove = HudBits.IconButton("remove", "Remove this piece", 20); remove.SizeFlagsVertical = SizeFlags.ShrinkCenter;
         remove.AddThemeColorOverride("icon_normal_color", Ui.Failure); remove.AddThemeColorOverride("icon_hover_color", Ui.Failure.Lightened(0.3f));
         remove.Pressed += () => Guarded.Send(s, SetupEdits.RemoveTerrain(t.Id)); head.AddChild(remove);
         if (c.Effects.Count == 0) return;
-        var chips = new HFlowContainer(); chips.AddThemeConstantOverride("h_separation", 6); chips.AddThemeConstantOverride("v_separation", 6); _body.AddChild(chips);
+        var chips = new HFlowContainer(); chips.AddThemeConstantOverride("h_separation", Space.S); chips.AddThemeConstantOverride("v_separation", Space.S); _body.AddChild(chips);
         foreach (var e in c.Effects) chips.AddChild(HudBits.EffectChip(e, 16));
     }
 
@@ -116,13 +116,13 @@ public partial class TerrainCard : VBoxContainer
     {
         var all = c.Effects.Aggregate(Tabletop.Geometry.TerrainDeclarations.None, (d, e) => d | e.Flag);
         var band = new PanelContainer(); band.AddThemeStyleboxOverride("panel", Ui.EdgeBand(Ui.Of(TerrainEffects.Primary(all).Colour))); _body.AddChild(band);
-        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", 10); band.AddChild(head);
+        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", Space.S); band.AddChild(head);
         head.AddChild(new Label { Text = c.Name, ThemeTypeVariation = Variation.Display, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis });
         if (c.Height.Length > 0) head.AddChild(new Label { Text = $"{c.Height} high", ThemeTypeVariation = Variation.Dim, VerticalAlignment = VerticalAlignment.Center });
-        var rows = new VBoxContainer(); rows.AddThemeConstantOverride("separation", 10); _body.AddChild(rows);
+        var rows = new VBoxContainer(); rows.AddThemeConstantOverride("separation", Space.S); _body.AddChild(rows);
         foreach (var e in c.Effects)
         {
-            var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 12); rows.AddChild(row);
+            var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S); rows.AddChild(row);
             var icon = HudBits.Icon(e.Icon, Ui.Of(e.Colour), 36); icon.SizeFlagsVertical = SizeFlags.ShrinkBegin; row.AddChild(icon);
             var words = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; words.AddThemeConstantOverride("separation", 0); row.AddChild(words);
             var word = new Label { Text = e.Word }; word.AddThemeColorOverride("font_color", Ui.Of(e.Colour).Lerp(Ui.Text, 0.35f)); word.AddThemeFontSizeOverride("font_size", 20); words.AddChild(word);
@@ -131,7 +131,7 @@ public partial class TerrainCard : VBoxContainer
         if (c.Volumes.Count > 1)
             foreach (var (v, i) in c.Volumes.Select((v, i) => (v, i)))
             {
-                var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", 8); _body.AddChild(line);
+                var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", Space.S); _body.AddChild(line);
                 var swatch = new PanelContainer { CustomMinimumSize = new Vector2(14, 14), SizeFlagsVertical = SizeFlags.ShrinkCenter }; swatch.AddThemeStyleboxOverride("panel", Ui.EffectChip(v.Colour)); line.AddChild(swatch);
                 line.AddChild(Wrap($"{v.Heights} · {string.Join(", ", v.Declarations)}", Variation.Dim));
             }
@@ -211,7 +211,7 @@ public partial class TerrainCard : VBoxContainer
     {
         var s = _s; var id = m.PieceId;
         var band = new PanelContainer(); band.AddThemeStyleboxOverride("panel", Ui.EdgeBand(Ui.Accent)); _body.AddChild(band);
-        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", 10); band.AddChild(head);
+        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", Space.S); band.AddChild(head);
         head.AddChild(HudBits.Icon("objective", Ui.Accent, 20));
         head.AddChild(new Label { Text = m.Name, ThemeTypeVariation = Variation.Display, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis });
         var remove = HudBits.IconButton("remove", "Remove this marker", 20); remove.SizeFlagsVertical = SizeFlags.ShrinkCenter;

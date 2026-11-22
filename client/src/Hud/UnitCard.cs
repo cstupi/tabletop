@@ -14,7 +14,7 @@ public partial class UnitCard : VBoxContainer
     readonly ScrollContainer _card = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve, SizeFlagsVertical = SizeFlags.ShrinkEnd };
     readonly VBoxContainer _body = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }, _stripBody = new();
     readonly PanelContainer _strip = new() { Visible = false, SizeFlagsVertical = SizeFlags.ShrinkEnd };
-    readonly StyleBoxFlat _stripFrame = new() { BorderWidthLeft = 6, ContentMarginLeft = 14, ContentMarginTop = 8, ContentMarginRight = 8, ContentMarginBottom = 8 };
+    readonly StyleBoxFlat _stripFrame = new() { BorderWidthLeft = 6, ContentMarginLeft = Space.S, ContentMarginTop = Space.S, ContentMarginRight = Space.S, ContentMarginBottom = Space.S };
     readonly Kept _stripKids;
 
     public UnitCard() => _stripKids = new(_stripBody);
@@ -163,7 +163,7 @@ public partial class UnitCard : VBoxContainer
             case UnitCardPart.Title:
                 var title = box.Take("title", () =>
                 {
-                    var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 10);
+                    var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S);
                     row.AddChild(HudBits.Band(0));
                     row.AddChild(new Label { ThemeTypeVariation = Variation.Display, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill });
                     var eye = new Button { Flat = true, ThemeTypeVariation = Variation.FlatButton, FocusMode = FocusModeEnum.None, TooltipText = "Centre the camera on this unit",
@@ -181,7 +181,7 @@ public partial class UnitCard : VBoxContainer
             case UnitCardPart.Count:
                 var count = box.Take("count", () =>
                 {
-                    var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 10);
+                    var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S);
                     row.AddChild(new Label()); row.AddChild(Wrap("", Variation.Dim));
                     return row;
                 });
@@ -191,7 +191,7 @@ public partial class UnitCard : VBoxContainer
             case UnitCardPart.State:
                 var state = box.Take("state", () =>
                 {
-                    var flow = new HFlowContainer(); flow.AddThemeConstantOverride("h_separation", 8); flow.AddThemeConstantOverride("v_separation", 4);
+                    var flow = new HFlowContainer(); flow.AddThemeConstantOverride("h_separation", Space.S); flow.AddThemeConstantOverride("v_separation", Space.XS);
                     return flow;
                 });
                 var chips = Kids(state).Begin();
@@ -233,7 +233,7 @@ public partial class UnitCard : VBoxContainer
         var badge = into.Take("stat", () =>
         {
             var b = new PanelContainer { ThemeTypeVariation = Variation.Badge, MouseFilter = MouseFilterEnum.Stop };
-            var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 6); b.AddChild(row);
+            var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.XS); b.AddChild(row);
             row.AddChild(HudBits.Icon(icon, Ui.Accent, 16)); row.AddChild(new Label());
             return b;
         });
@@ -270,7 +270,7 @@ public partial class UnitCard : VBoxContainer
         public GroupControls()
         {
             ThemeTypeVariation = Variation.Chip;
-            Row.AddThemeConstantOverride("separation", 8); AddChild(Row);
+            Row.AddThemeConstantOverride("separation", Space.S); AddChild(Row);
             foreach (var c in new Control[] { Pips, Hero, Title, Wounds, WoundCount }) Row.AddChild(c);
             Title.MouseEntered += () => { if (Card is { } card && Group is { Standing.Count: > 0 } group) card.Lit?.Invoke(group.Standing); };
             Title.MouseExited += () => Card?.Lit?.Invoke(null);
@@ -310,7 +310,7 @@ public partial class UnitCard : VBoxContainer
     {
         var grid = box.Take("weapons", () =>
         {
-            var g = new GridContainer { Columns = 5 }; g.AddThemeConstantOverride("h_separation", 14);
+            var g = new GridContainer { Columns = 5 }; g.AddThemeConstantOverride("h_separation", Space.M);
             foreach (var (h, tip) in new[] { ("Weapon", ""), ("Range", ""), ("A", "Attacks"), (UnitSheet.ApLabel, ""), ("Rules", "") })
                 g.AddChild(new Label { Text = h.ToUpperInvariant(), ThemeTypeVariation = Variation.Dim, TooltipText = tip, MouseFilter = tip.Length > 0 ? MouseFilterEnum.Stop : MouseFilterEnum.Ignore });
             return g;

@@ -18,7 +18,7 @@ public partial class Roster : PanelContainer
     {
         _s = session; _input = input;
         _scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve }; AddChild(_scroll); _scroll.AddChild(_list);
-        _list.AddThemeConstantOverride("separation", 2);
+        _list.AddThemeConstantOverride("separation", Space.XS);
         _list.MinimumSizeChanged += QueueFit;                                                                           // a ScrollContainer reports no content height
         if (!Touch) _list.SortChildren += SyncMenus;                                                                     // a row moved from under a still pointer hears no exit
         _onFrame = _ => Render(); _onChanged = () => { Clear(); Render(); };
@@ -89,7 +89,7 @@ public partial class Roster : PanelContainer
         foreach (var team in teams)
         {
             var header = Header(team); _list.AddChild(header);
-            var spacer = new Control { CustomMinimumSize = new Vector2(0, 4), MouseFilter = MouseFilterEnum.Ignore };
+            var spacer = new Control { CustomMinimumSize = new Vector2(0, Space.XS), MouseFilter = MouseFilterEnum.Ignore };
             _teams[team.TeamId] = (header, spacer);
             if (_collapsed) continue;
             foreach (var row in team.Rows)
@@ -115,7 +115,7 @@ public partial class Roster : PanelContainer
     Control Header(RosterTeam team)
     {
         var band = new PanelContainer(); band.AddThemeStyleboxOverride("panel", Ui.TeamBand(team.Ordinal, compact: true));
-        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", 8); band.AddChild(line);
+        var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", Space.S); band.AddChild(line);
         var ink = Ui.OnBand(team.Ordinal);
         line.AddChild(HudBits.Icon("team", ink, 16));
         var name = new Label { Text = team.Name.ToUpperInvariant(), SizeFlagsHorizontal = SizeFlags.ExpandFill }; name.AddThemeColorOverride("font_color", ink); line.AddChild(name);
@@ -149,7 +149,7 @@ public partial class Roster : PanelContainer
     /// conditions the theme draws no icon for), hidden when empty.</summary>
     sealed partial class RowControls : PanelContainer
     {
-        public readonly StyleBoxFlat Edge = new() { ContentMarginLeft = 6, ContentMarginRight = 2, ContentMarginTop = 1, ContentMarginBottom = 1 };
+        public readonly StyleBoxFlat Edge = new() { ContentMarginLeft = Space.S, ContentMarginRight = Space.XS, ContentMarginTop = 0, ContentMarginBottom = 0 };
         public readonly Label Acting = new() { Text = "▶", CustomMinimumSize = new Vector2(14, 0), MouseFilter = MouseFilterEnum.Ignore },
             Title = new() { ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore },
             MarkText = new() { HorizontalAlignment = HorizontalAlignment.Center, CustomMinimumSize = new Vector2(16, 0), MouseFilter = MouseFilterEnum.Pass },
@@ -168,7 +168,7 @@ public partial class Roster : PanelContainer
             ConditionKids = new(Conditions); ChipKids = new(Chips);
             MouseFilter = MouseFilterEnum.Stop;
             AddThemeStyleboxOverride("panel", Edge);
-            var line = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; line.AddThemeConstantOverride("separation", 8); AddChild(line);
+            var line = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; line.AddThemeConstantOverride("separation", Space.S); AddChild(line);
             MarkIcon.MouseFilter = MouseFilterEnum.Pass;
             foreach (var c in new Control[] { Acting, Title, MarkIcon, MarkText, Pips, Conditions, Menu }) line.AddChild(c);
             Menu.Modulate = Touch ? HudBits.Plain : HudBits.Plain with { A = 0 };
@@ -179,7 +179,7 @@ public partial class Roster : PanelContainer
                 MouseExited += () => { if (!GetGlobalRect().HasPoint(GetGlobalMousePosition())) Menu.Modulate = HudBits.Plain with { A = 0 }; };
             }
             GuiInput += Clicked;
-            ChipLine.AddThemeConstantOverride("margin_left", 28);   // the chip line is the row's too
+            ChipLine.AddThemeConstantOverride("margin_left", Space.S + (int)Acting.CustomMinimumSize.X + Space.S);   // the chip line starts on the title's edge
             ChipLine.GuiInput += Clicked; ChipLine.AddChild(Chips);
         }
 

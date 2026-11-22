@@ -31,7 +31,7 @@ public static class HudBits
     {
         var cap = new PanelContainer { ThemeTypeVariation = Variation.Chip, MouseFilter = Control.MouseFilterEnum.Ignore, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
         var box = Ui.Theme.GetStylebox("panel", Variation.Chip).Duplicate() as StyleBoxFlat;
-        if (box is not null) { box.BorderColor = ink is { } i ? i with { A = 0.6f } : Ui.DimText; box.ContentMarginTop = box.ContentMarginBottom = 0; box.ContentMarginLeft = box.ContentMarginRight = 5; cap.AddThemeStyleboxOverride("panel", box); }
+        if (box is not null) { box.BorderColor = ink is { } i ? i with { A = 0.6f } : Ui.DimText; box.ContentMarginTop = box.ContentMarginBottom = 0; box.ContentMarginLeft = box.ContentMarginRight = Space.XS; cap.AddThemeStyleboxOverride("panel", box); }
         var label = new Label { Text = key, ThemeTypeVariation = Variation.Dim, MouseFilter = Control.MouseFilterEnum.Ignore };
         if (ink is { } c) label.AddThemeColorOverride("font_color", c with { A = 0.75f });
         cap.AddChild(label);
@@ -42,7 +42,7 @@ public static class HudBits
     public static HBoxContainer KeyCaps(IEnumerable<string> keys)
     {
         var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        row.AddThemeConstantOverride("separation", 4);
+        row.AddThemeConstantOverride("separation", Space.XS);
         foreach (var k in keys) row.AddChild(new Label { Text = k, ThemeTypeVariation = Variation.KeyCap, HorizontalAlignment = HorizontalAlignment.Center, MouseFilter = Control.MouseFilterEnum.Ignore });
         return row;
     }
@@ -52,7 +52,7 @@ public static class HudBits
     {
         var chip = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, TooltipText = e.Rule ?? "" };
         chip.AddThemeStyleboxOverride("panel", Ui.EffectChip(e.Colour));
-        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", 6); chip.AddChild(row);
+        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", Space.XS); chip.AddChild(row);
         row.AddChild(Icon(e.Icon, Ui.Of(e.Colour), iconSize));
         row.AddChild(new Label { Text = e.Word, VerticalAlignment = VerticalAlignment.Center });
         return chip;
@@ -72,9 +72,9 @@ public static class HudBits
     {
         foreach (var c in b.GetChildren()) { b.RemoveChild(c); c.QueueFree(); }
         var pad = new MarginContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        foreach (var edge in new[] { "margin_left", "margin_right" }) pad.AddThemeConstantOverride(edge, 10);
-        foreach (var edge in new[] { "margin_top", "margin_bottom" }) pad.AddThemeConstantOverride(edge, 6);
-        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", 8); pad.AddChild(row);
+        foreach (var edge in new[] { "margin_left", "margin_right" }) pad.AddThemeConstantOverride(edge, Space.S);
+        foreach (var edge in new[] { "margin_top", "margin_bottom" }) pad.AddThemeConstantOverride(edge, Space.XS);
+        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", Space.S); pad.AddChild(row);
         // The button face's own text colour: the theme's button text, which reads on a dark face (Fantasy) and a light one alike.
         var ink = Ui.Of(Ui.Current.ButtonText);
         row.AddChild(Icon(icon, ink, 18));
