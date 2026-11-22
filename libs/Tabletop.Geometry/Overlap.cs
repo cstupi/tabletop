@@ -21,10 +21,21 @@ public static class Overlap
         return PolygonOutline.SeparatingAxisTest(pa, pb, toward);
     }
 
-    static readonly System.Collections.Concurrent.ConcurrentDictionary<(Base, Yaw), double> Inners = new();
+    /// <summary>Inner radii by base. The radius is a distance from the centre to each edge's line, so turning the base leaves it unchanged
+    /// and the yaw is no part of the key; bases come from army data, few per game, and the cache empties itself past <see cref="InnersCap"/>
+    /// so a long-running server cannot grow it without bound.</summary>
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<Base, double> Inners = new();
+    const int InnersCap = 512;
 
     /// <summary>The radius about a polygon base's centre of a circle inside its outline, padded down.</summary>
-    static double Inner(PlacedModel m) => Inners.GetOrAdd((m.Body.Base, m.Placement.Yaw), _ =>
+    static double Inner(PlacedModel m)
+    {
+        if (Inners.TryGetValue(m.Body.Base, out var known)) return known;
+        if (Inners.Count >= InnersCap) Inners.Clear();
+        return Inners[m.Body.Base] = InnerOf(m);
+    }
+
+    static double InnerOf(PlacedModel m)
     {
         var v = m.BaseOffsets()!;
         var inner = double.PositiveInfinity;
@@ -34,7 +45,7 @@ public static class Overlap
             if (e.Length > 0) inner = Math.Min(inner, Math.Abs(e.Cross(v[j])) / e.Length);   // the line's distance from the centre (the origin)
         }
         return Math.Max(0, inner - 1e-9);
-    });
+    }
 
     /// <summary>The body is inside a Solid volume. Standing on its top is not; Area volumes never intersect.</summary>
     public static bool WithSolid(PlacedModel model, WorldVolume volume) =>
