@@ -202,7 +202,16 @@ public partial class GameScreen
         if (r.TryGetValue(SetupPart.Panel, out var panel)) HudPlacement.Fill(_toolPanel!, panel);
         if (r.TryGetValue(SetupPart.Hints, out var hints) && _hints is { } h && IsInstanceValid(h)) HudPlacement.Fill(h, hints);
         if (setup) HudPlacement.Fill(_tableBox, r[SetupPart.Body]);
-        else HudPlacement.Fill(_sideColumn, r[SetupPart.Body]);
+        else
+        {
+            HudPlacement.Fill(_sideColumn, r[SetupPart.Body]);
+            // Game settings as tall as the page under it: its settings scroll inside, Start setup stays in view.
+            if (_lobbyPanel is { } lp && IsInstanceValid(lp) && _lobby is { } page && IsInstanceValid(page))
+            {
+                var height = MathF.Max(0, r[SetupPart.Body].H - 2 * Space.XL - page.Position.Y);
+                if (lp.CustomMinimumSize.Y != height) lp.CustomMinimumSize = new Vector2(LobbyColumnWidth, height);
+            }
+        }
         if (Shows(_terrainCard)) _terrainCard!.Place(r[SetupPart.Card]);
     }
 

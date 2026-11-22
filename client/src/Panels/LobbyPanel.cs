@@ -10,7 +10,8 @@ namespace Tabletop.Client.Panels;
 /// headed with their values, closed until opened, kept in <see cref="SetupFolds"/>), then **Optional rules** (preset, options). In the lobby
 /// the creator's edits stay local (<see cref="LobbySettings"/>) until **Start setup** at the foot sends them and then starts setup; the rule
 /// set alone applies on pick. In setup each change sends at once. Everyone sees it; only the creator's controls are enabled, and in the
-/// lobby everyone else reads who starts setup at the foot.</summary>
+/// lobby everyone else reads who starts setup at the foot. In the lobby the column has a fixed height (the game screen sets it): its title
+/// stays at the top, the settings scroll inside it, and the foot stays in view, Space.L under them.</summary>
 public partial class LobbyPanel : VBoxContainer
 {
     Label _error = null!;
@@ -24,10 +25,19 @@ public partial class LobbyPanel : VBoxContainer
     {
         var s = Main.Instance.Session; var game = s.Game!;
         var lobby = game.Status == GameStatus.Lobby;
-        AddThemeConstantOverride("separation", lobby ? Space.XL : Space.L);
-        if (lobby) AddChild(new Label { Text = "Game settings", ThemeTypeVariation = Variation.Display });
-        AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false });
-        var config = Group(this, "Game");
+        AddThemeConstantOverride("separation", Space.L);
+        VBoxContainer body = this;
+        if (lobby)
+        {
+            AddChild(new Label { Text = "Game settings", ThemeTypeVariation = Variation.Display });
+            var scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve,
+                SizeFlagsVertical = SizeFlags.ExpandFill };
+            AddChild(scroll);
+            scroll.AddChild(body = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill });
+            body.AddThemeConstantOverride("separation", Space.XL);
+        }
+        body.AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false });
+        var config = Group(body, "Game");
         if (!s.IsCreator) config.AddChild(Wrapping(LobbyView.CreatorOnly, Variation.Dim));
         var editable = new List<Control>();
         var name = new LineEdit { Text = lobby ? Draft.NameOf(game) : game.Name, MaxLength = TextLimits.Name, PlaceholderText = "game name" };
@@ -79,7 +89,7 @@ public partial class LobbyPanel : VBoxContainer
         name.TextSubmitted += _ => CommitName();
         name.FocusExited += CommitName;
         if (s.Options.Options.Count > 0)
-            editable.AddRange(OptionalRules(s.Options, chosen, enforcement, Group(this, "Optional rules"), () =>
+            editable.AddRange(OptionalRules(s.Options, chosen, enforcement, Group(body, "Optional rules"), () =>
             {
                 if (!lobby) { SendNow(); return; }
                 foreach (var (key, value) in chosen) Draft.Choose(key, value);

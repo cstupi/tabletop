@@ -15,11 +15,13 @@ public partial class GameScreen : Control
     public TableInput Input { get; private set; } = null!;
     Button _home = null!; PanelContainer _chip = null!; Label _chipText = null!;
     Label _status = null!, _statusTail = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!; ScrollContainer _sideColumn = null!; HBoxContainer _bottom = null!;
-    Control? _lobby; WaitingPanel? _waiting; bool _wasWaiting;
+    Control? _lobby; LobbyPanel? _lobbyPanel; WaitingPanel? _waiting; bool _wasWaiting;
     readonly SetupFolds _folds = new();   // the terrain card's and Game settings' folds outlive each rebuild
     /// <summary>The folds and the lobby's local Game settings edits, kept across rebuilds (LobbyPanel).</summary>
     public SetupFolds Folds => _folds;
     public LobbySettings LobbyDraft { get; } = new();
+    /// <summary>The lobby's Game settings column: a fixed width (a size, not spacing).</summary>
+    const int LobbyColumnWidth = 380;
     /// <summary>The open setup tool, remembered for the session (spec 2026-11-21-setup-screen-layout-design.md → Tool rail).</summary>
     static readonly SetupTools Tools = new();
     SetupTopBar? _topBar; SetupRail? _rail; SetupToolPanel? _toolPanel; KeyHintBar? _hints; GameMenu _gameMenu = null!; SetupPieceKeys? _pieceKeys;
@@ -172,7 +174,8 @@ public partial class GameScreen : Control
     {
         var game = _session.Game;
         ShowStatus();
-        _lobby?.QueueFree(); _lobby = null;
+        if (_lobby is { } was && IsInstanceValid(was)) { was.GetParent()?.RemoveChild(was); was.QueueFree(); }   // out of the page now, so the new page lays out alone
+        _lobby = null; _lobbyPanel = null;
         FreeSetupFrame();
         _wasWaiting = game is not null && _session.WaitingTeams.Count > 0;
         // The waiting panel is kept and refreshed, not rebuilt: a game update that leaves its lines alone keeps an open army dropdown open.
@@ -197,7 +200,7 @@ public partial class GameScreen : Control
                 // The lobby: the team columns across the window, Game settings in a column of its own on the right.
                 var page = new HBoxContainer(); page.AddThemeConstantOverride("separation", Space.XL);
                 page.AddChild(new TeamColumnsPanel(compact: false) { SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ShrinkBegin, Report = Toast });
-                page.AddChild(new LobbyPanel { CustomMinimumSize = new Vector2(380, 0), SizeFlagsVertical = SizeFlags.ShrinkBegin, Folds = _folds, Draft = LobbyDraft, Report = Toast });
+                page.AddChild(_lobbyPanel = new LobbyPanel { CustomMinimumSize = new Vector2(LobbyColumnWidth, 0), SizeFlagsVertical = SizeFlags.ShrinkBegin, Folds = _folds, Draft = LobbyDraft, Report = Toast });
                 _side.AddChild(_lobby = page);
             }
         }
