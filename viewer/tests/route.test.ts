@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { hrefOf, parseRoute, tabsOf, watchUrl, type Route } from '../src/lib/shell/route';
 
 const id = '0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b';
-const id2 = '0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c';
 const home: Route = { page: 'games' };
 
 describe('routes', () => {
@@ -17,15 +16,9 @@ describe('routes', () => {
     expect(parseRoute('#/nowhere', home)).toEqual(home);
   });
 
-  it('a game route carries an optional army', () => {
-    expect(parseRoute(`#/game/${id}?army=${id2}`, home)).toEqual({ page: 'game', gameId: id, army: id2 });
-    expect(parseRoute(`#/game/${id}?army=nope`, home)).toEqual({ page: 'game', gameId: id });
-    expect(hrefOf({ page: 'game', gameId: id, army: id2 })).toBe(`#/game/${id}?army=${id2}`);
-  });
-
   it('hrefOf round-trips through parseRoute', () => {
     const routes: Route[] = [
-      { page: 'games' }, { page: 'game', gameId: id }, { page: 'game', gameId: id, army: id2 },
+      { page: 'games' }, { page: 'game', gameId: id },
       { page: 'replay', gameId: id }, { page: 'watch' }, { page: 'tests' },
     ];
     for (const r of routes) expect(parseRoute(hrefOf(r), { page: 'watch' })).toEqual(r);

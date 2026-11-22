@@ -85,7 +85,7 @@
   {#if route.page === 'games'}
     <GamesPage {auth} />
   {:else if route.page === 'game'}
-    {#key route.gameId}<GamePage gameId={route.gameId} army={route.army} {auth} socketUrl={config.socketUrl} />{/key}
+    {#key route.gameId}<GamePage gameId={route.gameId} {auth} socketUrl={config.socketUrl} />{/key}
   {:else if route.page === 'replay'}
     {#key route.gameId}<ReplayPage gameId={route.gameId} socketUrl={config.socketUrl} {auth} />{/key}
   {/if}

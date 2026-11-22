@@ -36,11 +36,4 @@ public class LobbyEditsTests
         Assert.Equal(new StartSetup(), LobbyEdits.StartSetup());
         Assert.Equal(new EndSetup(), LobbyEdits.EndSetup());
     }
-
-    [Fact]
-    public void The_create_games_army_names_no_team()
-    {
-        var army = Guid.CreateVersion7();
-        Assert.Equal(new PickArmy(army, null), LobbyEdits.ArmyFromCreate(army));
-    }
 }

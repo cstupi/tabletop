@@ -2,11 +2,9 @@
 <!-- One game over one GameConnection: a header strip (back to the games, the name and status, Leave, setup's End setup), then the lobby,
      setup, or (from playing) the board, by the game's status. -->
 <script lang="ts">
-  import { untrack } from 'svelte';
   import { apiOf } from '../api/client';
   import { connectGame, type ConnectionState, type GameConnection } from '../connection/gameConnection';
   import LobbyPage from '../lobby/LobbyPage.svelte';
-  import { armyFromCreate } from '../lobby/lobbyEdits';
   import { isCreator } from '../lobby/seats';
   import PlayPage from '../play/PlayPage.svelte';
   import SetupPage from '../setup/SetupPage.svelte';
@@ -18,7 +16,7 @@
   import { sendEdit } from './send';
   import Icon from '../../../../web/src/lib/components/Icon.svelte';
 
-  let { gameId, army, auth, socketUrl }: { gameId: string; army?: string | undefined; auth: Auth; socketUrl: string } = $props();
+  let { gameId, auth, socketUrl }: { gameId: string; auth: Auth; socketUrl: string } = $props();
 
   const api = apiOf(() => auth.jwt());
   let connection: GameConnection | null = $state.raw(null);
@@ -29,18 +27,9 @@
 
   $effect(() => {
     const id = gameId;
-    const pick = untrack(() => army);
     const conn = connectGame({ url: socketUrl, gameId: id, jwt: () => auth.jwt() });
     connection = conn;
-    let armySent = false;
-    const stop = conn.subscribe((s) => {
-      snap = s;
-      // The creator's link carries the army chosen in Create game: it is picked once, after the first welcome.
-      if (!armySent && pick !== undefined && s.phase === 'connected' && s.game !== null) {
-        armySent = true;
-        void conn.sendEdit(armyFromCreate(pick)).catch(() => {});
-      }
-    });
+    const stop = conn.subscribe((s) => { snap = s; });
     return () => { stop(); conn.close(); connection = null; snap = null; };
   });
 

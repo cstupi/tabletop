@@ -167,7 +167,7 @@ public static partial class CallCases
 
     public static readonly string[] EditControls =
     [
-        "columnJoin", "columnMove", "watch", "createTeam", "armySeat", "createArmy", "waitingJoin", "waitingArmy", "configure", "configureHash", "startSetup", "endSetup",
+        "columnJoin", "columnMove", "watch", "createTeam", "armySeat", "waitingJoin", "waitingArmy", "configure", "configureHash", "startSetup", "endSetup",
         "size", "texture", "addBuiltin", "addAsset", "random", "clear", "load", "objective", "zones", "swapZones",
         "menuTurnLeft", "menuTurnRight", "menuFacing", "menuRemove", "menuRemoveMarker",
         "scale", "swapMesh", "swapAsset", "remove", "removeMarker", "resetVolumes",

@@ -6,9 +6,6 @@ public static class CreateDefaults
     public static int DefaultIndex(IReadOnlyList<PropertiesSummary> packs) => Math.Max(0, packs.ToList().FindIndex(p => p.Default));
     public static string PackLabel(PropertiesSummary p) => p.Name;
 
-    /// <summary>The army picker's first row: no army now.</summary>
-    public const string NoArmy = "Choose in the lobby";
-
     /// <summary>What each enforcement setting does, one line under its picker (the viewer's ENFORCEMENT_HINT).</summary>
     public static string EnforcementHint(Tabletop.Protocol.Enforcement e) => e switch
     {

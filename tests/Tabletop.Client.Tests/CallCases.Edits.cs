@@ -141,7 +141,6 @@ public static partial class CallCases
             if (status == GameStatus.Setup && creator) yield return E("endSetup", Obj(), _ => LobbyEdits.EndSetup());
             if (status == GameStatus.Lobby)
             {
-                yield return E("createArmy", Obj(("armyId", S(ArmyId))), _ => LobbyEdits.ArmyFromCreate(ArmyId));
                 var seats = LobbyView.Armies(game, Who(Log(log), creator));
                 for (var i = 0; i < Math.Max(1, seats.Count); i++)
                 {

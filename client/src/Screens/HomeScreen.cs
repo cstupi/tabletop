@@ -133,7 +133,7 @@ public partial class HomeScreen : Control
     /// <summary>A label that wraps inside a dialog: a fixed width, since a wrapping label in an auto-sized window otherwise measures one word a line.</summary>
     static Label DialogText(string text = "", string variation = "") => new()
     {
-        Text = text, ThemeTypeVariation = variation, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(DialogWidth - 40, 0),
+        Text = text, ThemeTypeVariation = variation, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(DialogWidth - 2 * Space.L, 0),
     };
 
     /// <summary>The account menu's name, and while it is still the default Player-xxxx, the line naming it.</summary>
@@ -392,13 +392,12 @@ public partial class HomeScreen : Control
     }
 
     /// <summary>Create game (part 1 → Create game): the name's problem after the first keystroke or an attempt, the enforcement's line under
-    /// its picker, my armies of the set's edition (others disabled with the reason). Created, the lobby opens at once.</summary>
+    /// its picker. Created, the lobby opens at once, where each player picks an army in their team's column.</summary>
     async Task CreateDialog()
     {
         var session = Main.Instance.Session;
-        Show("Loading rule sets and armies…", "");
+        Show("Loading rule sets…", "");
         var packs = await session.Management.ListProperties();
-        var armies = (await session.Management.ListArmies(null)).Items;
         if (!IsInstanceValid(this)) return;
         if (packs.Count == 0) { Show("The server has no rule set loaded (GET /v1/properties is empty), so no game can be created."); return; }
         Show("");
@@ -425,19 +424,6 @@ public partial class HomeScreen : Control
         var enforcementField = Field("Enforcement", enforcement); enforcementField.SizeFlagsHorizontal = SizeFlags.ExpandFill; two.AddChild(enforcementField);
         var hint = DialogText(CreateDefaults.EnforcementHint(Enforcement.Warn), Variation.Dim); form.AddChild(hint);
         enforcement.ItemSelected += i => hint.Text = CreateDefaults.EnforcementHint(Enum.Parse<Enforcement>(enforcement.GetItemText((int)i)));
-        // The army list follows the selected set: another edition's armies are listed disabled with the reason.
-        var army = new OptionButton(); form.AddChild(Field("Your army", army));
-        IReadOnlyList<ArmyOption> options = [];
-        void ListArmies()
-        {
-            options = LobbyView.ArmyOptions(packs[pack.Selected].GameRules, armies);
-            army.Clear(); army.AddItem(CreateDefaults.NoArmy);
-            LobbyPanel.AddArmies(army, options, o => o.Enabled ? $"{o.Label} · {o.Army.Units} units" : o.Text);
-            army.Select(0);
-        }
-        ListArmies();
-        pack.ItemSelected += _ => ListArmies();
-        if (armies.Count == 0) form.AddChild(DialogText("You have no armies yet: import one on the website's Armies page.", Variation.Dim));
         // Create waits for a good name; Enter on a bad one is an attempt, and shows its problem.
         Check();
         name.TextSubmitted += _ => { touched = true; Check(); if (!problem.Visible) { dialog.Hide(); Create(); } };
@@ -451,21 +437,6 @@ public partial class HomeScreen : Control
             // WaitsBetweenSteps is a development flag (spec: in-game UX → Flow between steps); players never get the "Continue" stops.
             var game = await session.Management.CreateGame(new CreateGameRequest(name.Text.Trim(), packs[pack.Selected].ContentHash,
                 shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, Enum.Parse<Enforcement>(enforcement.GetItemText(enforcement.Selected)), WaitsBetweenSteps: false));
-            Guid? armyId = army.Selected <= 0 ? null : options[army.Selected - 1].Army.Id;
-            if (armyId is { } id)
-            {
-                var gameId = game.Id;
-                void PickWhenConnected()
-                {
-                    if (session.GameId != gameId) { session.PhaseChanged -= PickWhenConnected; return; }
-                    if (session.Phase == SessionPhase.Connected)
-                    {
-                        session.PhaseChanged -= PickWhenConnected;
-                        Run(() => session.SendEditAsync(LobbyEdits.ArmyFromCreate(id)));
-                    }
-                }
-                session.PhaseChanged += PickWhenConnected;
-            }
             dialog.QueueFree();             // before the connect: it leaves this screen, and the dialog goes with it
             await session.ConnectAsync(game.Id);
         });

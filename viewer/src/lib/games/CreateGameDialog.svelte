@@ -1,24 +1,22 @@
 <!-- viewer/src/lib/games/CreateGameDialog.svelte -->
-<!-- HomeScreen.CreateDialog: name, rule set, activation, enforcement and an optional army. Create waits until the name passes. -->
+<!-- HomeScreen.CreateDialog: name, rule set, activation and enforcement. Create waits until the name passes; armies are picked in the lobby. -->
 <script lang="ts">
   import type { Api } from '../api/client';
   import { nameProblem } from '../api/names';
-  import type { ArmySummary, CreateGameRequest, Enforcement, PropertiesSummary, SchedulerShape } from '../api/types';
+  import type { CreateGameRequest, Enforcement, PropertiesSummary, SchedulerShape } from '../api/types';
   import { createDefaults } from './listModel';
   import Loading from '../components/Loading.svelte';
-  import { armyOptions } from '../lobby/lobbyView';
   import { ENFORCEMENT_HINT, ENFORCEMENT_LABEL, SHAPE_LABEL } from '../lobby/lobbyPage';
 
   let { api, onCreated, onClose }: {
     api: Api;
-    /** The new game's id and the army to pick once the socket is welcomed (null: none). */
-    onCreated: (gameId: string, armyId: string | null) => void;
+    /** The new game's id. */
+    onCreated: (gameId: string) => void;
     onClose: () => void;
   } = $props();
 
   let dialog: HTMLDialogElement | undefined = $state();
   let packs: PropertiesSummary[] = $state([]);
-  let armies: ArmySummary[] = $state([]);
   let loaded = $state(false);
   let failure: string | null = $state(null);
   let busy = $state(false);
@@ -27,17 +25,13 @@
   let hash = $state('');
   let shape: SchedulerShape = $state('alternating-activation');
   let enforcement: Enforcement = $state('warn');
-  let armyId = $state('');
 
   const problem = $derived(nameProblem(name, 'A game name'));
-  // The army list follows the selected set: another edition's armies are listed disabled with the reason, and a pick of one is dropped.
-  const options = $derived(armyOptions(packs.find((p) => p.contentHash === hash)?.gameRules ?? '', armies));
-  $effect(() => { if (armyId !== '' && !options.some((o) => o.army.id === armyId && o.disabledReason === null)) armyId = ''; });
 
   $effect(() => {
     dialog?.showModal();
-    Promise.all([api.listProperties(), api.listArmies()]).then(([p, a]) => {
-      packs = p; armies = a;
+    api.listProperties().then((p) => {
+      packs = p;
       const defaults = createDefaults(p);
       if (defaults === null) failure = 'The server has no rule set loaded, so no game can be created.';
       else { hash = defaults.propertiesHash; shape = defaults.schedulerShape; enforcement = defaults.enforcement; }
@@ -53,7 +47,7 @@
     const request: CreateGameRequest = { name: name.trim(), propertiesHash: hash, schedulerShape: shape, enforcement, waitsBetweenSteps: false };
     try {
       const game = await api.createGame(request);
-      onCreated(game.id, armyId === '' ? null : armyId);
+      onCreated(game.id);
     } catch (e) { failure = (e as Error).message; busy = false; }
   }
 </script>
@@ -62,7 +56,7 @@
   <form onsubmit={create}>
     <h2 id="create-title">Create game</h2>
     {#if !loaded}
-      <Loading text="Loading rule sets and armies…" inline />
+      <Loading text="Loading rule sets…" inline />
     {:else}
       <label>Name
         <input type="text" bind:value={name} maxlength="64" placeholder="Friday night skirmish" />
@@ -88,13 +82,6 @@
         </label>
       </div>
       <small class="dim">{ENFORCEMENT_HINT[enforcement]}</small>
-      <label>Your army
-        <select bind:value={armyId}>
-          <option value="">Choose in the lobby</option>
-          {#each options as o (o.army.id)}<option value={o.army.id} disabled={o.disabledReason !== null} title={o.disabledReason}>{o.disabledReason === null ? `${o.label} · ${o.army.units} units` : o.text}</option>{/each}
-        </select>
-      </label>
-      {#if armies.length === 0}<small class="dim">You have no armies yet: import one on the website's Armies page.</small>{/if}
     {/if}
     {#if failure !== null}<p role="alert">{failure}</p>{/if}
     <div class="actions">
@@ -107,11 +94,11 @@
 <style>
   dialog { width: min(30rem, calc(100vw - 2rem)); }
   form { display: flex; flex-direction: column; gap: var(--space-3); }
-  h2 { margin: 0 0 var(--space-1); }
+  h2 { margin: 0; }
   label { display: flex; flex-direction: column; gap: var(--space-1); color: var(--dim); font-size: .95rem; }
   label input, label select { width: 100%; color: var(--text); font-size: 1rem; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
-  small { font-size: .85rem; margin-top: calc(-1 * var(--space-2)); }
+  small { font-size: .85rem; margin-top: calc(-1 * var(--space-2)); }   /* 8px under its field: a field's note belongs to it */
   .warn { color: var(--warning); }
-  .actions { justify-content: flex-end; margin: var(--space-2) 0 0; }
+  .actions { margin-top: var(--space-2); }   /* with the form's 16px gap, the dialogs' 24px above the buttons */
 </style>

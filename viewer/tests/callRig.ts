@@ -5,7 +5,7 @@ import packedCatalog from '@builtin-catalog';
 import type { ConnectionState, SendOutcome } from '../src/lib/connection/gameConnection';
 import type { Geometry } from '../src/lib/geometry';
 import { Applier } from '../src/lib/live/apply';
-import { armyFromCreate, createTeam, endSetup, startSetup, watch } from '../src/lib/lobby/lobbyEdits';
+import { createTeam, endSetup, startSetup, watch } from '../src/lib/lobby/lobbyEdits';
 import { armySeats, pickArmy } from '../src/lib/lobby/lobbyView';
 import { columnsOf, moveTo } from '../src/lib/lobby/teamColumns';
 import { configurationOf } from '../src/lib/lobby/rulesOptions';
@@ -266,7 +266,6 @@ function editOf(c: CallCase, st: ConnectionState, g: Geometry, log: CallLogFiles
     case 'startSetup': return startSetup();
     case 'endSetup': return endSetup();
     case 'armySeat': { const seats = armySeats(game, pid); return x.seat < seats.length ? pickArmy(seats[x.seat]!, x.armyId) : null; }
-    case 'createArmy': return armyFromCreate(x.armyId);
     case 'waitingJoin': case 'waitingArmy': {
       const w = waited(st, x.dropPlayers, x.dropArmies, parsed(log).board);
       const lines = waitingLines(w.game, waitingTeams(w.game, w.board), pid);

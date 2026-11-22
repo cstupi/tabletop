@@ -92,9 +92,9 @@
     await reload();
   }
 
-  function created(gameId: string, armyId: string | null) {
+  function created(gameId: string) {
     creating = false;
-    window.location.hash = hrefOf({ page: 'game', gameId, ...(armyId === null ? {} : { army: armyId }) });
+    window.location.hash = hrefOf({ page: 'game', gameId });
   }
 </script>
 
@@ -256,7 +256,6 @@
   .head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
   .head h2 { margin: 0; }
   dialog { max-width: 28rem; }
-  dialog .actions { justify-content: flex-end; margin-bottom: 0; }
   @media (max-width: 40rem) {
     .row { grid-template-columns: 1fr auto; }
     .row .status, .row .players, .row .when { grid-column: 1 / -1; }

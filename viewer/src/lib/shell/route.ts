@@ -5,33 +5,29 @@ import type { Access } from '../hosted/hosted';
 
 export type Route =
   | { readonly page: 'games' }
-  | { readonly page: 'game'; readonly gameId: string; readonly army?: string }
+  | { readonly page: 'game'; readonly gameId: string }
   | { readonly page: 'replay'; readonly gameId: string }
   | { readonly page: 'watch' }
   | { readonly page: 'tests' };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** `#/games`, `#/game/<uuid>[?army=<uuid>]`, `#/replay/<uuid>`, `#/watch`, `#/tests`; anything else is the build's home. */
+/** `#/games`, `#/game/<uuid>`, `#/replay/<uuid>`, `#/watch`, `#/tests`; anything else is the build's home. */
 export function parseRoute(hash: string, home: Route): Route {
-  const [path = '', query = ''] = hash.replace(/^#\/?/, '').split('?', 2);
+  const [path = ''] = hash.replace(/^#\/?/, '').split('?', 2);
   const [page, id] = path.split('/');
   if (id === undefined) {
     if (page === 'games' || page === 'watch' || page === 'tests') return { page };
     return home;
   }
   if (!UUID.test(id)) return home;
-  if (page === 'replay') return { page, gameId: id };
-  if (page === 'game') {
-    const army = new URLSearchParams(query).get('army');
-    return army !== null && UUID.test(army) ? { page, gameId: id, army } : { page, gameId: id };
-  }
+  if (page === 'replay' || page === 'game') return { page, gameId: id };
   return home;
 }
 
 export function hrefOf(route: Route): string {
   switch (route.page) {
-    case 'game': return `#/game/${route.gameId}${route.army === undefined ? '' : `?army=${route.army}`}`;
+    case 'game': return `#/game/${route.gameId}`;
     case 'replay': return `#/replay/${route.gameId}`;
     default: return `#/${route.page}`;
   }

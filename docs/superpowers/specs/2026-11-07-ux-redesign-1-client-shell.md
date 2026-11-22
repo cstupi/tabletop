@@ -86,15 +86,14 @@ Size: L (new `HomeView` in Core: the cards, their state and actions; `HomeScreen
 
 ## Create game
 
-Today (`03-create-game.png`): a dialog of five labelled fields; *A game name is required.* shows in warning before anything is typed;
-the army field reads *No army (pick one in the lobby)*. Size: S.
+A dialog of Name, Rule set (when the server has more than one), Activation and Enforcement. Size: S.
 
 - The name's problem shows after the first keystroke or an attempt, under the field, as the web does (`nameProblem`).
 - Rule set, Activation and Enforcement keep their dropdowns; the enforcement's one-line meaning under it (the viewer's `ENFORCEMENT_HINT`,
   the same words).
-- *Your army* lists my armies of the set's edition, others disabled with the reason (today's `ArmyOptions`); its empty label is *Choose in
-  the lobby*. **Create game** is the primary, Enter.
-- Created, the client opens the lobby at once (today: the list refreshes and the row must be found and joined).
+- No army field: each player picks an army in their team's column in the lobby. **Create game** is the primary, Enter; Cancel sits left
+  of it, the dialog theme's spacing (L padding, L between the content and the buttons and between the buttons).
+- Created, the client opens the lobby at once.
 
 ## Settings
 
