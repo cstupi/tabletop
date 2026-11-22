@@ -45,7 +45,7 @@ flowchart TD
   update["UpdateRequiredScreen"]
   gamescr["GameScreen<br/>lobby, setup, playing, ended"]
   lobby["LobbyPanel"]
-  setup["SetupToolbar"]
+  setup["SetupTopBar, SetupRail, SetupToolPanel<br/>(a SetupToolBody per tool), GameMenu, KeyHintBar"]
   hud["Hud: HeaderBar, Roster, UnitCard, DecisionBox, DiceTray,<br/>LogDrawer, CombatLogPanel, TurnBanner, EndMessage, KeyOverlay, Toasts"]
   table["TableView + TableInput + PresenceOverlay<br/>+ HoverLabels, SightLines, TargetLines, Lasers, RangeRingNode,<br/>UnitMarkerNodes, FloatingText"]
 
