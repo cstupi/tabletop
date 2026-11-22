@@ -14,6 +14,8 @@
   const noFocus = (e: Event) => e.preventDefault();
   const colour = (ordinal: number): string => (ordinal > 0 ? teamColour(ordinal) : 'var(--dim)');
   const body = $derived(panel.controls.filter((c) => c.kind !== 'button'));
+  /** The tile lit from the button over the unit (its hover), read again with each panel. */
+  const lit = (_: DecisionPanel, id: string): boolean => box.hoveredControl === id;
   const foot = $derived(panel.controls.filter((c): c is Extract<Control, { kind: 'button' }> => c.kind === 'button'));
 </script>
 
@@ -50,7 +52,7 @@
               {#if g.unit !== null}<p class="group-head"><strong>{g.unit}</strong>{#if g.pips !== null}<span class="pips">{g.pips}</span>{/if}</p>{/if}
               <div class="tiles" style:--cols={Math.min(4, Math.max(1, control.tiles.length))}>
                 {#each control.tiles as tile (tile.id)}
-                  <button type="button" class="tile" tabindex="-1" disabled={tile.disabled} title={tile.tooltip ?? tile.label} onmousedown={noFocus}
+                  <button type="button" class="tile" class:lit={lit(panel, tile.id)} tabindex="-1" disabled={tile.disabled} title={tile.tooltip ?? tile.label} onmousedown={noFocus}
                     onclick={() => box.press(tile.id)} onpointerenter={() => box.hover(tile.id)} onpointerleave={() => box.hover(null)}>
                     {#if tile.icon !== null}<DecisionIcon name={tile.icon} size={26} />{/if}
                     <span class="word">{tile.word}</span>
@@ -142,6 +144,7 @@
   .tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s1); padding: var(--s3) var(--s2);
     min-height: 0; white-space: normal; text-align: center; }
   .tile kbd { position: absolute; top: 4px; right: 4px; }
+  .tile.lit:not(:disabled) { background-color: var(--btn-hover); }
   .tile.row { flex-direction: row; justify-content: flex-start; text-align: left; gap: var(--s3); }
   .tile.row .word { flex: 1; min-width: 0; }
   .tile.row kbd { position: static; }
