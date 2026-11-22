@@ -1,7 +1,8 @@
 <!-- viewer/src/lib/play/UnitActions.svelte -->
 <!-- UnitActionsNode.cs: the bar over the acting unit during every step of my activation (spec 2026-11-21-actions-over-unit-design.md): a round
      icon button per option the decision box offers, in the box's order, then the card's foot actions (the primary lit, a dim one with its reason as
-     title), centred above the unit's models and its name label on the board and kept inside it (placeRect). A click presses the box's tile or
+     title), centred above the unit's models and its name label on the board and kept inside it (placeRect), held still while the pointer is over
+     it or a press or drag is in progress and eased to its place otherwise (UnitActionsHold). A click presses the box's tile or
      button; the pointer on an option lights its tile, and on a tile lights its button. While I pick shooting targets, a target icon stands over
      each enemy unit I may shoot; a click on it is the board's click on that unit. -->
 <script lang="ts">
@@ -10,7 +11,7 @@
   import type { DecisionBox, DecisionPanel } from './decisionBox';
   import DecisionIcon from './DecisionIcon.svelte';
   import { hoverLabelBox } from './hoverLabels';
-  import { placeRect, tipOf, type UnitActions, type UnitTarget } from './unitActionsView';
+  import { placeRect, tipOf, UnitActionsHold, type Rect, type UnitActions, type UnitTarget } from './unitActionsView';
 
   let { actions, targets, box, panel, scene, woundLine, project, scale, size, names, onHoverUnit }: {
     actions: UnitActions; targets: readonly UnitTarget[]; box: DecisionBox; panel: DecisionPanel; scene: Scene; woundLine: boolean;
@@ -38,6 +39,24 @@
     // Above the unit's name label too, shown or not, so a button that brings it up never moves out from under the pointer.
     return placeRect(at.x, at.y, w, BUTTON, view, [], SPACE, hoverLabelBox(scene, actions.unitId, woundLine, project, scale));
   });
+  // Where the bar is drawn: held while the pointer is over it or a button is down anywhere (a drag of the models moves the name label under
+  // it, and a click aimed at Commit right after must land), else eased to rect each animation frame.
+  const hold = new UnitActionsHold();
+  let over = $state(false);
+  let pressed = false;
+  let drawn = $state<Rect | null>(null);
+  $effect(() => {
+    const want = rect, unit = actions.unitId;
+    let last = performance.now(), frame = 0;
+    const tick = (now: number): void => {
+      const at = hold.step(unit, want, over || pressed, (now - last) / 1000);
+      last = now;
+      drawn = at;
+      if (at.x !== want.x || at.y !== want.y) frame = requestAnimationFrame(tick);
+    };
+    tick(last);
+    return () => cancelAnimationFrame(frame);
+  });
   const targetRects = $derived(targets.map((t) => {
     const at = topOf(t.unitId, t.anchor);
     return { target: t, rect: placeRect(at.x, at.y, BUTTON, BUTTON, view, [], SPACE, hoverLabelBox(scene, t.unitId, false, project, scale)) };
@@ -48,7 +67,10 @@
   const noFocus = (e: Event) => e.preventDefault();
 </script>
 
-<div class="actions" role="toolbar" aria-label="Actions" style:left="{rect.x}px" style:top="{rect.y}px">
+<svelte:window onpointerdowncapture={() => { pressed = true; }} onpointerupcapture={() => { pressed = false; }} onblur={() => { pressed = false; }} />
+
+<div class="actions" role="toolbar" tabindex="-1" aria-label="Actions" style:left="{(drawn ?? rect).x}px" style:top="{(drawn ?? rect).y}px"
+  onpointerenter={() => { over = true; }} onpointerleave={() => { over = false; }}>
   {#each actions.options as o (o.optionId)}
     <button type="button" class="act" class:lit={lit(panel, o.optionId)} tabindex="-1" title={tipOf(o)} aria-label={tipOf(o)} onmousedown={noFocus}
       onclick={() => box.press(`opt:${o.optionId}`)} onpointerenter={() => box.hover(`opt:${o.optionId}`)} onpointerleave={() => box.hover(null)}>

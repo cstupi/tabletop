@@ -119,3 +119,27 @@ export function placeRect(centreX: number, top: number, w: number, h: number, vi
     }
   return best ?? want;
 }
+
+/**
+ * UnitActionsHold: where the bar stands from frame to frame. It holds still while held (the pointer over it, a drag or a press in progress), so
+ * a click aimed at it after a drag lands where it was aimed, and otherwise eases to where placeRect wants it, never jumping. The first place after
+ * it was hidden, or for another unit, is taken at once.
+ */
+export class UnitActionsHold {
+  /** The ease's rate per second: the gap closes by 1 - e^(-rate * dt) a frame. */
+  static readonly RATE = 12;
+  private at: Rect | null = null;
+  private unit = '';
+
+  step(unit: string, want: Rect, held: boolean, dt: number): Rect {
+    const at = this.at;
+    if (at === null || unit !== this.unit) { this.unit = unit; return (this.at = want); }
+    if (held) return (this.at = { ...at, w: want.w, h: want.h });
+    const k = 1 - Math.exp(-UnitActionsHold.RATE * Math.max(0, dt));
+    const ease = (from: number, to: number): number => (Math.abs(to - from) < 0.5 ? to : from + (to - from) * k);
+    return (this.at = { ...want, x: ease(at.x, want.x), y: ease(at.y, want.y) });
+  }
+
+  /** The bar was hidden: its next place is taken at once. */
+  reset(): void { this.at = null; }
+}
