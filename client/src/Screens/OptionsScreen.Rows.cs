@@ -23,7 +23,8 @@ public partial class OptionsScreen
         row.SetMeta("describe", true);
         row.MouseEntered += Show;
         focus.FocusEntered += () => { _focused = index; if (!_quietFocus) Show(); };
-        foreach (var c in new[] { control, focus }) c.MouseEntered += Show;
+        control.MouseEntered += Show;
+        if (focus != control) focus.MouseEntered += Show;   // a toggle or choice row passes its picker as both; one connection each
         _rowList.Add((row, focus, step));
         return row;
     }
