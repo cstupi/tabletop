@@ -14,11 +14,16 @@ the Godot client, the web app and the viewer. Owner: the client is the priority;
 3. **Shared edges.** Titles, text, controls and buttons in a panel start on one left edge. Text is left-aligned; centre only a short heading
    or a lone call to action; right-align only numbers in tables and key caps in buttons.
 4. **Even padding.** A panel's padding is the same on all four sides unless a rule names why (a band's left edge).
-5. **Micro and macro.** Micro: padding inside a button, gap between icon and text (4–8). Macro: between sections, cards, columns (24–48).
-6. **More space, less relation.** Space carries grouping before lines or boxes do; add a divider only where space cannot.
-7. **When in doubt, more space** on full-screen pages (Home, lobby, Options, the web app). The in-game Hud over the table stays compact
+5. **A border needs room.** Owner, 2026-11-21: *"so many places in the client where a box is drawn around dice, results etc where the
+   spacing isn't enough."* Anything drawn inside a border or a filled box (dice faces, roll results, chips, badges, key caps, tiles,
+   cards, tooltips, the decision card's groups) has at least `Space.S` (8) between its content and the border on every side; a box
+   holding a title or several lines `Space.M`. `Space.XS` is never padding inside a border; it is only the gap between an icon and its
+   label, or between rows of a dense list.
+6. **Micro and macro.** Micro: padding inside a button, gap between icon and text (4–8). Macro: between sections, cards, columns (24–48).
+7. **More space, less relation.** Space carries grouping before lines or boxes do; add a divider only where space cannot.
+8. **When in doubt, more space** on full-screen pages (Home, lobby, Options, the web app). The in-game Hud over the table stays compact
    (the scale's lower steps) because padding there hides the table.
-8. **Named, never literal.** Code names a step, never a number:
+9. **Named, never literal.** Code names a step, never a number:
    - Godot: `Space.XS` 4, `Space.S` 8, `Space.M` 16, `Space.L` 24, `Space.XL` 32, `Space.XXL` 48 (`client/src/Theme/Space.cs`).
    - Web and viewer: `--space-1` 4px, `--space-2` 8px, `--space-3` 16px, `--space-4` 24px, `--space-5` 32px, `--space-6` 48px
      (`web/src/themes.css`; the viewer imports it in `viewer/src/main.ts`).
