@@ -17,13 +17,13 @@ row and to a player for their own, never onto a team the server would refuse, an
 hold several; the creator's + Add team is
 `CreateTeam`; my row's picker is `PickArmy` (one per team held). `LobbyPanel` is Game settings: `SetConfiguration` pre-filled with
 the current values, shown to everyone and editable by the creator alone (for anyone else its controls are disabled with
-`LobbyView.CreatorOnly` as tooltip); the game name is held to 64 characters (`TextLimits`). `SidePanelHead` holds the creator's
-`StartSetup` and `EndSetup` and the Still to do lines (`TeamColumns.StillToDo`) everyone reads. A forged edit is refused with
-`NotPermitted`, so the UI is a convenience over a server rule rather than the rule itself. A Leave game button (the game screen's
-confirm, then `Session.LeaveAsync`) at the foot of Game settings gives the seat up from lobby and setup. The "End setup" button notes how many placements are still off the slab, because the
+`LobbyView.CreatorOnly` as tooltip); the game name is held to 64 characters (`TextLimits`). `SetupTopBar` holds the creator's
+`StartSetup` and `EndSetup` and the count of Still to do lines that lack a player or an army (`TopBarView`), its dropdown listing them. A forged edit is refused with
+`NotPermitted`, so the UI is a convenience over a server rule rather than the rule itself. The game menu's Leave game (☰ or Esc; the game screen's
+confirm, then `Session.LeaveAsync`) gives the seat up from lobby and setup. The "End setup" button notes how many placements are still off the slab, because the
 end-setup command deletes those rows before flipping.
 
-`SetupToolbar` covers the fourteen setup edits: table size and texture; add built-in terrain, add
+The setup tools (`SetupTerrainTool`, `SetupObjectivesTool`, `SetupTableTool`, `SetupZonesTool`, `SetupLayoutsTool`; the terrain card and `SetupPieceKeys` for a selected piece) cover the fourteen setup edits: table size and texture; add built-in terrain, add
 library terrain (`ListAssets(Terrain)` → `GetAssetVolumes` → `AddTerrain` with `VisualRef.OfAsset`),
 move, turn (a held piece's Q/E, the right-click menu's Turn left/right 15° and Set facing…, the
 terrain card's Facing field and ⟲/⟳ 15° buttons: `MoveTerrain` with the new yaw, moved clear of `Impassable` pieces by

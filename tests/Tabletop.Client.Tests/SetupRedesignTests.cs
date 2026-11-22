@@ -80,17 +80,6 @@ public class SetupRedesignTests
     }
 
     [Fact]
-    public void Headings_have_icons_and_zones_read_their_style()
-    {
-        Assert.Equal(["terrain", "objective", "table", "zone", "layout", "settings"], SetupFolds.Order(GameStatus.Setup).Select(SetupFolds.Icon));
-        var table = Tabletop.Content.Tests.TableStateTests.Sample();
-        var zones = table with { Zones = [new DeploymentZone(Guid.NewGuid(), "ground-war/1", 1), new DeploymentZone(Guid.NewGuid(), "ground-war/2", 2)] };
-        Assert.Equal("Zones · Ground War", SetupFolds.Title(SetupFold.Zones, zones, Samples.Game));
-        Assert.Equal("Zones", SetupFolds.Title(SetupFold.Zones, zones with { Zones = [] }, Samples.Game));
-        Assert.False(new SetupFolds().TeamsOpen);
-    }
-
-    [Fact]
     public void Objectives_are_rows_of_label_and_position()
     {
         var draft = Tabletop.Content.Tests.TableStateTests.Sample();

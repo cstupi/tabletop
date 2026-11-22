@@ -158,7 +158,7 @@ public partial class TerrainCard : VBoxContainer
         var scale = new SpinBox { MinValue = 0.25, MaxValue = 4, Step = 0.25, Value = t.Scale, Prefix = "×" }; size.AddChild(scale);
         scale.ValueChanged += v => Guarded.Send(s, SetupEdits.Scale(t.Id, v));
 
-        var mesh = new Fold(_folds, SetupFold.PieceMesh, GameStatus.Setup, () => SetupFolds.Title(SetupFold.PieceMesh, null, null)); _body.AddChild(mesh);
+        var mesh = new Fold(_folds, SetupFold.PieceMesh, GameStatus.Setup, () => SetupFolds.Title(SetupFold.PieceMesh)); _body.AddChild(mesh);
         mesh.Body.AddChild(Wrap(c.Source, Variation.Dim));
         var swapRow = new HFlowContainer(); mesh.Body.AddChild(swapRow);
         var swap = new OptionButton(); var names = BuiltinContent.Terrain.Keys.Order().ToList(); foreach (var n in names) swap.AddItem(n);

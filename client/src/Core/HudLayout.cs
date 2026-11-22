@@ -10,6 +10,14 @@ public readonly record struct HudRect(float X, float Y, float W, float H)
     public bool Overlaps(HudRect o) => SpansX(o) && Y < o.Bottom && o.Y < Bottom;
 }
 
+/// <summary>The lobby's and setup's frame (spec 2026-11-21-setup-screen-layout-design.md → Layout): the top bar with the corner inside its left,
+/// the tool rail and the open tool's panel down the left, the key hint bar at the foot, the table (Body) the rest, and over the table the
+/// selected piece's card on the right, the toasts left of it and the loading strip at its foot.</summary>
+public enum SetupPart { TopBar, Corner, Rail, Panel, Body, Card, Toasts, Loading, Hints }
+
+/// <summary>Setup shows the rail and the hint bar, the panel while a tool is open; the lobby none of them.</summary>
+public sealed record SetupVisible(bool Rail, bool Panel, bool Hints);
+
 /// <summary>Replay: the replay bar takes the left column's foot.</summary>
 public sealed record HudVisible(bool Roster, bool UnitCard, bool Decision, bool Dice, bool LogOpen, bool Replay = false);
 
@@ -58,6 +66,27 @@ public static class HudLayout
         }
         r[HudPart.Banner] = new(M, MathF.Floor(h / 3 - BannerH / 2), w - 2 * M, BannerH);
         r[HudPart.EndMessage] = new(MathF.Floor(w / 2 - EndW / 2), MathF.Floor(h / 2 - EndH / 2), EndW, EndH);
+        return r;
+    }
+
+    public const float TopBarH = 56, RailW = 56, PanelW = 360, HintH = 32, SetupCornerW = 360;
+
+    /// <summary>The setup frame's slots. topH and hintH are the bars' actual heights (the theme's font), never under TopBarH and HintH. The
+    /// bars span the window edge to edge; the table's box starts where the rail or the panel ends and reaches the right edge and the hint bar.</summary>
+    public static IReadOnlyDictionary<SetupPart, HudRect> Setup(float w, float h, SetupVisible v, float topH = TopBarH, float hintH = HintH)
+    {
+        var r = new Dictionary<SetupPart, HudRect>();
+        float top = MathF.Ceiling(Math.Max(TopBarH, topH)), hint = v.Hints ? MathF.Ceiling(Math.Max(HintH, hintH)) : 0, bottom = h - hint, bodyH = bottom - top;
+        r[SetupPart.TopBar] = new(0, 0, w, top);
+        r[SetupPart.Corner] = new(M, MathF.Floor((top - CornerH) / 2), SetupCornerW, CornerH);
+        if (v.Rail) r[SetupPart.Rail] = new(0, top, RailW, bodyH);
+        if (v.Panel) r[SetupPart.Panel] = new(RailW, top, PanelW, bodyH);
+        float left = v.Panel ? RailW + PanelW : v.Rail ? RailW : 0;
+        var body = r[SetupPart.Body] = new(left, top, w - left, bodyH);
+        var loading = r[SetupPart.Loading] = new(left + MathF.Floor((body.W - LoadingW) / 2), bottom - M - LogButtonH, LoadingW, LogButtonH);
+        var card = r[SetupPart.Card] = new(w - M - Column, top + M, Column, Math.Max(0, loading.Y - M - (top + M)));
+        r[SetupPart.Toasts] = new(Math.Max(left + M, card.X - M - ToastW), top + M, ToastW, ToastH);
+        if (v.Hints) r[SetupPart.Hints] = new(0, bottom, w, hint);
         return r;
     }
 

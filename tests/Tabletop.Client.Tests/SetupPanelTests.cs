@@ -47,72 +47,16 @@ public class SetupPanelTests
     }
 
     [Fact]
-    public void Setup_opens_only_terrain_and_the_lobby_has_no_folds()
+    public void The_terrain_cards_folds_start_closed_and_keep_what_the_player_chose()
     {
         var folds = new SetupFolds();
-        Assert.Equal([SetupFold.Terrain, SetupFold.Objectives, SetupFold.Table, SetupFold.Zones, SetupFold.Layouts, SetupFold.Game],
-            SetupFolds.Order(GameStatus.Setup));
-        Assert.Empty(SetupFolds.Order(GameStatus.Lobby));
-        Assert.Equal([SetupFold.Terrain], SetupFolds.Order(GameStatus.Setup).Where(f => folds.IsOpen(f, GameStatus.Setup)));
         Assert.False(folds.IsOpen(SetupFold.PieceMesh, GameStatus.Setup));
         Assert.False(folds.IsOpen(SetupFold.PieceVolumes, GameStatus.Setup));
-    }
-
-    [Fact]
-    public void A_section_keeps_what_the_player_chose_until_the_screen_goes()
-    {
-        var folds = new SetupFolds();
-        folds.Set(SetupFold.Objectives, true, GameStatus.Setup);
-        folds.Set(SetupFold.Terrain, false, GameStatus.Setup);
         folds.Set(SetupFold.PieceVolumes, true, GameStatus.Setup);
-        Assert.True(folds.IsOpen(SetupFold.Objectives, GameStatus.Setup));
-        Assert.False(folds.IsOpen(SetupFold.Terrain, GameStatus.Setup));
         Assert.True(folds.IsOpen(SetupFold.PieceVolumes, GameStatus.Setup));
-        // The lobby's choices are its own: Game settings closed in the lobby stays closed by default in setup and open in the lobby again only if chosen.
-        folds.Set(SetupFold.Game, false, GameStatus.Lobby);
-        Assert.False(folds.IsOpen(SetupFold.Game, GameStatus.Lobby));
-        Assert.False(folds.IsOpen(SetupFold.Game, GameStatus.Setup));
-        folds.Set(SetupFold.Game, true, GameStatus.Setup);
-        Assert.False(folds.IsOpen(SetupFold.Game, GameStatus.Lobby));
-    }
-
-    [Fact]
-    public void Headings_carry_their_counts()
-    {
-        var table = Tabletop.Content.Tests.TableStateTests.Sample() with { Texture = VisualRef.OfBuiltin("grass") };
-        var game = Samples.Game with { Participants = [new Participant(Guid.NewGuid(), Guid.NewGuid(), "Clay", null, null), new Participant(Guid.NewGuid(), Guid.NewGuid(), "Ana", null, null)] };
-        Assert.Equal($"Terrain {table.Terrain.Count}/64", SetupFolds.Title(SetupFold.Terrain, table, game));
-        Assert.Equal($"Objectives {table.Markers.Count}/32", SetupFolds.Title(SetupFold.Objectives, table, game));
-        Assert.Equal($"Table {table.Size.Width} × {table.Size.Length}\" · Grass", SetupFolds.Title(SetupFold.Table, table, game));
-        Assert.Equal(table.Zones.Count == 0 ? "Zones" : $"Zones · {SetupWords.ZoneStyle(ZoneDiagram.StyleOf(table.Zones)!)}", SetupFolds.Title(SetupFold.Zones, table, game));
-        Assert.Equal("Layouts", SetupFolds.Title(SetupFold.Layouts, table, game));
-        Assert.Equal("Game settings", SetupFolds.Title(SetupFold.Game, table, game));
-        Assert.Equal("Terrain", SetupFolds.Title(SetupFold.Terrain, null, null));
-        Assert.Equal("Table", SetupFolds.Title(SetupFold.Table, null, null));
-        Assert.Equal("Mesh", SetupFolds.Title(SetupFold.PieceMesh, table, game));
+        Assert.False(folds.IsOpen(SetupFold.PieceVolumes, GameStatus.Playing));
+        Assert.Equal("Mesh", SetupFolds.Title(SetupFold.PieceMesh));
         Assert.Equal("Volume", SetupFolds.PieceVolumesTitle(1));
         Assert.Equal("Volumes 3", SetupFolds.PieceVolumesTitle(3));
     }
-
-    [Fact]
-    public void The_head_holds_the_creators_main_action_and_what_is_still_to_do()
-    {
-        var lobby = Samples.Game with { Status = GameStatus.Lobby };
-        static (string, string?, LobbyEdit?, string) Of(SetupHeadView? h) => (h!.Phase, h.Action, h.Edit, string.Join(" | ", h.ToDo.Select(l => l.Text)));
-        Assert.Equal(("Lobby", "Start setup", (LobbyEdit?)new StartSetup(), string.Join(" | ", new[] { "Team 2 needs a player", "Team 1 needs an army", "You start setup" })), Of(SetupHead.Of(lobby, isCreator: true, null)));
-        Assert.Equal(("Lobby", (string?)null, (LobbyEdit?)null, string.Join(" | ", new[] { "Team 2 needs a player", "Team 1 needs an army", "the creator starts setup" })), Of(SetupHead.Of(lobby, isCreator: false, null)));
-        var setup = lobby with { Status = GameStatus.Setup };
-        Assert.Equal(("Setup", "End setup", (LobbyEdit?)new EndSetup(), string.Join(" | ", new[] { "Team 2 needs a player", "Team 1 needs an army", "Anyone may edit the table", "You end setup" })),
-            Of(SetupHead.Of(setup, isCreator: true, null)));
-        Assert.Null(SetupHead.Of(lobby with { Status = GameStatus.Playing }, isCreator: true, null));
-    }
-
-    [Theory]
-    [InlineData(720, 110, 280)]
-    [InlineData(1080, 110, 640)]
-    [InlineData(1080, 300, 450)]
-    [InlineData(400, 110, 180)]
-    [InlineData(2160, 110, 640)]
-    public void The_terrain_list_fills_what_the_window_leaves_the_head_and_headings(double window, double head, double list) =>
-        Assert.Equal(list, SetupLayout.TerrainListHeight(window, head));
 }

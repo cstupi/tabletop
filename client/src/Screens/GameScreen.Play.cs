@@ -3,6 +3,7 @@ using Tabletop.Client.Core;
 using Tabletop.Client.Hud;
 using Tabletop.Client.Panels;
 using Tabletop.Client.Table;
+using Tabletop.Client.Theming;
 using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
@@ -22,8 +23,7 @@ public partial class GameScreen
     ReplayBar? _replay;
     Roster? _roster; TurnBanner? _banner; UnitMarkerNodes? _markers; FloatingText? _floating; RangeRingNode? _rings; ModelMarkNodes? _modelMarks; Action<IReadOnlyList<GameEvent>>? _onFollow;
     // Input outlives the play parts: its subscriptions are fields and come off when they go.
-    Action<Guid, Vector2>? _onPieceRight; Action<Vector3>? _onTableRight; Action<MenuItem>? _onItem;
-    readonly MenuItem _leave = new("Leave the game", MenuInput.None, _ => null);
+    Action<Guid, Vector2>? _onPieceRight; Action<MenuItem>? _onItem;
 
     partial void ShowPlayPanels(bool playing)
     {
@@ -65,16 +65,11 @@ public partial class GameScreen
         _animator = new Animator(_session, Table, Input);
         _menu = new PieceMenu(_session, Toast); AddChild(_menu);
         _menu.PickPieceRequested += Input.PickNextPiece; _menu.PickPointRequested += Input.PickNextPoint;
-        _onItem = item =>
-        {
-            if (ReferenceEquals(item, _leave)) ConfirmLeave();                             // Leave is a management call, not a command
-            else Input.Locks.Chosen(item);                                                // Unlock and Lock are local
-        };
+        _onItem = item => Input.Locks.Chosen(item);                                       // Unlock and Lock are local
         _menu.ItemChosen += _onItem;
-        // A watcher changes nothing (Session.IsWatching): no piece, team or roster menu. The table's menu offers Leave; a replay offers none.
+        // A watcher changes nothing (Session.IsWatching): no piece, team or roster menu. Leave game is the game menu's (lobby and setup) and Home's.
         _onPieceRight = (id, at) => { if (MenuCtx() is { } ctx) _menu?.Open(Menus.Piece(ctx, id, Godot.Input.IsKeyPressed(Key.Shift)), at); };
-        _onTableRight = at => { if (!_session.Replaying) _menu?.Open([_leave], GetViewport().GetMousePosition()); };
-        Input.PieceRightClicked += _onPieceRight; Input.TableRightClicked += _onTableRight;
+        Input.PieceRightClicked += _onPieceRight;
 
         // The parts die with the screen, so their own events need no unsubscribing.
         _header.TeamMenuRequested += OpenTeamMenu;
@@ -141,16 +136,15 @@ public partial class GameScreen
         _layoutChanged = changed.Count == 0 ? "nothing" : string.Join("; ", changed);
     }
 
-    /// <summary>Every Hud part into its HudLayout slot (spec → Layout), over the width the side panel leaves. Outside play only the
-    /// corner, the toasts and the terrain card exist. The unit card (or the terrain card, in the same slot) starts 8 px below the roster's actual bottom, so a collapsed roster gives it the
+    /// <summary>Every Hud part into its HudLayout slot (spec → Layout); lobby and setup into HudLayout.Setup's frame (LayoutSetup). The unit card (or the terrain card, in the same slot) starts 8 px below the roster's actual bottom, so a collapsed roster gives it the
     /// column back; the dice end 8 px above the decision box's actual top; the end message stays a full-screen backdrop.</summary>
     void Layout()
     {
         _layoutQueued = false;
         if (!IsInstanceValid(_hud) || _hud.Size.X <= 0 || _hud.Size.Y <= 0) return;
-        var w = _hud.Size.X - (IsInstanceValid(_sideColumn) && _sideColumn.Visible && _tableBox.Visible ? _sideColumn.Size.X : 0);   // the lobby's panel fills the window
-        if (_setup is SetupToolbar tools && IsInstanceValid(tools)) tools.FitList(_hud.Size.Y, _sideHead.Size.Y);   // the terrain list fills what the window and the head leave
-        if (IsInstanceValid(_sideHead)) _sideHead.AddThemeConstantOverride("margin_right", DecisionBox.ScrollGap + (int)_sidePanel.GetVScrollBar().Size.X);   // the head's right edge on the body's
+        if (Shows(_topBar)) { LayoutSetup(); NoteLayout(); return; }
+        if (IsInstanceValid(_tableBox)) HudPlacement.Fill(_tableBox, new HudRect(0, 0, _hud.Size.X, _hud.Size.Y));   // play: the table to the edges
+        var w = _hud.Size.X;
         var logOpen = _logDrawer is { } l && IsInstanceValid(l) && l.Open;
         var buttonH = _undo is { } u && IsInstanceValid(u) ? Math.Max(u.GetCombinedMinimumSize().Y, _logDrawer?.Toggle.GetCombinedMinimumSize().Y ?? 0) : HudLayout.LogButtonH;
         var replayH = Shows(_replay) ? _replay!.GetCombinedMinimumSize().Y : HudLayout.ReplayH;   // its three rows in the theme's font: the left column ends above it
@@ -186,6 +180,28 @@ public partial class GameScreen
         // Placed while hidden too: the banner shows itself between layouts, and nothing queues one when it does.
         if (_banner is { } banner && IsInstanceValid(banner)) HudPlacement.Fill(banner, r[HudPart.Banner]);
         NoteLayout();
+    }
+
+    /// <summary>Lobby and setup (spec 2026-11-21-setup-screen-layout-design.md → Layout): the top bar across the top with the corner over its left
+    /// end, in setup the rail, the open tool's panel and the hint bar, the table's box in the rest with the terrain card on its right; the
+    /// lobby's page in the rest.</summary>
+    void LayoutSetup()
+    {
+        var setup = Shows(_rail);
+        var v = new SetupVisible(setup, setup && Shows(_toolPanel), setup);
+        var hintH = _hints is { } hb && IsInstanceValid(hb) ? hb.GetCombinedMinimumSize().Y : HudLayout.HintH;
+        var r = HudLayout.Setup(_hud.Size.X, _hud.Size.Y, v, _topBar!.GetCombinedMinimumSize().Y, hintH);
+        HudPlacement.Fill(_topBar, r[SetupPart.TopBar]);
+        _topBar.Lead = r[SetupPart.Corner].Right - Space.S;   // the bar's items start past the corner
+        PlaceCorner(r[SetupPart.Corner] with { Y = MathF.Floor((r[SetupPart.TopBar].H - _corner.GetCombinedMinimumSize().Y) / 2) });
+        HudPlacement.Top(_toasts, r[SetupPart.Toasts]);
+        if (Shows(_strip)) HudPlacement.Bottom(_strip, r[SetupPart.Loading]);
+        if (r.TryGetValue(SetupPart.Rail, out var rail)) HudPlacement.Fill(_rail!, rail);
+        if (r.TryGetValue(SetupPart.Panel, out var panel)) HudPlacement.Fill(_toolPanel!, panel);
+        if (r.TryGetValue(SetupPart.Hints, out var hints) && _hints is { } h && IsInstanceValid(h)) HudPlacement.Fill(h, hints);
+        if (setup) HudPlacement.Fill(_tableBox, r[SetupPart.Body]);
+        else HudPlacement.Fill(_sideColumn, r[SetupPart.Body]);
+        if (Shows(_terrainCard)) _terrainCard!.Place(r[SetupPart.Card]);
     }
 
     readonly List<HudRect> _covered = new();
@@ -238,7 +254,7 @@ public partial class GameScreen
 
     void FreePlayPanels()
     {
-        if (Input is not null && IsInstanceValid(Input)) { Input.PieceRightClicked -= _onPieceRight; Input.TableRightClicked -= _onTableRight; }
+        if (Input is not null && IsInstanceValid(Input)) Input.PieceRightClicked -= _onPieceRight;
         if (_onFollow is not null) _session.EventsApplied -= _onFollow;
         _onFollow = null;
         _animator?.Dispose(); _animator = null;
@@ -247,7 +263,7 @@ public partial class GameScreen
         _header = null; _card = null; _decision = null; _dice = null; _logDrawer = null; _end = null; _keys = null;
         _hover = null; _violations = null; _sight = null; _targets = null; _fx = null; _sounds = null; _tableLayer = null; _undo = null; _menu = null;
         _replay = null; _roster = null; _banner = null; _markers = null; _floating = null; _rings = null; _modelMarks = null;
-        _onPieceRight = null; _onTableRight = null; _onItem = null;
+        _onPieceRight = null; _onItem = null;
     }
 
     /// <summary>Leave gives the seat up for good, unlike Home, which keeps it: asked once, Esc cancels.</summary>
