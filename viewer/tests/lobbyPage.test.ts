@@ -43,6 +43,18 @@ describe('the lobby page', () => {
   });
 });
 
+describe('the optional rules\' descriptions', () => {
+  it('a player who may not change them reads each option\'s and its value\'s description as titles', () => {
+    const described = {
+      options: [{ key: 'sight', label: 'Unit sight blocking', default: 'each', description: 'How units in the way block sight.',
+        values: [{ value: 'each', label: 'Each model blocks', description: 'Only models block.' }, { value: 'none', label: 'Nothing blocks', description: 'Nothing blocks.' }] }],
+      presets: [],
+    } as RulesOptionCatalog;
+    expect(settingsSummary(game([]), described)[0]).toEqual(
+      { label: 'Unit sight blocking', value: 'Each model blocks', labelTitle: 'How units in the way block sight.', valueTitle: 'Only models block.' });
+  });
+});
+
 describe('the header strip', () => {
   const snap = (g: GameInfo | null, participantId: string | null, phase: ConnectionState['phase'] = 'connected') =>
     ({ phase, game: g, participantId, draft: null } as unknown as ConnectionState);

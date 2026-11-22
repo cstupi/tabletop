@@ -143,9 +143,9 @@
                 </select>
               </label>
               {#each catalog.options as option (option.key)}
-                <label><span class="lt">{option.label}</span>
-                  <select value={chosen[option.key] ?? option.default} onchange={(e) => { chosen = { ...chosen, [option.key]: e.currentTarget.value }; }}>
-                    {#each option.values as v (v.value)}<option value={v.value}>{v.label}</option>{/each}
+                <label title={option.description}><span class="lt">{option.label}</span>
+                  <select title={option.description} value={chosen[option.key] ?? option.default} onchange={(e) => { chosen = { ...chosen, [option.key]: e.currentTarget.value }; }}>
+                    {#each option.values as v (v.value)}<option value={v.value} title={v.description}>{v.label}</option>{/each}
                   </select>
                 </label>
               {/each}
@@ -167,7 +167,7 @@
           {#if catalog.options.length > 0}
             <h3>Optional rules</h3>
             <dl>
-              {#each settingsSummary(game, catalog) as item (item.label)}<div><dt>{item.label}</dt><dd>{item.value}</dd></div>{/each}
+              {#each settingsSummary(game, catalog) as item (item.label)}<div><dt title={item.labelTitle}>{item.label}</dt><dd title={item.valueTitle}>{item.value}</dd></div>{/each}
             </dl>
           {/if}
         </div>

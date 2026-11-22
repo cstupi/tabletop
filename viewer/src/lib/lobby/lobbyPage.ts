@@ -40,12 +40,13 @@ export function rulesSummary(game: GameInfo): { label: string; value: string }[]
   ];
 }
 
-/** The optional rules as label and value, for a player who may not change them. */
-export function settingsSummary(game: GameInfo, catalog: RulesOptionCatalog): { label: string; value: string }[] {
+/** The optional rules as label and value, for a player who may not change them; each carries its and its value's descriptions as titles. */
+export function settingsSummary(game: GameInfo, catalog: RulesOptionCatalog): { label: string; value: string; labelTitle?: string; valueTitle?: string }[] {
   return [
     ...catalog.options.map((o) => {
       const v = valueOf(o, game.optionalRules);
-      return { label: o.label, value: o.values.find((x) => x.value === v)?.label ?? v };
+      const value = o.values.find((x) => x.value === v);
+      return { label: o.label, value: value?.label ?? v, labelTitle: o.description, valueTitle: value?.description };
     }),
   ];
 }

@@ -112,7 +112,7 @@ public partial class LobbyPanel : VBoxContainer
             {
                 if (control is BaseButton b) b.Disabled = true;
                 if (control is LineEdit l) l.Editable = false;
-                control.TooltipText = LobbyView.CreatorOnly;
+                control.TooltipText = string.IsNullOrEmpty(control.TooltipText) ? LobbyView.CreatorOnly : $"{control.TooltipText}\n{LobbyView.CreatorOnly}";
             }
     }
 
@@ -168,8 +168,9 @@ public partial class LobbyPanel : VBoxContainer
 
     /// <summary>
     /// The optional rules (optional-rules spec → Lobby): a preset button, then one button per catalog option labelled "Label (Page)". Picking a preset
-    /// sets the option buttons and, when it names one, the enforcement; picking a value shows the preset it matches, else Custom. Writes into chosen
-    /// and calls changed after each pick; returns the pickers. A catalog with no options adds nothing.
+    /// sets the option buttons and, when it names one, the enforcement; picking a value shows the preset it matches, else Custom. The option's
+    /// description is its name's and button's tooltip, each value's its item's. Writes into chosen and calls changed after each pick; returns
+    /// the pickers. A catalog with no options adds nothing.
     /// </summary>
     static List<Control> OptionalRules(RulesOptionCatalog catalog, Dictionary<string, string> chosen, OptionButton enforcement, Container into, Action changed)
     {
@@ -186,7 +187,10 @@ public partial class LobbyPanel : VBoxContainer
         foreach (var option in catalog.Options)
         {
             var button = new OptionButton(); foreach (var v in option.Values) button.AddItem(v.Label);
+            for (var i = 0; i < option.Values.Count; i++) button.SetItemTooltip(i, option.Values[i].Description);   // the server's words for each value
+            button.TooltipText = option.Description;
             var row = Named(option.Label, button); ((Label)row.GetChild(0)).AutowrapMode = TextServer.AutowrapMode.WordSmart; into.AddChild(row);
+            var label = (Label)row.GetChild(0); label.TooltipText = option.Description; label.MouseFilter = MouseFilterEnum.Pass;   // a label takes no pointer by default
             button.Select(option.Values.ToList().FindIndex(v => v.Value == chosen[option.Key]));
             button.ItemSelected += i => { chosen[option.Key] = option.Values[(int)i].Value; ShowPreset(); changed(); };
             buttons.Add(button);

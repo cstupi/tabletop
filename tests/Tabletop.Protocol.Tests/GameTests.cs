@@ -58,5 +58,17 @@ public class GameTests
     }
 
     [Fact]
+    public void An_options_and_its_values_descriptions_round_trip_and_read_empty_when_absent()
+    {
+        var catalog = new RulesOptionCatalog(
+            [new RulesOption("melee_separation", "Melee separation", [new RulesOptionValue("on", "Separate units by 1\"", "The charger moves back 1\".")], "on", "Whether units step apart.")], []);
+        var json = WireJson.Serialize(new RulesOptionsMessage(catalog));
+        var back = ((RulesOptionsMessage)WireJson.Deserialize(json)).Options.Options[0];
+        Assert.Equal(("Whether units step apart.", "The charger moves back 1\"."), (back.Description, back.Values[0].Description));
+        var old = ((RulesOptionsMessage)WireJson.Deserialize(json.Replace(",\"description\":\"Whether units step apart.\"", "").Replace(",\"description\":\"The charger moves back 1\\u0022.\"", ""))).Options.Options[0];
+        Assert.Equal(("", ""), (old.Description, old.Values[0].Description));
+    }
+
+    [Fact]
     public void Version_check_constants() => Assert.Equal((5, 426), (ProtocolVersion.Current, ProtocolVersion.UpgradeRequiredStatusCode));
 }

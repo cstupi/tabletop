@@ -59,4 +59,17 @@ public class GfOptionsTests
         Assert.Empty(GrimdarkFutureRules.Instance.OptionProblems(Map(("melee_separation", "off"))));
         Assert.NotEmpty(GrimdarkFutureRules.Instance.OptionProblems(Map(("melee_separation", "maybe"))));
     }
+
+    /// <summary>The lobby shows each option's and each value's description as its tooltip: every one is written, in both editions, and none cites a page.</summary>
+    [Fact]
+    public void Every_option_and_value_carries_a_description_in_both_editions()
+    {
+        foreach (var rules in new[] { GrimdarkFutureRules.V351, GrimdarkFutureRules.V360 })
+        {
+            Assert.NotEmpty(rules.OptionCatalog.Options);
+            var texts = rules.OptionCatalog.Options.SelectMany(o => o.Values.Select(v => v.Description).Prepend(o.Description)).ToList();
+            Assert.All(texts, t => Assert.False(string.IsNullOrWhiteSpace(t)));
+            Assert.All(texts, t => Assert.DoesNotMatch(@"\bp\.\s?\d", t));
+        }
+    }
 }
