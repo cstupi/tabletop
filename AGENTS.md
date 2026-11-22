@@ -68,6 +68,8 @@ drives the `sim-runner` service (`sim serve` on `127.0.0.1:5180`, socket driver 
 - Every module is designed before it is built, and built from its plan. No speculative folders, interfaces or
   placeholders for undesigned work.
 - The rules engine lives only in `server/game/`. Nothing else names or implements a rule.
+- Spacing comes from one scale (4, 8, 16, 24, 32, 48 px), named, never literal: inside a group smaller than between groups, shared left
+  edges, even padding (`docs/superpowers/specs/2026-11-21-spacing-rules-design.md`; each UI module's AGENTS.md → Spacing).
 - New work targets Grimdark Future v3.6.0: build, test and check it on 3.6 games with 3.6 armies first; 3.5.1 stays supported.
 
 ## Docs
