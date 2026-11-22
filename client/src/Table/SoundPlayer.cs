@@ -4,7 +4,7 @@ namespace Tabletop.Client.Table;
 /// <summary>Plays the cues <see cref="SoundCues"/> reads off each live batch, each at its delay, pitch and level. A volley's die sounds
 /// play on their own pool of voices and every other cue on another, so a long volley never steals an impact's or a wound's voice and
 /// one sound never cuts another off; when a pool is busy its oldest voice is reused. A replay plays its forward steps (Play at 1× or slower, Step and
-/// Action forward); silent while the session catches up, on a replay's jump or step back, and when Settings.Sound is off; an undo or a new board drops what is still waiting.</summary>
+/// Action forward); silent while the session catches up, on a replay's jump or step back, and when Settings.Sound is off; every voice plays on the Effects bus; an undo or a new board drops what is still waiting.</summary>
 public partial class SoundPlayer : Node
 {
     const int Voices = 8, VolleyVoices = 16;
@@ -27,8 +27,8 @@ public partial class SoundPlayer : Node
                 var file = SoundCues.File(cue, v);
                 if (GD.Load<AudioStream>($"res://content/sounds/{file}.wav") is { } stream) _streams[file] = stream;
             }
-        for (var i = 0; i < Voices; i++) { var p = new AudioStreamPlayer { Name = $"Voice{i}" }; AddChild(p); _pool.Add(p); }
-        for (var i = 0; i < VolleyVoices; i++) { var p = new AudioStreamPlayer { Name = $"Volley{i}" }; AddChild(p); _volley.Add(p); }
+        for (var i = 0; i < Voices; i++) { var p = new AudioStreamPlayer { Name = $"Voice{i}", Bus = AudioBuses.Effects }; AddChild(p); _pool.Add(p); }
+        for (var i = 0; i < VolleyVoices; i++) { var p = new AudioStreamPlayer { Name = $"Volley{i}", Bus = AudioBuses.Effects }; AddChild(p); _volley.Add(p); }
         if (session.Projection is { } p0) _cues.Seed(p0);
         _onEvents = batch =>
         {
@@ -61,7 +61,7 @@ public partial class SoundPlayer : Node
         _started[voice] = _now;
         voice.Stream = stream;
         voice.PitchScale = (float)cue.Pitch;
-        voice.VolumeDb = (_s.Settings.Volume <= 0 ? -80f : Mathf.LinearToDb(_s.Settings.Volume / 100f)) + (float)cue.VolumeDb;
+        voice.VolumeDb = (float)cue.VolumeDb;   // the Master and Effects buses carry the volumes (AudioBuses)
         voice.Play();
     }
 

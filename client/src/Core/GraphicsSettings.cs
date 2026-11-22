@@ -1,7 +1,7 @@
 namespace Tabletop.Client.Core;
 
-/// <summary>Windowed keeps the player's window rect; Fullscreen is borderless at the screen's resolution.</summary>
-public enum DisplayMode { Windowed, Fullscreen }
+/// <summary>Windowed keeps the player's window rect; Fullscreen is borderless at the screen's resolution (Godot's Fullscreen); Exclusive is Godot's ExclusiveFullscreen.</summary>
+public enum DisplayMode { Windowed, Fullscreen, Exclusive }
 
 /// <summary>The Settings dialog's Quality: MSAA, shadows and the default Render scale together (spec 2026-10-24-graphics-settings-design.md).</summary>
 public enum GraphicsQuality { Low, Medium, High }

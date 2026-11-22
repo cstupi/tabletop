@@ -75,7 +75,7 @@ public partial class HomeScreen : Control
         var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.M);
         row.AddChild(Icon("objective", Ui.Accent, 30));
         row.AddChild(new Label { Text = "TABLETOP", ThemeTypeVariation = Variation.Display, SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center });
-        var gear = IconButton("settings", "Settings", () => SettingsDialog.Open(this, session));
+        var gear = IconButton("settings", "Options", () => OptionsScreen.Open(this));
         row.AddChild(gear);
         _account = new MenuButton { Flat = true, ThemeTypeVariation = Variation.FlatButton, Icon = Ui.Icon("player"), ExpandIcon = false, TooltipText = "Your account" };
         _account.AddThemeConstantOverride("icon_max_width", 22); HomeLook.IconInk(_account);

@@ -29,8 +29,7 @@ public partial class TableInput
         _ => false,
     };
 
-    /// <summary>HotKey's members carry Godot's names. A key Hotkeys does not name is no key; IsDefined stops a numeric name parsing.</summary>
-    static HotKey? Translate(Key key) => Enum.TryParse<HotKey>(key.ToString(), out var k) && Enum.IsDefined(k) ? k : null;
+    static HotKey? Translate(Key key) => HotkeyInput.Translate(key);
 
     void SetSight(bool held) { if (SightHeld == held) return; SightHeld = held; SightHeldChanged?.Invoke(); }
 

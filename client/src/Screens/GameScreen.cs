@@ -205,7 +205,7 @@ public partial class GameScreen : Control
         {
             TableBusy = () => Input.Selected is not null || Input.Holding || Input.HasPicks,
             CanLeave = () => _session.ParticipantId is { } me && me != Guid.Empty,
-            Options = () => SettingsDialog.Open(this, _session),
+            Options = () => OptionsScreen.Open(this),
             Leave = ConfirmLeave,
             Home = () => Guarded.Run(_session.DisconnectAsync, Toast),
         });

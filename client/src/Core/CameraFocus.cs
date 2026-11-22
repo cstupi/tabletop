@@ -7,7 +7,26 @@ public static class CameraFocus
     /// <summary>Degrees a second Q/E turn what is in hand while held; Shift turns a terrain piece finer (and held models each where it stands, TableInput).</summary>
     public const double TurnDegreesPerSecond = 120, FineTurnDegreesPerSecond = 30;
     public const double Margin = 12, GlideSeconds = 0.3, QuietSeconds = 2, PanPerInchOfDistance = 0.8, OrbitRadiansPerSecond = 1.5, TableLevelPitch = 0.1;
-    public static readonly HotKey[] HeldKeys = [HotKey.W, HotKey.A, HotKey.S, HotKey.D, HotKey.Q, HotKey.E];
+    /// <summary>The camera keys polled while held: pan and orbit.</summary>
+    public static readonly Intent[] HeldIntents = [Intent.CameraForward, Intent.CameraBack, Intent.CameraLeft, Intent.CameraRight, Intent.TurnLeft, Intent.TurnRight];
+    /// <summary>Pixels from the window's edge where Edge scrolling pans.</summary>
+    public const double EdgePixels = 8;
+
+    /// <summary>The distance factor of one wheel step: 10 % at 100 % zoom speed, in or out, the other way when inverted.</summary>
+    public static double ZoomStep(bool zoomIn, int speedPercent, bool invert)
+    {
+        var step = 0.1 * speedPercent / 100.0;
+        return zoomIn != invert ? 1 - step : 1 + step;
+    }
+
+    /// <summary>Edge scrolling: (forward, right) from the pointer inside a window of <paramref name="size"/>; nothing outside it.</summary>
+    public static (int Forward, int Right) EdgePan(Point2 pointer, Point2 size)
+    {
+        if (pointer.X < 0 || pointer.Y < 0 || pointer.X >= size.X || pointer.Y >= size.Y) return (0, 0);
+        var forward = pointer.Y < EdgePixels ? 1 : pointer.Y >= size.Y - EdgePixels ? -1 : 0;
+        var right = pointer.X < EdgePixels ? -1 : pointer.X >= size.X - EdgePixels ? 1 : 0;
+        return (forward, right);
+    }
     public static Point2 Clamp(Point2 f, TableSize s) => new(Math.Clamp(f.X, -Margin, s.Width + Margin), Math.Clamp(f.Y, -Margin, s.Length + Margin));
 
     /// <summary>Held intents to (forward, right, orbit), each −1, 0 or 1: nothing while typing; with a unit in hand Q/E are its turn.</summary>

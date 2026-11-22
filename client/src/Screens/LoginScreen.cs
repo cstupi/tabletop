@@ -63,9 +63,9 @@ public partial class LoginScreen : Control
         var foot = new HBoxContainer(); box.AddChild(foot);
         foot.AddChild(new Label { Text = BuildInfo.Current.LoginFooter, ThemeTypeVariation = BuildInfo.Current.IsRelease ? Variation.Dim : Variation.Warning,
             SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center });
-        var gear = new Button { Icon = Ui.Icon("settings"), Flat = true, ThemeTypeVariation = Variation.FlatButton, ExpandIcon = false, TooltipText = "Settings" };
+        var gear = new Button { Icon = Ui.Icon("settings"), Flat = true, ThemeTypeVariation = Variation.FlatButton, ExpandIcon = false, TooltipText = "Options" };
         gear.AddThemeConstantOverride("icon_max_width", 22); HomeLook.IconInk(gear);
-        gear.Pressed += () => SettingsDialog.Open(this, session);
+        gear.Pressed += () => OptionsScreen.Open(this);
         foot.AddChild(gear);
 
         _email.TextSubmitted += _ => { if (_byCode.ButtonPressed) SendCode(); else _password.GrabFocus(); };

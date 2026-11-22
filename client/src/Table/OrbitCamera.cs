@@ -5,13 +5,15 @@ using Tabletop.Geometry;
 
 namespace Tabletop.Client.Table;
 
-/// <summary>Orbit, pan and zoom over the table; Home snaps top-down, End drops to table level for line-of-sight checks.</summary>
+/// <summary>Orbit, pan and zoom over the table; the top-down key (Home) snaps top-down, the table-level key (End) drops to table level for line-of-sight checks.</summary>
 public partial class OrbitCamera : Camera3D
 {
     Vector3 _target; float _distance = 60, _yaw = 0.6f, _pitch = 0.9f;
     TableSize _size = new(72, 48); Point3 _glideFrom, _glideTo; double _glide = double.MaxValue; ulong _movedAt;
     /// <summary>TableInput's "a unit is in hand": Q/E turn it, and follow waits.</summary>
     public Func<bool> Holding { get; set; } = () => false;
+    /// <summary>Options → Camera and Accessibility: speeds, inversions, edge scrolling, reduce motion.</summary>
+    public Func<ClientSettings> Settings { get; set; } = () => ClientSettings.Default;
     public float Pitch => _pitch;
     /// <summary>The camera's distance from its target, in inches.</summary>
     public float Distance { get => _distance; set { _distance = value; Apply(); } }
@@ -22,26 +24,32 @@ public partial class OrbitCamera : Camera3D
     public void Centre(Vector3 target, bool byPlayer = false)
     {
         if (byPlayer) _movedAt = Time.GetTicksMsec();
+        if (Settings().ReduceMotion) { _target = target; _glide = double.MaxValue; Apply(); return; }   // reduce motion: no glide
         _glideFrom = WorldFrame.FromGodot(_target); _glideTo = WorldFrame.FromGodot(target); _glide = 0;
     }
     public void Follow(Vector3 target, bool enabled) { if (CameraFocus.Follows(enabled, (Time.GetTicksMsec() - _movedAt) / 1000.0, Holding())) Centre(target); }
     void Moved() { _movedAt = Time.GetTicksMsec(); _glide = double.MaxValue; }   // the player's own move stops a glide and holds follow off
     void Pan(Point2 to) { _target = new Vector3((float)to.X, _target.Y, (float)-to.Y); Apply(); }   // WorldFrame: Godot z = −wire Y
 
-    /// <summary>WASD and Q/E read held every frame. The heading is the camera's over the table: offset (sin yaw, cos yaw) in Godot x, z looks back along (−sin yaw, cos yaw) in the wire frame.</summary>
-    static readonly Key[] HeldGodotKeys = CameraFocus.HeldKeys.Select(k => Enum.Parse<Key>(k.ToString())).ToArray();
-
+    /// <summary>The camera keys (CameraFocus.HeldIntents, as bound) read held every frame, and the window's edge with Edge scrolling. The heading is
+    /// the camera's over the table: offset (sin yaw, cos yaw) in Godot x, z looks back along (−sin yaw, cos yaw) in the wire frame.</summary>
     public override void _Process(double delta)
     {
         if (_glide <= CameraFocus.GlideSeconds) { _glide += delta; _target = WorldFrame.ToGodot(CameraFocus.Glide(_glideFrom, _glideTo, _glide)); Apply(); }
+        var s = Settings();
         var ctrl = Input.IsKeyPressed(Key.Ctrl);
-        if (!HeldGodotKeys.Any(Input.IsKeyPressed)) return;   // most frames: nothing held, nothing allocated
-        var held = CameraFocus.HeldKeys.Where((_, i) => Input.IsKeyPressed(HeldGodotKeys[i])).Select(k => Hotkeys.Of(k, false, ctrl)).OfType<Intent>().ToHashSet();
-        if (held.Count == 0) return;
-        var (forward, right, orbit) = CameraFocus.Steer(held, Holding(), Typing());
+        int forward = 0, right = 0, orbit = 0;
+        HashSet<Intent>? held = null;
+        foreach (var intent in CameraFocus.HeldIntents) if (HotkeyInput.Held(intent, ctrl)) (held ??= []).Add(intent);
+        if (held is not null) (forward, right, orbit) = CameraFocus.Steer(held, Holding(), Typing());
+        if (s.EdgeScroll && forward == 0 && right == 0 && GetWindow().HasFocus() && !Input.IsMouseButtonPressed(MouseButton.Left))
+        {
+            var root = GetTree().Root; var size = root.GetVisibleRect().Size; var at = root.GetMousePosition();
+            (forward, right) = CameraFocus.EdgePan(new Point2(at.X, at.Y), new Point2(size.X, size.Y));
+        }
         if (forward == 0 && right == 0 && orbit == 0) return;
-        Moved(); _yaw += orbit * (float)(CameraFocus.OrbitRadiansPerSecond * delta);
-        Pan(CameraFocus.Pan(WorldFrame.FromGodot(_target).Horizontal, new Point2(-Mathf.Sin(_yaw), Mathf.Cos(_yaw)), forward, right, _distance, delta, _size));
+        Moved(); _yaw += orbit * (s.InvertOrbit ? -1 : 1) * (float)(CameraFocus.OrbitRadiansPerSecond * s.OrbitSpeed / 100.0 * delta);
+        Pan(CameraFocus.Pan(WorldFrame.FromGodot(_target).Horizontal, new Point2(-Mathf.Sin(_yaw), Mathf.Cos(_yaw)), forward, right, _distance, delta * s.PanSpeed / 100.0, _size));
     }
 
     /// <summary>The pointer is over a Hud part, not the table's own container: the root's hovered control is something else.</summary>
@@ -64,17 +72,19 @@ public partial class OrbitCamera : Camera3D
     {
         switch (e)
         {
-            case InputEventMouseMotion m when Input.IsMouseButtonPressed(MouseButton.Right): Moved(); _yaw -= m.Relative.X * 0.005f; _pitch = Mathf.Clamp(_pitch + m.Relative.Y * 0.005f, 0.05f, 1.55f); Apply(); break;
+            case InputEventMouseMotion m when Input.IsMouseButtonPressed(MouseButton.Right):
+                Moved(); var turn = 0.005f * Settings().OrbitSpeed / 100f;
+                _yaw -= m.Relative.X * turn * (Settings().InvertOrbit ? -1 : 1); _pitch = Mathf.Clamp(_pitch + m.Relative.Y * turn, 0.05f, 1.55f); Apply(); break;
             case InputEventMouseMotion m when Input.IsMouseButtonPressed(MouseButton.Middle):
                 Moved();
                 var right = GlobalTransform.Basis.X; var forward = new Vector3(-GlobalTransform.Basis.Z.X, 0, -GlobalTransform.Basis.Z.Z).Normalized();
                 var offset = (-right * m.Relative.X + forward * m.Relative.Y) * _distance * 0.001f;
                 Pan(CameraFocus.Clamp(WorldFrame.FromGodot(_target + offset).Horizontal, _size)); break;
             case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } when OverHud(): break;   // the wheel over a Hud part scrolls it, never the table
-            case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp }: Moved(); _distance = Mathf.Max(4, _distance * 0.9f); Apply(); break;
-            case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelDown }: Moved(); _distance = Mathf.Min(300, _distance * 1.1f); Apply(); break;
-            case InputEventKey { Pressed: true, Keycode: Key.Home }: Moved(); _pitch = 1.55f; Apply(); break;
-            case InputEventKey { Pressed: true, Keycode: Key.End }: Moved(); _pitch = 0.05f; _target.Y = 1.0f; Apply(); break;
+            case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } w:
+                Moved(); _distance = Mathf.Clamp(_distance * (float)CameraFocus.ZoomStep(w.ButtonIndex == MouseButton.WheelUp, Settings().ZoomSpeed, Settings().InvertZoom), 4, 300); Apply(); break;
+            case InputEventKey { Pressed: true, Echo: false } k when HotkeyInput.Of(k) == Intent.CameraTop && !Typing(): Moved(); _pitch = 1.55f; Apply(); break;
+            case InputEventKey { Pressed: true, Echo: false } k when HotkeyInput.Of(k) == Intent.CameraLevel && !Typing(): Moved(); _pitch = 0.05f; _target.Y = 1.0f; Apply(); break;
         }
     }
 

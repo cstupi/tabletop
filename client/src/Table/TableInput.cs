@@ -108,7 +108,7 @@ public partial class TableInput : Node
     {
         _view = view; _session = session;
         Violations.Subject = id => session.Projection?.Models.GetValueOrDefault(id)?.Slot.Name;   // the decision box names the model, as the server does
-        view.Camera.Holding = () => HoldingTurnable;
+        view.Camera.Holding = () => HoldingTurnable; view.Camera.Settings = () => _session.Settings;
         view.AddChild(_ruler = new RulerNode()); view.AddChild(_marks = new LandingMarks()); AddChild(_presenceTimer);
         _tape.Mode = session.Settings.MeasureMode;
         view.IsHeld = id => _drops.Holds(id) || _drag?.Current.ContainsKey(id) == true || Proposing.Contains(id);   // a drop awaiting its event, the pieces in hand, a proposed placement
@@ -207,8 +207,9 @@ public partial class TableInput : Node
     {
         if ((_drag is not null || _box is not null) && !Input.IsMouseButtonPressed(MouseButton.Left)) Observe(OnLeftUp());
         var held = new HashSet<Intent>();
-        if (Input.IsKeyPressed(Key.Q)) held.Add(Intent.TurnLeft);
-        if (Input.IsKeyPressed(Key.E)) held.Add(Intent.TurnRight);
+        var ctrl = Input.IsKeyPressed(Key.Ctrl);
+        if (HotkeyInput.Held(Intent.TurnLeft, ctrl)) held.Add(Intent.TurnLeft);
+        if (HotkeyInput.Held(Intent.TurnRight, ctrl)) held.Add(Intent.TurnRight);
         // Shift with models in hand turns each where it stands; with a terrain piece, which turns one way only, it turns finer.
         var shift = Input.IsKeyPressed(Key.Shift); var models = HoldingModels;
         if (CameraFocus.HeldTurn(held, HoldingTurnable, TextFocused(), shift && !models, delta) is var turn and not 0) Turn(turn, inPlace: shift && models);

@@ -22,7 +22,7 @@ public partial class DecisionBox : PanelContainer
     readonly TextureRect _icon = DecisionTiles.Icon(null, 22);
     readonly Label _title = new() { ThemeTypeVariation = Variation.Display, Uppercase = true, VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill },
         _seat = new() { VerticalAlignment = VerticalAlignment.Center };
-    readonly Button _keys = new() { FocusMode = FocusModeEnum.None, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Keys (F1)", ExpandIcon = true, CustomMinimumSize = new Vector2(28, 28) };
+    readonly Button _keys = new() { FocusMode = FocusModeEnum.None, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Keys", ExpandIcon = true, CustomMinimumSize = new Vector2(28, 28) };
     readonly Label _prompt = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _note = new() { ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart },
         _refusalLabel = new() { ThemeTypeVariation = Variation.Failure, AutowrapMode = TextServer.AutowrapMode.WordSmart };
     readonly HFlowContainer _reveal = new(), _foot = new();
@@ -65,6 +65,7 @@ public partial class DecisionBox : PanelContainer
         var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", 0); AddChild(box);
         var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", Space.S); _band.AddChild(head);
         _keys.Icon = Ui.Icon("key"); _keys.Pressed += () => KeysRequested?.Invoke();
+        _keys.TooltipText = $"Keys ({Hotkeys.Bindings.Cap(Intent.KeyOverlay)})";
         foreach (var c in new Control[] { _icon, _title, _seat, _keys }) head.AddChild(c);
         // The controls keep clear of the scroll bar: a margin between their right edge and the bar's.
         var inset = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; inset.AddThemeConstantOverride("margin_right", ScrollGap);
@@ -125,7 +126,7 @@ public partial class DecisionBox : PanelContainer
             Reset(); _renderedAsk = null;
         }
         else foreach (var g in _choices.GetChildren().OfType<DecisionTiles.OptionPanel>()) DecisionTiles.Restyle(g);
-        _keys.Icon = Ui.Icon("key"); var h = _head; _head = default; if (h.Head is { } head) Head(head, h.Ordinal); _quietKey = ""; _revealDrawn = null; _framed = null;
+        _keys.Icon = Ui.Icon("key"); _keys.TooltipText = $"Keys ({Hotkeys.Bindings.Cap(Intent.KeyOverlay)})"; var h = _head; _head = default; if (h.Head is { } head) Head(head, h.Ordinal); _quietKey = ""; _revealDrawn = null; _framed = null;
         Render();
     }
 

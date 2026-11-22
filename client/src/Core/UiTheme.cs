@@ -23,6 +23,8 @@ public sealed record UiTheme(string Id, string Name, Rgba Background, Rgba Panel
     Rgba ButtonText, Rgba Accent, Rgba Success, Rgba Failure, Rgba Warning, IReadOnlyList<Rgba> Teams,
     ThemeFont Display, ThemeFont Body, ThemeFont Numerals, PanelShape Shape, DiceStyle Dice, IReadOnlyDictionary<string, string> Icons)
 {
+    /// <summary>The Text size percent its fonts are at (UiThemes.Adjusted): the theme builder scales its fixed sizes (banner, log) by it.</summary>
+    public int TextSize { get; init; } = 100;
     public Rgba Team(int ordinal) => Teams[(Math.Max(1, ordinal) - 1) % Teams.Count];
     public string? Icon(string name) => Icons.TryGetValue(name, out var path) ? path : null;
     public IEnumerable<string> Paths => new[] { Display.Path, Body.Path, Numerals.Path, Shape.PanelNinePatch, Shape.ButtonNinePatch }

@@ -33,7 +33,9 @@ public sealed record RevealChip(int Ordinal, string Team, string Choice);
 public static class DecisionCard
 {
     /// <summary>The key caps drawn on the buttons.</summary>
-    public const string Enter = "⏎", Esc = "Esc", Stop = "C";
+    public const string Enter = "⏎", Esc = "Esc";
+    /// <summary>Stop here's key cap, from the current bindings.</summary>
+    public static string Stop => Hotkeys.Bindings.Cap(Intent.StopHere);
 
     /// <summary>The questions whose options are one unit's actions.</summary>
     public static readonly IReadOnlySet<string> Activations = new HashSet<string>(StringComparer.Ordinal) { AskQuestions.Activate, AskQuestions.ActOrEndPhase };

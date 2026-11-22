@@ -1,5 +1,6 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Theming;
 using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
@@ -39,7 +40,7 @@ public partial class TableView : Node3D
     }
 
     DirectionalLight3D _key = null!; Godot.Environment _environment = null!; GraphicsProfile? _graphics;
-    Action? _onBoard, _onGame, _onBuiltins, _onSettings; Action<IReadOnlyList<GameEvent>>? _onEvents;
+    Action? _onBoard, _onGame, _onBuiltins, _onSettings, _onTheme; Action<IReadOnlyList<GameEvent>>? _onEvents;
     GameStatus? _status;
 
     public override void _ExitTree()
@@ -47,7 +48,7 @@ public partial class TableView : Node3D
         if (_session is null) return;
         _meshes.Dispose();
         _session.BoardChanged -= _onBoard; _session.EventsApplied -= _onEvents; _session.GameChanged -= _onBoard; _session.GameChanged -= _onGame;
-        BuiltinContent.Changed -= _onBuiltins; _session.SettingsChanged -= _onSettings;
+        BuiltinContent.Changed -= _onBuiltins; _session.SettingsChanged -= _onSettings; Ui.Changed -= _onTheme;
     }
 
     /// <summary>A new built-in catalog: the slab's texture and every built-in piece's mesh are drawn again from it.</summary>
@@ -70,6 +71,7 @@ public partial class TableView : Node3D
         session.BoardChanged += _onBoard; session.EventsApplied += _onEvents; session.GameChanged += _onBoard; session.GameChanged += _onGame;
         _onBuiltins = RedrawBuiltins; BuiltinContent.Changed += _onBuiltins;
         _onSettings = () => { RefreshLooks(); ApplyGraphics(); }; session.SettingsChanged += _onSettings;
+        _onTheme = Redraw; Ui.Changed += _onTheme;   // team colours (the colour-blind palette) tint pieces, zones and markers
         Redraw(); Camera.FocusOn(Size);
     }
 

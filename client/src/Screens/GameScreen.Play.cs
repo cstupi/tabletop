@@ -74,7 +74,7 @@ public partial class GameScreen
         // The parts die with the screen, so their own events need no unsubscribing.
         _header.TeamMenuRequested += OpenTeamMenu;
         _header.GameOverPressed += _end.Open;
-        _header.SettingsRequested += () => SettingsDialog.Open(this, _session);
+        _header.SettingsRequested += () => OptionsScreen.Open(this);
         _card.ModelPicked += SelectModel;
         _card.Lit += pieces => { if (_decision is { } d && IsInstanceValid(d)) d.Light(pieces); };   // a weapon or group row under the pointer lights its models
         _decision.TargetsChanged += ShowTargets;

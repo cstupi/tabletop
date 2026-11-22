@@ -27,11 +27,11 @@ public partial class KeyOverlay : PanelContainer
         GrowHorizontal = GrowDirection.Both; GrowVertical = GrowDirection.Both;
         Visible = false; MouseFilter = MouseFilterEnum.Stop;
         AddThemeStyleboxOverride("panel", Ui.FloatingPanel());
-        var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", 14); AddChild(box);
-        var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", 10); box.AddChild(title);
+        var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", Space.M); AddChild(box);
+        var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", Space.S); box.AddChild(title);
         title.AddChild(HudBits.Icon("key", Ui.Accent, 28));
         title.AddChild(new Label { Text = "KEYS", ThemeTypeVariation = Variation.Display, VerticalAlignment = VerticalAlignment.Center });
-        _columns.AddThemeConstantOverride("separation", 36); box.AddChild(_columns);
+        _columns.AddThemeConstantOverride("separation", Space.XL); box.AddChild(_columns);
         _onRequest = () => { if (IsInsideTree()) Open(); }; Requested += _onRequest;
         _onTheme = () => { AddThemeStyleboxOverride("panel", Ui.FloatingPanel()); if (Visible) Build(); }; Ui.Changed += _onTheme;
     }
@@ -56,11 +56,11 @@ public partial class KeyOverlay : PanelContainer
 
     static Control Group(KeyGroup g, bool now)
     {
-        var box = new VBoxContainer { SizeFlagsVertical = SizeFlags.ShrinkBegin }; box.AddThemeConstantOverride("separation", 8);
-        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", 8); box.AddChild(head);
+        var box = new VBoxContainer { SizeFlagsVertical = SizeFlags.ShrinkBegin }; box.AddThemeConstantOverride("separation", Space.S);
+        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", Space.S); box.AddChild(head);
         head.AddChild(HudBits.Icon(g.Icon, now ? Ui.Accent : Ui.DimText, 20));
         head.AddChild(new Label { Text = g.Title.ToUpperInvariant(), ThemeTypeVariation = now ? Variation.Accent : Variation.Dim, VerticalAlignment = VerticalAlignment.Center });
-        var grid = new GridContainer { Columns = 2 }; grid.AddThemeConstantOverride("h_separation", 14); grid.AddThemeConstantOverride("v_separation", 6); box.AddChild(grid);
+        var grid = new GridContainer { Columns = 2 }; grid.AddThemeConstantOverride("h_separation", Space.M); grid.AddThemeConstantOverride("v_separation", Space.S); box.AddChild(grid);
         foreach (var row in g.Rows)
         {
             var keys = HudBits.KeyCaps(row.Keys); keys.Alignment = BoxContainer.AlignmentMode.End; grid.AddChild(keys);
