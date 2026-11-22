@@ -164,7 +164,7 @@ export function waitingForPlayers(waiting: readonly TeamWaiting[]): string | nul
 /** The header's line for a client the server answers as a watcher (Session.IsWatching). */
 export const WATCHING = 'Watching: you have no team in this game';
 /** The header's line in a replay (Session.Replaying). */
-export const REPLAYING = 'Replay: the table as it stood at this point in the game';
+export const REPLAYING = 'Replay: the table at this point in the game';
 
 /** One winner wins, several draw, none is no result. */
 export function outcome(ended: GameEnded, n: Names): string {
