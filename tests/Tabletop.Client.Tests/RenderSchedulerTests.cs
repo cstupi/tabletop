@@ -11,6 +11,8 @@ sealed class QueueDispatcher : IDispatcher
     readonly Queue<Action> _queue = new();
     public void Post(Action action) => _queue.Enqueue(action);
     public void Drain() { while (_queue.TryDequeue(out var a)) a(); }
+    /// <summary>One queued action, as a dispatcher whose frame budget is spent after it.</summary>
+    public bool Step() { if (!_queue.TryDequeue(out var a)) return false; a(); return true; }
 }
 
 public class RenderSchedulerTests
@@ -39,6 +41,31 @@ public class RenderSchedulerTests
         Assert.Empty(seen);
         r.Mark(RenderCause.Game); _d.Drain();
         Assert.Equal([RenderCause.Game, RenderCause.Board], seen);
+    }
+
+    /// <summary>Each part renders as its own dispatcher action, in subscription order, so a frame's budget can end between two parts.</summary>
+    [Fact]
+    public void Each_part_renders_in_its_own_dispatcher_action()
+    {
+        var r = new RenderScheduler(_d); var seen = new List<string>();
+        r.Render += _ => seen.Add("a"); r.Render += _ => seen.Add("b"); r.Render += _ => seen.Add("c");
+        r.Mark(RenderCause.Events);
+        Assert.True(_d.Step());                   // the flush hands out the parts
+        Assert.Empty(seen);
+        Assert.True(_d.Step()); Assert.Equal(["a"], seen);
+        Assert.True(_d.Step()); Assert.Equal(["a", "b"], seen);
+        Assert.True(_d.Step()); Assert.Equal(["a", "b", "c"], seen);
+        Assert.False(_d.Step());
+    }
+
+    [Fact]
+    public void A_part_that_unsubscribes_before_its_turn_is_skipped()
+    {
+        var r = new RenderScheduler(_d); var seen = new List<string>();
+        Action<RenderCause> b = _ => seen.Add("b");
+        r.Render += _ => { seen.Add("a"); r.Render -= b; }; r.Render += b;
+        r.Mark(RenderCause.Events); _d.Drain();
+        Assert.Equal(["a"], seen);
     }
 
     /// <summary>The performance review's finding 4: an activation is about 32 EventsMessages. Arriving within one frame they were 32
