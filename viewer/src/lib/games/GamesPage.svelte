@@ -235,7 +235,7 @@
   .status.playing .mark { background: var(--band); }
   .status.ended .mark { border: 0; border-radius: 0; width: .8rem; height: .45rem; border-left: 2px solid var(--band); border-bottom: 2px solid var(--band); transform: rotate(-45deg) translate(1px, -1px); }
 
-  .cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--space-3); }
+  .cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--space-4); }
   .card { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: var(--space-3);
     background: var(--panel-solid); border: 1px solid color-mix(in srgb, var(--band) 55%, transparent); border-left: 6px solid var(--band); }
   .title { font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

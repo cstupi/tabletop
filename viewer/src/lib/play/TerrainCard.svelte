@@ -36,7 +36,7 @@
 </section>
 
 <style>
-  .card { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-2) var(--space-3); overflow-y: auto;
+  .card { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-2); overflow-y: auto;
     flex: 0 1 auto; max-height: 45%; min-height: 6rem; font-size: .95rem; }
   p { margin: 0; }
   .band { display: flex; align-items: baseline; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-left: 6px solid var(--effect);

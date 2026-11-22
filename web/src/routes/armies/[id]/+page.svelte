@@ -161,7 +161,7 @@
   :global([data-theme='fantasy']) .facts-row { border-top-color: var(--wood) }
   .facts { margin: 0; color: var(--dim) }
   .status { min-width: 4rem; margin: 0 }
-  .unit { padding: var(--space-3); margin-bottom: var(--space-3); border-left: 6px solid var(--dim) }
+  .unit { padding: var(--space-3); margin-bottom: var(--space-4); border-left: 6px solid var(--dim) }
   :global([data-theme='fantasy']) .unit { padding: calc(var(--space-3) + var(--frame-inset)) }
   .unit-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-2); padding-bottom: var(--space-2); border-bottom: 1px solid var(--rule) }
   .unit-head h2 { margin: 0; font-size: 1.05rem; flex: 1; min-width: 0 }
