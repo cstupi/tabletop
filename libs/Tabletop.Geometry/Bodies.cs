@@ -46,19 +46,23 @@ public static class Bodies
     internal static bool Apart(PlacedModel a, PlacedModel b, double gap) =>
         a.Placement.Position.Horizontal.DistanceTo(b.Placement.Position.Horizontal) > a.Body.Reach() + b.Body.Reach() + gap + 1e-6;
 
-    internal static Outline BaseOutline(this PlacedModel m)
+    internal static Outline BaseOutline(this PlacedModel m) => m.BaseOffsets() is { } offsets
+        ? BaseAt(offsets, m.Placement.Position.Horizontal)
+        : new CircleOutline(m.Placement.Position.Horizontal, m.Body.Base.A / 2);
+
+    /// <summary>A rect's or oval's outline vertices about its centre, turned by its yaw (the same points BaseOutline adds the centre to); null for a circle.</summary>
+    internal static Point2[]? BaseOffsets(this PlacedModel m)
     {
-        var centre = m.Placement.Position.Horizontal;
         var yaw = m.Placement.Yaw;
         var b = m.Body.Base;
         switch (b.Shape)
         {
             case BaseShape.Circle:
-                return new CircleOutline(centre, b.A / 2);
+                return null;
             case BaseShape.Rect:
             {
                 var (hw, hl) = (b.B / 2, b.A / 2);                       // width across X, length along the facing axis Y, as the oval below
-                return new PolygonOutline(Place([new(-hw, -hl), new(hw, -hl), new(hw, hl), new(-hw, hl)], centre, yaw));
+                return [.. new Point2[] { new(-hw, -hl), new(hw, -hl), new(hw, hl), new(-hw, hl) }.Select(p => p.Rotate(yaw))];
             }
             case BaseShape.Oval:
             {
@@ -67,11 +71,19 @@ public static class Bodies
                     var t = 2 * Math.PI * i / OvalVertices;
                     return new Point2(b.B / 2 * Math.Cos(t), b.A / 2 * Math.Sin(t));
                 });
-                return new PolygonOutline(Place(local, centre, yaw));
+                return [.. local.Select(p => p.Rotate(yaw))];
             }
             default:
                 throw new ArgumentOutOfRangeException(nameof(m), b.Shape, "Unknown base shape.");
         }
+    }
+
+    /// <summary>A rect's or oval's outline with its centre at `centre`, from its BaseOffsets.</summary>
+    internal static PolygonOutline BaseAt(Point2[] offsets, Point2 centre)
+    {
+        var vertices = new Point2[offsets.Length];
+        for (var i = 0; i < offsets.Length; i++) vertices[i] = offsets[i] + centre;
+        return new PolygonOutline(vertices);
     }
 
     /// <summary>Local points → world: rotate by yaw about the origin, then translate to centre.</summary>

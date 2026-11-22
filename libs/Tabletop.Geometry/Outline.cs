@@ -224,6 +224,38 @@ internal sealed record PolygonOutline : Outline
         return true;
     }
 
+    /// <summary>SeparatingAxisTest's answer, the same in any axis order (an axis separates or none does), with each polygon's edges facing the
+    /// other (along `toward`, from a to b, and back) tried first, where a separating axis most likely is.</summary>
+    internal static bool SeparatingAxisTest(PolygonOutline a, PolygonOutline b, Point2 toward) =>
+        !Separates(a, a, b, toward) && !Separates(b, a, b, new Point2(-toward.X, -toward.Y));
+
+    /// <summary>An axis of one of `edges`' edges separates a and b; the edges in order from the one whose outward normal points most along
+    /// `toward`, then alternately either side of it.</summary>
+    static bool Separates(PolygonOutline edges, PolygonOutline a, PolygonOutline b, Point2 toward)
+    {
+        var v = edges.Vertices;
+        var n = v.Count;
+        var first = 0;
+        var most = double.NegativeInfinity;
+        for (int i = 0, j = n - 1; i < n; j = i++)
+        {
+            var e = v[i] - v[j];
+            var facing = e.Y * toward.X - e.X * toward.Y;                   // a counter-clockwise edge's outward normal, along toward
+            if (facing > most) { most = facing; first = i; }
+        }
+        for (var k = 0; k < n; k++)
+        {
+            var i = (first + (k + 1) / 2 * (k % 2 == 0 ? -1 : 1) + n) % n;
+            var e = v[i] - v[(i + n - 1) % n];
+            if (e.Length < Tolerance.Distance) continue;
+            var axis = new Point2(-e.Y, e.X) * (1 / e.Length);
+            var (minA, maxA) = Project(a, axis);
+            var (minB, maxB) = Project(b, axis);
+            if (maxA <= minB + Tolerance.Distance || maxB <= minA + Tolerance.Distance) return true;
+        }
+        return false;
+    }
+
     static IEnumerable<Point2> Axes(PolygonOutline p)
     {
         for (int i = 0, j = p.Vertices.Count - 1; i < p.Vertices.Count; j = i++)

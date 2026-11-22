@@ -58,37 +58,18 @@ public static class Movement
         var far = Math.Min(2 * Math.Max(Math.Max(allowance, straight), 1), 4 * Table.MaxEdge);
         var capLimit = difficultCap is { } cap ? Math.Min(allowance, cap) : allowance;
         List<Point2> line = [origin, destination];
-        bool Enters(IReadOnlyList<Point2> path) => (space.Present & MoveSpace.Difficult) != 0 && space.Touched(path, MoveSpace.Difficult).Count > 0;
         MoveSpace Wide() => new(start, far, impassable, difficult, [], table, null, surfaces);
         // p.7: no part of the base off the table at the destination. A base on the table goes no further; one already off it (a hand move) is
         // held to no table on the way, so its path is still found.
-        var leaves = table is { } slab && !Table.Outline(slab).ContainsOutline(start.BaseOutline().Shift(destination - origin));
+        var leaves = Leaves(start.BaseOutline(), origin, destination, table);
         if (leaves && space.HasTable)
         {
             var wide = Wide();
             return new MoveCheck(straight, allowance, straight <= allowance + Tolerance.Distance, !wide.Clear(origin, destination, MoveSpace.Walls, fromStart: true),
                 (wide.Present & MoveSpace.Difficult) != 0 && wide.Touched(line, MoveSpace.Difficult).Count > 0, true, line);
         }
-        MoveCheck? Fit(int walls)
-        {
-            (int Avoid, double Limit)[] order = difficultCap is null
-                ? [(MoveSpace.Difficult | MoveSpace.Dangerous, allowance), (MoveSpace.Dangerous, allowance), (0, allowance)]
-                : [(MoveSpace.Difficult | MoveSpace.Dangerous, allowance), (MoveSpace.Difficult, allowance), (MoveSpace.Dangerous, capLimit), (0, capLimit)];
-            var tried = new HashSet<(int, double)>();
-            foreach (var (avoid, limit) in order)
-            {
-                var present = avoid & space.Present;
-                if (!tried.Add((present, limit))) continue;                   // a group with nothing in reach adds nothing to avoid
-                if (space.Route(destination, walls | present, limit) is not { } route) continue;
-                var enters = (present & MoveSpace.Difficult) == 0 && Enters(route.Path);
-                var effective = enters && difficultCap is not null ? capLimit : allowance;
-                if (route.Length > effective + Tolerance.Distance) continue;
-                return new MoveCheck(route.Length, effective, true, false, enters, leaves, route.Path);
-            }
-            return null;
-        }
-        if (Fit(MoveSpace.Walls | MoveSpace.Bodies) is { } fits) return fits;
-        if ((space.Present & MoveSpace.Bodies) != 0 && Fit(MoveSpace.Walls) is { } through) return through with { CrossesModels = true };
+        if (Fit(space, destination, allowance, difficultCap, MoveSpace.Walls | MoveSpace.Bodies, leaves) is { } fits) return fits;
+        if ((space.Present & MoveSpace.Bodies) != 0 && Fit(space, destination, allowance, difficultCap, MoveSpace.Walls, leaves) is { } through) return through with { CrossesModels = true };
         var outer = Wide();
         bool Through(IReadOnlyList<Point2> path) => (outer.Present & MoveSpace.Difficult) != 0 && outer.Touched(path, MoveSpace.Difficult).Count > 0;
         var crosses = !outer.Clear(origin, destination, MoveSpace.Walls, fromStart: true);
@@ -98,6 +79,57 @@ public static class Movement
             return new MoveCheck(longer.Length, enters && difficultCap is not null ? capLimit : allowance, false, crosses, enters, leaves, longer.Path);
         }
         return new MoveCheck(straight, allowance, false, true, Through(line), leaves, line);
+    }
+
+    static bool Leaves(Outline start, Point2 origin, Point2 destination, TableSize? table) =>
+        table is { } slab && !Table.Outline(slab).ContainsOutline(start.Shift(destination - origin));
+
+    /// <summary>Check's path within the allowance meeting none of `walls`: the first of its four (three without a cap) choices that fits; null when none does.</summary>
+    static MoveCheck? Fit(MoveSpace space, Point2 destination, double allowance, double? difficultCap, int walls, bool leaves)
+    {
+        var capLimit = difficultCap is { } cap ? Math.Min(allowance, cap) : allowance;
+        (int Avoid, double Limit)[] order = difficultCap is null
+            ? [(MoveSpace.Difficult | MoveSpace.Dangerous, allowance), (MoveSpace.Dangerous, allowance), (0, allowance)]
+            : [(MoveSpace.Difficult | MoveSpace.Dangerous, allowance), (MoveSpace.Difficult, allowance), (MoveSpace.Dangerous, capLimit), (0, capLimit)];
+        var tried = new HashSet<(int, double)>();
+        foreach (var (avoid, limit) in order)
+        {
+            var present = avoid & space.Present;
+            if (!tried.Add((present, limit))) continue;                   // a group with nothing in reach adds nothing to avoid
+            if (space.Route(destination, walls | present, limit) is not { } route) continue;
+            var enters = (present & MoveSpace.Difficult) == 0 && (space.Present & MoveSpace.Difficult) != 0 && space.Touched(route.Path, MoveSpace.Difficult).Count > 0;
+            var effective = enters && difficultCap is not null ? capLimit : allowance;
+            if (route.Length > effective + Tolerance.Distance) continue;
+            return new MoveCheck(route.Length, effective, true, false, enters, leaves, route.Path);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Many destinations of one model's move judged as Check judges each, against one MoveSpace built once (its corners on first use): whether Check
+    /// would find the move within the allowance, clear of impassable ground and the models, and on the table. UnitFormation's landings.
+    /// </summary>
+    internal sealed class Fitting
+    {
+        readonly PlacedModel _start;
+        readonly Outline _base;
+        readonly double _allowance;
+        readonly double? _cap;
+        readonly TableSize? _table;
+        readonly MoveSpace _space;
+
+        public Fitting(PlacedModel start, double allowance, IReadOnlyList<WorldVolume> impassable, IReadOnlyList<WorldVolume> difficult, double? difficultCap,
+            TableSize? table, IReadOnlyList<PlacedModel>? models, IReadOnlyList<WorldVolume>? surfaces, IReadOnlyList<WorldVolume>? steep)
+        {
+            if (steep is { Count: > 0 } && SteepEntering(start, steep) is { Count: > 0 } onto) difficult = [.. difficult, .. onto];
+            (_start, _base, _allowance, _cap, _table) = (start, start.BaseOutline(), allowance, difficultCap, table);
+            _space = new MoveSpace(start, Math.Max(allowance, 0) + 1e-3, impassable, difficult, [], table, models, surfaces);
+        }
+
+        /// <summary>Check(...) is { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false, CrossesModels: false }.</summary>
+        public bool Fits(Point2 destination) =>
+            !Leaves(_base, _start.Placement.Position.Horizontal, destination, _table)
+            && Fit(_space, destination, _allowance, _cap, MoveSpace.Walls | MoveSpace.Bodies, false) is not null;
     }
 
     /// <summary>
@@ -178,7 +210,7 @@ public static class Movement
             && near.All(v => (v.Volume.Kind == VolumeKind.Solid ? v.WorldTop() : v.WorldBottom()) <= vertical + Tolerance.Distance))
             return true;
         var reach = limit + UnitFormation.ContactGap;
-        foreach (var at in ContactPoints(start, target, UnitFormation.ContactGap, 16))
+        foreach (var at in Contacts(start, target, UnitFormation.ContactGap, 16))
         {
             if (origin.DistanceTo(at) > reach + Tolerance.Distance) continue;
             var there = start with { Placement = start.Placement with { Position = new Point3(at.X, at.Y, level) } };
@@ -203,23 +235,35 @@ public static class Movement
     /// target's centre: the direction facing the start first, then alternately either side of it. A charge's landings in base contact (p.9);
     /// the caller judges each as a move.
     /// </summary>
-    public static IReadOnlyList<Point2> ContactPoints(PlacedModel start, PlacedModel target, double gap, int bearings = 32)
+    public static IReadOnlyList<Point2> ContactPoints(PlacedModel start, PlacedModel target, double gap, int bearings = 32) => [.. Contacts(start, target, gap, bearings)];
+
+    /// <summary>ContactPoints one at a time, each found only when asked for: a caller that stops at the first that serves finds no more.</summary>
+    internal static IEnumerable<Point2> Contacts(PlacedModel start, PlacedModel target, double gap, int bearings = 32)
     {
         var centre = target.Placement.Position.Horizontal;
         var facing = start.Placement.Position.Horizontal - centre;
         var bearing = facing.Length > 1e-9 ? Math.Atan2(facing.Y, facing.X) : 0;
-        var points = new List<Point2>(bearings);
+        var other = target.BaseOutline();
+        var probe = ContactProbe.For(start, target);
+        var offsets = probe is null ? start.BaseOffsets() : null;
+        var radius = start.Body.Base.A / 2;
         for (var k = 0; k < bearings; k++)
         {
             var angle = bearing + (k + 1) / 2 * (k % 2 == 0 ? -1 : 1) * Math.Tau / bearings;
             var dir = new Point2(Math.Cos(angle), Math.Sin(angle));
-            PlacedModel There(double r) => start with { Placement = start.Placement with { Position = new Point3(centre.X + dir.X * r, centre.Y + dir.Y * r, start.Placement.Position.Z) } };
+            // Under gap of the target with the base centred r along dir: Distance.EdgeToEdge(start there, target) < gap, the outline built as BaseOutline builds it.
+            bool Under(double r)
+            {
+                var at = new Point2(centre.X + dir.X * r, centre.Y + dir.Y * r);
+                if (probe is not null) return probe.Under(at, gap);
+                Outline there = offsets is null ? new CircleOutline(at, radius) : Bodies.BaseAt(offsets, at);
+                return Outline.Separation(there, other).Distance < gap;
+            }
             double lo = 0, hi = 1;
-            while (Distance.EdgeToEdge(There(hi), target) < gap && hi < 1024) hi *= 2;
-            for (var i = 0; i < 40; i++) { var mid = (lo + hi) / 2; if (Distance.EdgeToEdge(There(mid), target) < gap) lo = mid; else hi = mid; }
-            points.Add(centre + dir * hi);
+            while (Under(hi) && hi < 1024) hi *= 2;
+            for (var i = 0; i < 40; i++) { var mid = (lo + hi) / 2; if (Under(mid)) lo = mid; else hi = mid; }
+            yield return centre + dir * hi;
         }
-        return points;
     }
 
     /// <summary>
