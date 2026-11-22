@@ -30,7 +30,7 @@ describe('deploy placement', () => {
     for (const g of r.box.ghosts.values()) expect(Math.hypot(g.position.x - 30, g.position.y - 20)).toBeLessThan(2);
     expect([...r.box.proposing]).toEqual(r.reserveIds);
     expect(r.panel.head?.prompt).toBeNull();
-    expect(r.control('place')).toMatchObject({ label: 'Place', key: '⏎', disabled: false });
+    expect(r.control('place')).toMatchObject({ label: 'Place', key: '1', disabled: false });
     expect(r.box.placeAt({ x: 1, y: 1, z: 0 })).toBe(false);                   // the pick is spent: no second click
   });
 

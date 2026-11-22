@@ -65,12 +65,18 @@ describe('DecisionView', () => {
   });
 
   it('only a piece one choice names answers a click', () => {
-    const other = newId();
-    const options = { kind: 'options', choices: [option('a', 'Advance', [s.squad.id]), option('h', 'Hold', [s.squad.id]), option('s', 'Strike', [other])] } as const;
-    expect([...clickAnswers(options)]).toEqual([other]);
-    expect([...clickAnswers(options, 'activate')]).toEqual([]);            // picking a unit to activate is never a click's answer
-    expect([...clickAnswers(options, 'act_or_end_phase')]).toEqual([]);
-    expect([...clickAnswers(options, 'charge_target')]).toEqual([other]);
+    const p = projectionOf(s.game, s.board).projection;
+    const options = { kind: 'options', choices: [option('a', 'Advance', [s.rival.id]), option('h', 'Hold', [s.rival.id]), option('s', 'Strike', [s.rivals.id])] } as const;
+    expect([...clickAnswers(options, askOf(options, { question: 'charge_target', teams: [TEAM1] }), p, s.game)]).toEqual([s.rivals.id]);
+  });
+
+  // The owner, 2026-11-21: "Its automatically moving to the shooting phase when i reclick the unit." A unit of the team the Ask addresses
+  // (my acting unit, a Shaken unit's Idle) never answers by a click; only a pick between the other team's units does.
+  it('a click answers only with the other team\'s units', () => {
+    const p = projectionOf(s.game, s.board).projection;
+    const options = { kind: 'options', choices: [option('s', 'Shoot', [s.squad.id]), option('c', 'Charge', [s.rival.id])] } as const;
+    expect([...clickAnswers(options, askOf(options, { question: 'charge_target', teams: [TEAM1] }), p, s.game)]).toEqual([s.rival.id]);
+    expect([...clickAnswers(options, askOf(options, { question: 'charge_target', teams: [TEAM2] }), p, s.game)]).toEqual([s.squad.id]);
   });
 
   it('a unit narrows the box to its choices numbered from one', () => {

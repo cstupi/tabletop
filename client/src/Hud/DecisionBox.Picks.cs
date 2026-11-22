@@ -42,7 +42,7 @@ public partial class DecisionBox
         var count = new Label { ThemeTypeVariation = Variation.Numerals, Visible = sel.Max > 1 }; Add(count);
         Button? done = null;
         void Done() { if (pick.Answer() is { } answer) Send(ask, answer); }
-        void Refresh() { count.Text = pick.Count(names); if (done is not null) done.Disabled = !pick.Ready; }
+        void Refresh() { count.Text = pick.Count(names); if (done is not null) { done.Disabled = !pick.Ready; done.TooltipText = done.Disabled ? count.Text : ""; } }
         void Toggle(Guid id)
         {
             switch (pick.Toggle(id))
@@ -76,7 +76,7 @@ public partial class DecisionBox
         _input.Eligible = eligible.ToHashSet();
         _onTarget = clicked => { if (AskAnswers.Resolve(p, clicked, eligible) is { } id) { _input.CancelDrag(); Toggle(id); } };
         _onEnter = Done;
-        if (sel.Max > 1) Foot(done = Act("Done", DecisionCard.Enter, Done, primary: true, icon: "ready"));
+        if (sel.Max > 1) Foot(done = Act(CardActions.Done, Done));
         Refresh();
     }
 
@@ -111,8 +111,8 @@ public partial class DecisionBox
         var chips = new HFlowContainer(); chips.AddThemeConstantOverride("h_separation", Space.S); chips.AddThemeConstantOverride("v_separation", Space.S); Add(chips);
         void Fire() { if (t.Answer() is { } answer) Send(ask, answer); }
         bool ClearTargets() { if (!t.CanClear) return false; t.Clear(); Show(); return true; }
-        Button fire = Act("Fire", DecisionCard.Enter, Fire, primary: true, icon: "shoot"), clear = null!;
-        clear = Act("Clear", DecisionCard.Esc, () => ClearTargets());
+        Button fire = Act(CardActions.Fire, Fire), clear = null!;
+        clear = Act(CardActions.Clear, () => ClearTargets());
         void Show()
         {
             if (Targets != t || !IsInstanceValid(chips)) return;                       // the Ask ended before a deferred refresh ran
@@ -139,8 +139,8 @@ public partial class DecisionBox
                 chips.AddChild(DecisionTiles.Holding(chip, row, Space.S, Space.XS));
             }
             _input.Eligible = t.Candidates.ToHashSet(); Glow(t.Candidates);          // only units a picked group can shoot; two targets taken (p.8): nothing else glows
-            fire.Disabled = t.Answer() is null;
-            clear.Disabled = !t.CanClear;
+            fire.Disabled = t.Answer() is null; fire.TooltipText = fire.Disabled ? "No target" : "";
+            clear.Disabled = !t.CanClear; clear.TooltipText = clear.Disabled ? "No target" : "";
             TargetsChanged?.Invoke();
         }
         _onTarget = clicked => { if (_s.Projection is { } p && AskAnswers.Resolve(p, clicked, legal.Targets) is { } unit && t.Aim(unit)) Show(); };
@@ -163,12 +163,12 @@ public partial class DecisionBox
         var pips = new Label { VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.Arbitrary, SizeFlagsHorizontal = SizeFlags.ExpandFill };
         pips.AddThemeColorOverride("font_color", Ui.Failure); row.AddChild(pips);
         void Confirm() { if (pick.Answer() is { } answer) Send(ask, answer); }
-        var confirm = Act("Confirm", DecisionCard.Enter, Confirm, primary: true, icon: "ready");
+        var confirm = Act(CardActions.Confirm, Confirm);
         void Show()
         {
             count.Text = $"{pick.Chosen} of {pick.Required}";
             pips.Text = new string('●', pick.Chosen) + new string('○', Math.Max(0, pick.Required - pick.Chosen));
-            confirm.Disabled = !pick.Complete;
+            confirm.Disabled = !pick.Complete; confirm.TooltipText = confirm.Disabled ? count.Text : "";
             ClearMarks();
             foreach (var (id, n) in pick.Counts)
                 if (n > 0 && _view.PieceAt(id) is { } node && IsInstanceValid(node) && p.Models.GetValueOrDefault(id) is { } model)
@@ -181,7 +181,7 @@ public partial class DecisionBox
         _input.Eligible = legal.Targets.ToHashSet();
         _onModel = (id, right) => { if (!left.ContainsKey(id)) return; if (right) pick.Remove(id); else pick.Click(id); Show(); };
         _onEnter = Confirm;
-        Foot(confirm); Foot(Act("Auto", "", () => { pick.Auto(); Show(); })); Foot(Act("Clear", "", () => { pick.Clear(); Show(); })); Show();
+        Foot(confirm); Foot(Act(CardActions.Auto, () => { pick.Auto(); Show(); })); Foot(Act(CardActions.Clear, () => { pick.Clear(); Show(); })); Show();
     }
 
     void ClearMarks() { foreach (var m in _marks) if (IsInstanceValid(m)) m.QueueFree(); _marks.Clear(); }

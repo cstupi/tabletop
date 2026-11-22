@@ -18,6 +18,8 @@ public partial class KeyOverlay : PanelContainer
 
     Session _s = null!;
     readonly HBoxContainer _columns = new();
+    /// <summary>The decision card's actions with their keys (DecisionBox.Actions), listed first under the open Ask.</summary>
+    public Func<IReadOnlyList<CardAction>>? Actions;
     Action? _onRequest, _onTheme;
 
     public void Bind(Session session, TableView view, TableInput input)
@@ -44,13 +46,9 @@ public partial class KeyOverlay : PanelContainer
     void Build()
     {
         foreach (var c in _columns.GetChildren()) { _columns.RemoveChild(c); c.QueueFree(); }
-        AskMode? mode = null; string? title = null; var stoppable = false;
-        if (_s.Projection is { } p && _s.Game is { } game && !_s.IsWatching && AskViewModel.Mine(p, game, _s.MyTeamId) is { } mine)
-        {
-            mode = mine.Mode; title = mine.Ask.Prompt;
-            stoppable = mine.Ask.Legal is MoveRegion m && DecisionView.StopLabel(p, m) is not null;
-        }
-        var groups = KeyOverlayView.Of(mode, title, stoppable);
+        AskMode? mode = null; string? title = null;
+        if (_s.Projection is { } p && _s.Game is { } game && !_s.IsWatching && AskViewModel.Mine(p, game, _s.MyTeamId) is { } mine) { mode = mine.Mode; title = mine.Ask.Prompt; }
+        var groups = KeyOverlayView.Of(mode, title, mode is null ? [] : Actions?.Invoke() ?? []);
         for (var i = 0; i < groups.Count; i++) _columns.AddChild(Group(groups[i], now: i == 0 && mode is not null));
     }
 

@@ -116,11 +116,23 @@ describe('the decision box controller', () => {
 
   it('picking a unit to activate is never answered by a click on it, even with one action', () => {
     const r = rig();
-    r.apply(open(askOf(opts(option('a', 'Advance', [r.s.squad.id]), option('h', 'Hold', [r.s.squad.id]), option('i', 'Idle', [r.s.rivals.id])))));   // question: activate
+    r.apply(open(askOf(opts(option('i', 'Idle', [r.s.squad.id])))));   // question: activate
     r.box.render();
     expect([...r.box.eligible]).toEqual([]);
-    r.box.target(r.s.rival.id);
+    r.box.target(r.s.model.id);
     expect(r.sent).toHaveLength(0);
+  });
+
+  // The owner, 2026-11-21: "Its automatically moving to the shooting phase when i reclick the unit."
+  it('a click on my acting unit that one option names only selects it', () => {
+    const r = rig();
+    r.apply(open(askOf(opts(option('s', 'Shoot', [r.s.squad.id]), option('c', 'Charge', [r.s.rivals.id])), { question: 'shoot_or_not' })));
+    r.box.render();
+    r.box.target(r.s.model.id);
+    r.box.target(r.s.squad.id);
+    expect(r.sent).toHaveLength(0);
+    r.box.target(r.s.rival.id);
+    expect(answerOf(r.sent[0]!)).toEqual({ kind: 'chosen', optionId: 'c' });
   });
 
   it('a unit several choices name narrows the box, renumbered, and Esc widens it', () => {
@@ -203,10 +215,52 @@ describe('the decision box controller', () => {
     const r = rig();
     r.apply(open(askOf({ kind: 'confirmation' }, { question: 'end_round', prompt: 'End the round', teams: [TEAM1, TEAM2], allowPass: false })));
     r.box.render();
-    expect(r.labels()).toEqual(['End the round [⏎]']);
-    expect(r.button('enter')!.primary).toBe(true);
+    expect(r.labels()).toEqual(['End the round [1]']);
+    expect(r.button('confirm')!.primary).toBe(true);
     expect(r.box.enter()).toBe(true);
     expect(answerOf(r.sent[0]!)).toEqual({ kind: 'confirmed' });
+  });
+
+  // The bar over the acting unit stands for every step until the answer is sent, not only the activation pick.
+  it('an Ask is being answered until its answer is sent, whatever its mode', () => {
+    const r = rig();
+    const ask = askOf({ kind: 'assignment', items: [option('g1', 'Rifles', ['w1'])], targets: [r.s.rivals.id], maxDistinctTargets: 1 },
+      { question: 'declare_targets', allowPass: false });
+    r.apply(open(ask));
+    r.box.render();
+    expect(r.box.answering(ask.id)).toBe(true);
+    r.box.target(r.s.rival.id);
+    r.box.press('fire');
+    expect(r.box.answering(ask.id)).toBe(false);
+  });
+
+  // The owner, 2026-11-21: "if 1,2,3 decides then users should hit 1 not enter". An Ask with only foot actions has its primary on 1.
+  it('a number key presses the foot action it caps: the primary first, after the tiles', () => {
+    const r = rig();
+    r.apply(open(askOf({ kind: 'confirmation' }, { question: 'end_round', prompt: 'End the round', allowPass: false })));
+    r.box.render();
+    expect(r.box.number(1)).toBe(true);
+    expect(answerOf(r.sent[0]!)).toEqual({ kind: 'confirmed' });
+
+    const shoot = rig();
+    shoot.apply(open(askOf({ kind: 'assignment', items: [option('g1', 'Rifles', ['w1'])], targets: [shoot.s.rivals.id], maxDistinctTargets: 1 },
+      { question: 'declare_targets', allowPass: true })));
+    shoot.box.render();
+    expect(['fire', 'clear', 'pass'].map((id) => shoot.button(id)!.key)).toEqual(['1', '2', '3']);
+    expect(shoot.box.number(1)).toBe(false);                     // Fire is dim until a target is aimed
+    shoot.box.target(shoot.s.rival.id);
+    expect(shoot.box.number(2)).toBe(true);                      // Clear
+    expect(shoot.box.targets!.assigned.size).toBe(0);
+    shoot.box.target(shoot.s.rival.id);
+    expect(shoot.box.number(1)).toBe(true);
+    expect(answerOf(shoot.sent[0]!)).toEqual({ kind: 'assigned', targets: { g1: shoot.s.rivals.id } });
+
+    const act = rig();
+    act.apply(open(askOf(opts(option('a', 'Advance', [act.s.squad.id]), option('h', 'Hold', [act.s.squad.id])), { question: 'act_or_end_phase' })));
+    act.box.render();
+    expect(act.button('pass')!.key).toBe('3');
+    expect(act.box.number(3)).toBe(true);
+    expect(answerOf(act.sent[0]!)).toEqual({ kind: 'passed' });
   });
 
   it('pick pieces toggles a piece and one pick of one answers at once', () => {
@@ -275,12 +329,12 @@ describe('the decision box controller', () => {
     expect(r.box.cancel()).toBe(true);
     expect(r.box.targets!.assigned.size).toBe(0);
     expect(r.box.cancel()).toBe(false);
-    expect(r.button('clear-targets')!.disabled).toBe(true);
+    expect(r.button('clear')!.disabled).toBe(true);
     r.box.target(r.s.rivals.id);
-    expect(r.button('clear-targets')!.disabled).toBe(false);
-    r.box.press('clear-targets');
+    expect(r.button('clear')!.disabled).toBe(false);
+    r.box.press('clear');
     expect(r.box.targets!.assigned.size).toBe(0);
-    expect(r.button('clear-targets')!.disabled).toBe(true);
+    expect(r.button('clear')!.disabled).toBe(true);
     expect(r.sent).toEqual([]);
     r.box.target(r.s.rivals.id);
     expect(r.box.enter()).toBe(true);

@@ -1,15 +1,26 @@
 // viewer/src/lib/play/unitActionsView.ts
-// client/src/Core/UnitActionsView.cs: the selected unit's action buttons over it (spec 2026-11-21-actions-over-unit-design.md): the Ask they
-// answer, the unit, the point above its tallest model at its models' centroid, and the decision box's tiles for its options, in the box's order.
+// client/src/Core/UnitActionsView.cs: the bar over the acting unit (spec 2026-11-21-actions-over-unit-design.md): the Ask it answers, the unit,
+// the point above its tallest model at its models' centroid, the decision box's tiles for the Ask's options in the box's order, the card's foot
+// actions with their numbers (cardActions), and while I pick shooting targets the enemy units I may target, each with its point.
 
 import type { Projection } from '../live/apply';
-import type { GameInfo, Point3 } from '../protocol/wire.generated';
+import type { AskOption, GameInfo, Point3 } from '../protocol/wire.generated';
 import { mine as myAsk } from './askView';
+import { actionsOf, numberActions, type CardAction } from './cardActions';
 import { ACTIVATIONS, groupsOf, keyCap, type OptionTile } from './decisionCard';
-import { choicesOf, number as numberChoices, type Numbered } from './decisionView';
+import { choicesOf, decisionOf, number as numberChoices, type Numbered } from './decisionView';
+import { actionFrame } from './headerView';
 import { Names } from './names';
+import { teamOf } from './sheetFocus';
+import { TargetAssignment } from './targetAssignment';
 
-export interface UnitActions { readonly askId: string; readonly unitId: string; readonly anchor: Point3; readonly options: readonly OptionTile[] }
+/** A unit I may shoot, and the point above its tallest model where its target icon stands. */
+export interface UnitTarget { readonly unitId: string; readonly anchor: Point3 }
+
+export interface UnitActions {
+  readonly askId: string; readonly unitId: string; readonly anchor: Point3; readonly options: readonly OptionTile[];
+  readonly actions: readonly CardAction[]; readonly targets: readonly UnitTarget[];
+}
 
 /** A button's tooltip: the option's word and its key cap ("Advance  2"); the word alone with no key. */
 export const tipOf = (t: OptionTile): string => (t.key > 0 ? `${t.word}  ${keyCap(t.key)}` : t.word);
@@ -17,29 +28,64 @@ export const tipOf = (t: OptionTile): string => (t.key > 0 ? `${t.word}  ${keyCa
 const NO_WOUNDS: ReadonlyMap<string, number> = new Map();
 
 /**
- * The buttons while my open Ask asks for an activation (activate, act_or_end_phase) and offers the selected unit an option; null while
- * watching or replaying, for another team's Ask or any other Ask, with nothing selected, for a unit the Ask offers nothing or one with no model
- * on the table. The keys are the box's numbering when given (numbered), else the box narrowed to the unit's options.
+ * The bar for my open Ask, over its acting unit: for an activation (activate, act_or_end_phase) the selected unit, with its options; for any
+ * other Ask the unit of mine acting now (the action frame's), else the selected unit of mine the Ask names, with all the Ask's options. Then
+ * the card's foot actions, numbered after the tiles. Null while watching or replaying, for another team's Ask, with no such unit or one with
+ * no model on the table. The keys are the box's numbering when given (numbered), else the box's own (an activation's narrowed to the unit's).
  */
 export function unitActionsOf(p: Projection, game: GameInfo, myTeam: string | null, selected: string | null, watching: boolean,
   numbered?: readonly Numbered[]): UnitActions | null {
-  if (watching || selected === null || !p.units.has(selected)) return null;
-  const ask = myAsk(p, game, myTeam)?.ask;
-  if (ask === undefined || ask.legal.kind !== 'options' || !ACTIVATIONS.has(ask.question)) return null;
-  const hits = choicesOf(ask.legal, p, selected);
-  if (hits.length === 0) return null;
+  if (watching) return null;
+  const view = myAsk(p, game, myTeam);
+  if (view === null) return null;
+  const ask = view.ask;
+  const mineUnit = (u: string): boolean => p.units.has(u) && teamOf(p, game, u)?.id === myTeam;
+  let unit: string;
+  let shown: readonly AskOption[];
+  let keys: readonly Numbered[];
+  if (ACTIVATIONS.has(ask.question)) {
+    if (selected === null || !p.units.has(selected) || ask.legal.kind !== 'options') return null;
+    shown = choicesOf(ask.legal, p, selected);
+    if (shown.length === 0) return null;
+    unit = selected;
+    keys = numbered ?? numberChoices(shown);
+  } else {
+    const named = (u: string): boolean => view.highlights.some((id) => id === u || p.models.get(id)?.unitId === u);
+    const actor = actionFrame(p)?.context.actorUnitId ?? null;
+    if (actor !== null && mineUnit(actor)) unit = actor;
+    else if (selected !== null && mineUnit(selected) && named(selected)) unit = selected;
+    else return null;
+    shown = ask.legal.kind === 'options' ? ask.legal.choices : [];
+    keys = numbered ?? decisionOf(p, game, new Names(game, p), myTeam).numbered;
+  }
+  const anchor = anchorOf(p, unit);
+  if (anchor === null) return null;
+  const tiles = groupsOf(ask, shown, keys, p, game, new Names(game, p), NO_WOUNDS).flatMap((g) => g.tiles);
+  const actions = numberActions(actionsOf(ask, view.mode, p), keys.length);
+  const targets = ask.legal.kind === 'assignment' ? targetsOf(p, new TargetAssignment(ask.legal).candidates) : [];
+  return { askId: ask.id, unitId: unit, anchor, options: tiles, actions, targets };
+}
+
+/** The point above a unit's tallest model at its models' centroid; null with none on the table. */
+export function anchorOf(p: Projection, unit: string): Point3 | null {
   const at: Point3[] = [];
   let top = -Infinity;
   for (const m of p.models.values()) {
-    if (m.unitId !== selected || m.location.kind !== 'table') continue;
+    if (m.unitId !== unit || m.location.kind !== 'table') continue;
     const q = m.location.placement.position;
     at.push(q);
     top = Math.max(top, q.z + m.slot.height);
   }
   if (at.length === 0) return null;
   const mean = (f: (q: Point3) => number): number => at.reduce((s, q) => s + f(q), 0) / at.length;
-  const tiles = groupsOf(ask, hits, numbered ?? numberChoices(hits), p, game, new Names(game, p), NO_WOUNDS).flatMap((g) => g.tiles);
-  return { askId: ask.id, unitId: selected, anchor: { x: mean((q) => q.x), y: mean((q) => q.y), z: top }, options: tiles };
+  return { x: mean((q) => q.x), y: mean((q) => q.y), z: top };
+}
+
+/** The target icons: each unit I may shoot now (TargetAssignment.candidates) with a model on the table, at its point. */
+export function targetsOf(p: Projection, candidates: readonly string[]): UnitTarget[] {
+  const out: UnitTarget[] = [];
+  for (const u of candidates) { const at = anchorOf(p, u); if (at !== null) out.push({ unitId: u, anchor: at }); }
+  return out;
 }
 
 export interface Rect { readonly x: number; readonly y: number; readonly w: number; readonly h: number }
