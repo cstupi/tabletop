@@ -647,6 +647,7 @@ export interface RulesOption {
   readonly label: string;
   readonly values: readonly RulesOptionValue[];
   readonly default: string;
+  readonly description: string;
 }
 
 export interface RulesOptionCatalog {
@@ -657,6 +658,7 @@ export interface RulesOptionCatalog {
 export interface RulesOptionValue {
   readonly value: string;
   readonly label: string;
+  readonly description: string;
 }
 
 export interface RulesOptionsMessage {

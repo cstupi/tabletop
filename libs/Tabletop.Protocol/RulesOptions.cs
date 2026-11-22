@@ -9,10 +9,14 @@ public sealed record RulesOptionCatalog(IReadOnlyList<RulesOption> Options, IRea
     public static RulesOptionCatalog Empty { get; } = new([], []);
 }
 
-/// <summary>One option: its map key, the book's name, its values in display order, and the value an absent key reads as. The UI carries no page citations.</summary>
-public sealed record RulesOption(string Key, string Label, IReadOnlyList<RulesOptionValue> Values, string Default);
+/// <summary>
+/// One option: its map key, the book's name, its values in display order, the value an absent key reads as, and what the option decides in
+/// table terms (the lobby's tooltip). The UI carries no page citations. A catalog without descriptions reads them as empty.
+/// </summary>
+public sealed record RulesOption(string Key, string Label, IReadOnlyList<RulesOptionValue> Values, string Default, string Description = "");
 
-public sealed record RulesOptionValue(string Value, string Label);
+/// <summary>One value of an option: its map value, its name, and what playing with it means in table terms (the lobby's tooltip).</summary>
+public sealed record RulesOptionValue(string Value, string Label, string Description = "");
 
 /// <summary>A named option map; Enforcement, when set, is the setting the preset also picks.</summary>
 public sealed record RulesPreset(string Name, IReadOnlyDictionary<string, string> OptionalRules, Enforcement? Enforcement);
