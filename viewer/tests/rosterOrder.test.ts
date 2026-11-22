@@ -5,7 +5,7 @@ import type { EventPayload } from '../src/lib/protocol/wire.generated';
 import { P1, P2, TEAM1, at, boardOf, gameOf, newId, projectionOf, unitOf } from './play';
 
 const row = (name: string, activated: boolean, offTable = false): RosterRow =>
-  ({ unitId: newId(), name, activated, left: 1, max: 1, offTable, conditions: [], inside: null, reserve: null, acting: false });
+  ({ unitId: newId(), name, activated, left: 1, max: 1, offTable, conditions: [], inside: null, reserve: null, acting: false, setAside: null });
 
 describe('RosterView order (RosterView.Sorted)', () => {
   it('may act, then activated, then off the table, each by name', () => {

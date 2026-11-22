@@ -154,6 +154,9 @@ public static partial class CallCases
             IReadOnlySet<Guid> aside = new HashSet<Guid> { unit };                                    // ModelFacts.MaySetAside names it
             yield return Menu("menu/setAside", log, set.Seq - 1, player, Obj(("roster", S(unit))), "Set aside", null, c => Menus.Roster(c, unit), maySetAside: aside);
             yield return Menu("menu/return", log, set.Seq, player, Obj(("roster", S(unit))), "Return to deployment", null, c => Menus.Roster(c, unit), maySetAside: aside);
+            // The deploy pick's Set aside beside the unit sends what the roster menu sends.
+            yield return Playing("pick/setAside", log, set.Seq - 1, player, Choice("asideButton", ("unitId", S(unit))),
+                s => SetAsideView.SetAside(s.P!, unit, aside) is { } cmd ? Command(cmd) : null, maySetAside: aside);
         }
 
         // A unit put in a transport before it deploys, and taken out again.
