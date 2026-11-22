@@ -39,7 +39,7 @@
   import { sheetFocusOf, teamOf } from './sheetFocus';
   import { midDeploy } from './deployView';
   import { KeepAwayCache, keepAwayFor, SHADE, SHADE_WORDS } from './keepAwayArea';
-  import { AllThreatCache, ThreatRingCache, pinnedThreat, shownThreats } from './threatRings';
+  import { AllThreatCache, ThreatRingCache, pinnedThreat, shownThreats, threatsWanted } from './threatRings';
   import { SightCheck, sightOverlay } from './sightCheck';
   import { teamColour } from '../board/palette';
   import { fetchRuleTexts, RuleTexts, type GrantChoice } from './ruleTexts';
@@ -289,7 +289,7 @@
     const p = shown, game = snap?.game;
     if (geometry === null || p === null || game == null || snap === null) return [];
     const picked = pinned, hovered = hoveredUnit ?? null;
-    const ids = shownThreats(game, p, actingTeam, picked, hovered, snap.threats);
+    const ids = threatsWanted(isWatching(snap) ? null : askMine(p, game, actingTeam)?.mode ?? null) ? shownThreats(game, p, actingTeam, picked, hovered, snap.threats) : [];
     const layers = [picked !== null && ids.includes(picked) ? threatLayerOf(pickedThreats, picked) : null,
       hovered !== null && hovered !== picked && ids.includes(hovered) ? threatLayerOf(hoveredThreats, hovered) : null];
     if (allThreatsOn) for (const t of allThreats.of(geometry, game, p, actingTeam, snap.threats)) layers.push({ rings: t.rings, colour: teamColour(t.ordinal) });

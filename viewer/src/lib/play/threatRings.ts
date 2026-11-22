@@ -1,3 +1,4 @@
+import type { AskMode } from './askView';
 // viewer/src/lib/play/threatRings.ts
 // client/src/Core/ThreatRings.cs and ThreatRingCache: a unit's reach in its next activation, from the server's UnitThreat
 // (ModelFacts.threats), drawn as rangeRings.ts draws. One "Charge" outline at the charge move round every model on the table, and one
@@ -53,12 +54,15 @@ export function ofAnotherTeam(game: GameInfo, p: Projection, acting: string | nu
   return acting === null || teamOf(game, u.participantId) !== acting;
 }
 
-/** ThreatRings.Pinned: the enemy unit whose threat stays drawn: the selected unit when it is of another team; selecting a unit of my own (picking
- *  a unit to deploy or move, or its ghost) or a terrain piece keeps the one before, so the reach stays up while I place; no selection clears it. */
+/** ThreatRings.Pinned: the enemy unit whose threat stays drawn: the selected unit when it is of another team; in deployment selecting a unit of my
+ *  own (picking a unit to deploy, or its ghost) or a terrain piece keeps the one before; from round 1 on it clears it, as no selection always does. */
 export function pinnedThreat(game: GameInfo, p: Projection, acting: string | null, selected: string | null, before: string | null): string | null {
   if (selected === null) return null;
-  return ofAnotherTeam(game, p, acting, selected) ? selected : before;
+  return ofAnotherTeam(game, p, acting, selected) ? selected : p.scheduler.round === 0 ? before : null;
 }
+
+/** ThreatRings.Wanted: the selected and hovered enemies' threats draw except while I pick shooting targets or allocate wounds. */
+export function threatsWanted(mode: AskMode | null): boolean { return mode !== 'assign' && mode !== 'allocate'; }
 
 /** ThreatRings.Shown: the pinned unit (pinnedThreat), then the hovered one; each of another team, with a threat, once. */
 export function shownThreats(game: GameInfo, p: Projection, acting: string | null, pinned: string | null, hovered: string | null, threats: ReadonlyMap<string, UnitThreat>): string[] {

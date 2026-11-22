@@ -61,7 +61,8 @@ public partial class RangeRingNode : Node3D
         if (_s.Projection is { } p && _s.Game is { } game)
         {
             _pinned = ThreatRings.Pinned(game, p, _s.MyTeamId, _input.Selected?.PieceId, _pinned);
-            shown = ThreatRings.Shown(game, p, _s.MyTeamId, _pinned, hovered, _s.Threats);
+            if (ThreatRings.Wanted(_s.IsWatching ? null : AskViewModel.Mine(p, game, _s.MyTeamId)))
+                shown = ThreatRings.Shown(game, p, _s.MyTeamId, _pinned, hovered, _s.Threats);
         }
         _picked.Show(_pinned is { } a && shown.Contains(a) ? ThreatOf(a) : null);
         _hovered.Show(hovered is { } b && b != _pinned && shown.Contains(b) ? ThreatOf(b) : null);
