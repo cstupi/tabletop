@@ -9,7 +9,8 @@ import { unitNamed, type Numbered } from './decisionView';
 import { actionFrame } from './headerView';
 import { isDisembark, type RulerReadout } from './moveRuler';
 import type { Names } from './names';
-import { pips, words } from './rosterView';
+import { words } from './rosterView';
+import { pipsOf } from './unitCard';
 
 /** The card's title band: the Ask's icon key, its title, the unit it is about, and the prompt as a body line when the title is not it. */
 export interface CardHead { readonly icon: string; readonly title: string; readonly subject: string | null; readonly prompt: string | null }
@@ -105,11 +106,11 @@ export function groupsOf(ask: Ask, shown: readonly AskOption[], numbered: readon
   return groups;
 }
 
-/** The unit's wound pips as the roster draws them: wounds left over its models not removed. */
+/** The unit's wound pips as the unit card draws them (pipsOf): wounds left over its models not removed, past twelve `left/max`. */
 export function unitPips(p: Projection, unitId: string, maxWounds: ReadonlyMap<string, number>): string {
   const models = [...p.models.values()].filter((m) => m.unitId === unitId).map((m) => ({ m, max: maxWounds.get(m.id) ?? 1 }));
   const left = models.filter((x) => !(x.m.location.kind === 'shelf' && x.m.wounds >= x.max)).reduce((s, x) => s + Math.max(0, x.max - x.m.wounds), 0);
-  return pips(left, models.reduce((s, x) => s + x.max, 0));
+  return pipsOf(left, models.reduce((s, x) => s + x.max, 0));
 }
 
 /** The bar over the held models' readouts (moveRuler.read): the farthest one's distance. */

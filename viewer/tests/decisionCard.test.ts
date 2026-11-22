@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { barOf, doing, groupsOf, headOf, keyCap, quietOf, word } from '../src/lib/play/decisionCard';
+import { barOf, doing, groupsOf, headOf, keyCap, quietOf, unitPips, word } from '../src/lib/play/decisionCard';
 import { decisionOf } from '../src/lib/play/decisionView';
 import { read } from '../src/lib/play/moveRuler';
 import { Names } from '../src/lib/play/names';
@@ -11,6 +11,12 @@ const region: MoveRegion = { kind: 'move_region', modelIds: [s.model.id], allowa
 const at = (d: number) => read({ x: 0, y: 0 }, { x: d, y: 0 }, 12);
 
 describe('DecisionCard', () => {
+  it('a unit past twelve wounds reads left over max, so its pips leave the name room', () => {
+    const p = projectionOf(s.game, s.board).projection;
+    expect(unitPips(p, s.squad.id, new Map([[s.model.id, 3]]))).toBe('●●●');
+    expect(unitPips(p, s.squad.id, new Map([[s.model.id, 20]]))).toBe('20/20');
+  });
+
   it('activation options group by unit with the word after the colon and keys continuing', () => {
     const scouts = unitOf('Scouts');
     const board = { ...s.board, armies: [{ ...s.board.armies[0]!, snapshot: { ...s.board.armies[0]!.snapshot, units: [s.squad, scouts] } }, s.board.armies[1]!] };

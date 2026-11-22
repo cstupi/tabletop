@@ -124,12 +124,13 @@ public static class DecisionCard
         return groups;
     }
 
-    /// <summary>The unit's wound pips as the roster draws them: wounds left over its models not removed.</summary>
+    /// <summary>The unit's wound pips as the unit card draws them (UnitCardContent.PipsOf): wounds left over its models not removed, past twelve
+    /// <c>left/max</c>, so a large unit's pips do not squeeze its name out of the row.</summary>
     public static string UnitPips(Projection p, Guid unitId, IReadOnlyDictionary<Guid, int> maxWounds)
     {
         var models = p.Models.Values.Where(m => m.UnitId == unitId).Select(m => (M: m, Max: maxWounds.GetValueOrDefault(m.Id, 1))).ToList();
         var left = models.Where(x => !(x.M.Location is OnShelf && x.M.Wounds >= x.Max)).Sum(x => Math.Max(0, x.Max - x.M.Wounds));
-        return RosterView.Pips(left, models.Sum(x => x.Max));
+        return UnitCardContent.PipsOf(left, models.Sum(x => x.Max));
     }
 
     /// <summary>The bar over the held models' readouts (MoveRuler.Read): the farthest one's distance.</summary>

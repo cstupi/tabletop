@@ -26,6 +26,14 @@ public class DecisionCardTests
     }
 
     [Fact]
+    public void A_unit_past_twelve_wounds_reads_left_over_max_so_its_pips_leave_the_name_room()
+    {
+        var (p, _) = Two();
+        Assert.Equal("●●●", DecisionCard.UnitPips(p, Samples.Unit, new Dictionary<Guid, int> { [Samples.Model] = 3 }));
+        Assert.Equal("20/20", DecisionCard.UnitPips(p, Samples.Unit, new Dictionary<Guid, int> { [Samples.Model] = 20 }));
+    }
+
+    [Fact]
     public void Activation_options_group_by_unit_with_the_word_after_the_colon_and_keys_continuing()
     {
         var (_, second) = Two();
