@@ -4,7 +4,7 @@ import { Applier } from '../src/lib/live/apply';
 import { acting, teamsOf } from '../src/lib/lobby/seats';
 import { DecisionBox, type Control, type DecisionPanel } from '../src/lib/play/decisionBox';
 import { RuleTexts } from '../src/lib/play/ruleTexts';
-import type { Board, Command, EventPayload, GameInfo, LegalSet, Refused } from '../src/lib/protocol/wire.generated';
+import type { Board, Command, EventPayload, GameInfo, LegalSet, Refused, SetAsideRule } from '../src/lib/protocol/wire.generated';
 import { P1, P2, TEAM1, TEAM2, askOf, boardOf, gameOf, newId, option, sample, slotOf, unitOf } from './play';
 
 type Deferred = { id: string; resolve: (o: SendOutcome) => void; reject: (e: unknown) => void };
@@ -18,9 +18,11 @@ function rig(over: { game?: GameInfo; board?: Board; maxWounds?: Record<string, 
   const pending: Deferred[] = [];
   const listeners = new Set<(r: Refused) => void>();
   const participantId = over.participantId ?? P1;
+  /** ModelFacts' set-aside members, replaced by a test as a new frame would. */
+  const facts = { maySetAside: new Set<string>() as ReadonlySet<string>, setAsideRules: new Map<string, SetAsideRule>() as ReadonlyMap<string, SetAsideRule> };
   const state = (): ConnectionState => ({
     phase: 'connected', game, participantId, board: applier.projection.board, projection: applier.projection, log: applier.log,
-    maxWounds: new Map(Object.entries(over.maxWounds ?? {})),
+    maxWounds: new Map(Object.entries(over.maxWounds ?? {})), maySetAside: facts.maySetAside, setAsideRules: facts.setAsideRules,
   }) as unknown as ConnectionState;
   const box = new DecisionBox({
     state,
@@ -35,7 +37,7 @@ function rig(over: { game?: GameInfo; board?: Board; maxWounds?: Record<string, 
   });
   const refusedFrame = (i: number, detail: string): Refused => ({ kind: 'refused', messageId: pending[i]!.id, reason: 'illegal', detail });
   const r = {
-    s, game, applier, box, sent,
+    s, game, applier, box, sent, facts,
     apply(...payloads: EventPayload[]) { return r.applyAs(P1, ...payloads); },
     applyAs(actor: string, ...payloads: EventPayload[]) {
       const events = payloads.map((p) => ({ seq: ++seq, actor, payload: p }) as never);
@@ -241,6 +243,19 @@ describe('the decision box controller', () => {
     expect(r.panel.controls[0]).toMatchObject({ kind: 'row', pips: '●', ordinal: 1 });
     expect(r.box.number(1)).toBe(true);
     expect(answerOf(r.sent[0]!)).toEqual({ kind: 'selected_pieces', pieceIds: [r.s.squad.id] });
+  });
+
+  it('a deploy pick draws the set-aside chip and Set aside beside a unit the server names, again when the facts arrive after the Ask', () => {
+    const r = rig();
+    r.apply(open(askOf({ kind: 'pieces', eligible: [r.s.squad.id], min: 1, max: 1 }, { question: 'deploy', prompt: 'Deploy one unit', allowPass: false })));
+    r.box.render();
+    expect(r.panel.controls[0]).not.toHaveProperty('chip');
+    r.facts.maySetAside = new Set([r.s.squad.id]);
+    r.facts.setAsideRules = new Map([[r.s.squad.id, { name: 'Ambush', text: 'May be set aside before deployment. More.' }]]);
+    r.box.render();
+    expect(r.panel.controls[0]).toMatchObject({ kind: 'row', chip: { name: 'Ambush' }, aside: { id: `aside:${r.s.squad.id}`, tip: 'May be set aside before deployment. More.' } });
+    r.box.press(`aside:${r.s.squad.id}`);
+    expect(r.sent[0]).toEqual({ kind: 'set_condition', subject: { kind: 'unit', id: r.s.squad.id }, condition: 'set-aside', present: true });
   });
 
   it('targets aim the picked groups, a chip picks its group alone, Clear targets or Esc clears, Enter fires', () => {

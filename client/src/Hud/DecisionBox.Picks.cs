@@ -1,5 +1,6 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Panels;
 using Tabletop.Client.Table;
 using Tabletop.Client.Theming;
 using Tabletop.Protocol;
@@ -28,6 +29,7 @@ public partial class DecisionBox
     partial void UnhookPicks()
     {
         if (Targets is not null) { Targets = null; TargetsChanged?.Invoke(); }
+        PickHovered?.Invoke(null);                                                   // a freed tile hears no exit
         ClearMarks();
     }
 
@@ -56,7 +58,15 @@ public partial class DecisionBox
         foreach (var shelved in offTable)
         {
             var key = _numbered.FirstOrDefault(n => n.OptionId == shelved.ToString()).Key;
-            Add(Row(shelved, key, names, () => Toggle(shelved)));
+            var tile = Row(shelved, key, names, () => Toggle(shelved));
+            // The roster menu's Set aside beside a unit the server names (SetAsideView), so the unit is held from here too.
+            if (_s.IsWatching || SetAsideView.SetAside(p, shelved, _s.MaySetAside) is not { } aside) { Add(tile); continue; }
+            var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", Space.S);
+            line.AddChild(tile);
+            var b = DecisionTiles.Action("Set aside", "", () => SendAside(aside), icon: "wait");
+            b.TooltipText = _s.SetAsideRules.GetValueOrDefault(shelved)?.Text ?? "";
+            line.AddChild(b);
+            Add(line);
         }
         // A unit on the table (a charge's target, a spell's): a tile with its name and team band beside the glowing unit, so the card is
         // never an empty box (UX redesign part 2 → Pick a unit).
@@ -70,7 +80,13 @@ public partial class DecisionBox
         Refresh();
     }
 
-    /// <summary>A shelved unit as a wide tile: the army icon, its name, its pips in its team's colour, its key cap.</summary>
+    /// <summary>The deploy pick's Set aside: the roster menu's command; a refusal shows on the card.</summary>
+    void SendAside(Command aside) => Guarded.Run(() => _s.SendCommandAsync(aside), message => { _refusal = $"Could not set aside: {message}"; _refusalAsk = _renderedAsk; Render(); });
+
+    /// <summary>The unit under the pointer in a deploy pick's tiles, for the unit card; null when the pointer leaves.</summary>
+    public event Action<Guid?>? PickHovered;
+
+    /// <summary>A shelved unit as a wide tile: the army icon, its name, its set-aside chip during deployment, its pips in its team's colour, its key cap.</summary>
     Button Row(Guid unit, int key, Names names, Action pressed)
     {
         var b = new Button { FocusMode = FocusModeEnum.None, ThemeTypeVariation = Variation.Tile, SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -78,10 +94,11 @@ public partial class DecisionBox
         var ordinal = names.TeamOfUnit(unit) is { } t ? _s.Game?.Teams.FirstOrDefault(x => x.Id == t)?.Ordinal ?? 0 : 0;
         row.AddChild(DecisionTiles.Icon("army", 20, ordinal > 0 ? Ui.Team(ordinal) : null));
         row.AddChild(new Label { Text = names.Piece(unit), SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
+        if (_s.Projection is { } q && SetAsideView.Of(q, unit, _s.SetAsideRules) is { } chip) { var c = HudBits.AsideChip(); HudBits.FillAside(c, chip); row.AddChild(c); }
         if (_s.Projection is { } p && p.Units.ContainsKey(unit)) { var pips = DecisionTiles.Pips(DecisionCard.UnitPips(p, unit, _s.MaxWounds), ordinal); pips.MouseFilter = MouseFilterEnum.Ignore; row.AddChild(pips); }
         row.AddChild(DecisionTiles.Cap(DecisionCard.KeyCap(key)));
         b.Pressed += pressed;
-        b.MouseEntered += () => Light([unit]); b.MouseExited += () => Light(null);
+        b.MouseEntered += () => { Light([unit]); PickHovered?.Invoke(unit); }; b.MouseExited += () => { Light(null); PickHovered?.Invoke(null); };
         return DecisionTiles.Holding(b, row, Space.S, Space.S);
     }
 

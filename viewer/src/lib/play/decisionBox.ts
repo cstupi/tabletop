@@ -16,12 +16,13 @@ import { CasualtyPick } from './casualtyPick';
 import { ENTER, ESC, groupsOf, headOf, keyCap, quietOf, unitPips, type AllowanceBar, type CardHead, type OptionGroup, type OptionTile, type RevealChip } from './decisionCard';
 import { choicesOf, clickAnswers, decisionOf, number as numberChoices, unitNamed, type Numbered } from './decisionView';
 import { midDeploy, offTable, pickable, type MidDeploy } from './deployView';
+import { drawnKey, setAsideChipOf, setAsideCommand, type SetAsideChip } from './setAsideView';
 import { Names } from './names';
 import { SealedReveals } from './sealedReveals';
 import { RuleTexts } from './ruleTexts';
 import { ofOption } from './spellText';
 import { TargetAssignment } from './targetAssignment';
-import { waitHolds, waitingTeams } from './waiting';
+import { isWatching, waitHolds, waitingTeams } from './waiting';
 
 /** One option tile of a group, pressed by its id. */
 export interface TileControl extends OptionTile { readonly id: string; readonly disabled: boolean; readonly tooltip?: string }
@@ -36,7 +37,9 @@ export type Control =
       readonly target?: { readonly name: string; readonly ordinal: number } | null }
   | { readonly kind: 'spin'; readonly id: string; readonly label: string; readonly max: number; readonly value: number; readonly pips?: string }
   | { readonly kind: 'group'; readonly id: string; readonly group: OptionGroup; readonly tiles: readonly TileControl[] }
-  | { readonly kind: 'row'; readonly id: string; readonly label: string; readonly key: string; readonly pips: string | null; readonly ordinal: number; readonly disabled: boolean; readonly pieces: readonly string[] }
+  | { readonly kind: 'row'; readonly id: string; readonly label: string; readonly key: string; readonly pips: string | null; readonly ordinal: number; readonly disabled: boolean; readonly pieces: readonly string[];
+      /** During deployment: the rule that lets the unit be held off the table (setAsideView), and the Set aside beside it: its control id and the rule's text. */
+      readonly chip?: SetAsideChip; readonly aside?: { readonly id: string; readonly tip: string } }
   | { readonly kind: 'bar'; readonly id: string; readonly bar: AllowanceBar | null }
   | { readonly kind: 'counter'; readonly id: string; readonly text: string; readonly pips: string };
 
@@ -113,6 +116,8 @@ export class DecisionBox {
   #refusalAsk: string | null = null;
   #revealed: RevealChip[][] | null = null;
   #refusal: string | null = null;
+  /** The set-aside facts the drawn Ask was drawn with (drawnKey): facts that arrive after it draw it again. */
+  #asideDrawn = '';
   /** The server's words in #refusal, for the gate's line that says the same. */
   #refusalDetail: string | null = null;
   #lastToken = 0;
@@ -270,7 +275,9 @@ export class DecisionBox {
       return;
     }
     this.#quiet = [];
-    if (this.#renderedAsk === mine.ask.id) return;
+    const aside = drawnKey(st.maySetAside, st.setAsideRules);
+    if (this.#renderedAsk === mine.ask.id && aside === this.#asideDrawn) return;
+    this.#asideDrawn = aside;
     this.#reset(); this.#renderedAsk = mine.ask.id; this.#answering = team; this.#note = '';
     this.#head = headOf(mine.ask, p, names);
     if (fresh.length === 0) this.#revealed = null;                          // a reveal is cleared only after a render has shown it
@@ -414,8 +421,23 @@ export class DecisionBox {
     s.rebuild();
   }
 
+  /** The deploy pick's Set aside: the roster menu's command; a refusal shows on the card. */
+  async #sendAside(command: Command): Promise<void> {
+    let text: string | null;
+    try { const outcome = await this.#host.send(command); text = outcome.refused === null ? null : outcome.refused.detail ?? outcome.refused.reason; }
+    catch (e) { text = e instanceof Error ? e.message : String(e); }
+    if (text !== null) { this.#refusal = `Could not set aside: ${text}`; this.#refusalAsk = this.#renderedAsk; this.#publish(); }
+  }
+
+  /** The unit of a deploy pick's row under the pointer (DecisionBox.PickHovered): the unit card shows it. */
+  get pickHovered(): string | null {
+    const h = this.#hovered;
+    return h !== null && h.startsWith('pick:') && this.#controls.some((c) => c.kind === 'row' && c.id === h) ? h.slice(5) : null;
+  }
+
   /** The press of a button or chip. */
   press(controlId: string): void {
+    if (controlId.startsWith('aside:') && this.#controls.some((x) => x.kind === 'row' && x.aside?.id === controlId)) { this.#actions.get(controlId)?.(); return; }
     const c = this.#controls.find((x) => 'id' in x && x.id === controlId);
     if (c !== undefined && (c.kind === 'button' || c.kind === 'chip' || c.kind === 'row') && c.disabled === true) return;
     if (c === undefined && !this.#controls.some((x) => x.kind === 'group' && x.tiles.some((t) => t.id === controlId && !t.disabled))) return;
@@ -531,12 +553,17 @@ export class DecisionBox {
     const refresh = () => {
       const items: Array<readonly [Control, (() => void)?]> = sel.max > 1
         ? [[{ kind: 'label', text: `${picked.length} of ${sel.min === sel.max ? sel.min : `${sel.min}–${sel.max}`}` }]] : [];
-      const game = this.#host.state().game;
+      const st = this.#host.state(), game = st.game;
       for (const id of shelved) {
         const key = this.#numbered.find((n) => n.optionId === id)?.key ?? 0;
         const team = names.teamOfUnit(id);
-        items.push([{ kind: 'row', id: `pick:${id}`, label: names.piece(id), key: keyCap(key), pips: p.units.has(id) ? unitPips(p, id, this.#host.state().maxWounds) : null,
-          ordinal: game?.teams.find((t) => t.id === team)?.ordinal ?? 0, disabled: false, pieces: [id] }, () => toggle(id)]);
+        const chip = setAsideChipOf(p, id, st.setAsideRules);
+        // The roster menu's Set aside beside a unit the server names (SetAsideView), so the unit is held from here too.
+        const aside = isWatching(st) ? null : setAsideCommand(p, id, st.maySetAside);
+        if (aside !== null) this.#actions.set(`aside:${id}`, () => { void this.#sendAside(aside); });
+        items.push([{ kind: 'row', id: `pick:${id}`, label: names.piece(id), key: keyCap(key), pips: p.units.has(id) ? unitPips(p, id, st.maxWounds) : null,
+          ordinal: game?.teams.find((t) => t.id === team)?.ordinal ?? 0, disabled: false, pieces: [id],
+          ...(chip !== null ? { chip } : {}), ...(aside !== null ? { aside: { id: `aside:${id}`, tip: st.setAsideRules.get(id)?.text ?? '' } } : {}) }, () => toggle(id)]);
       }
       if (sel.max > 1) items.push([{ ...button('done', 'Done', ENTER, true, 'ready'), disabled: picked.length < sel.min || picked.length > sel.max }, done]);
       this.#segment(items);

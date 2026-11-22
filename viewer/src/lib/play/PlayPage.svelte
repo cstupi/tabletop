@@ -38,6 +38,7 @@
   import { RangeRingCache, ringsOverlay, type RingLayer } from './rangeRings';
   import { sheetFocusOf, teamOf } from './sheetFocus';
   import { midDeploy } from './deployView';
+  import { PlacingFocus } from './setAsideView';
   import { KeepAwayCache, keepAwayFor, SHADE, SHADE_WORDS } from './keepAwayArea';
   import { AllThreatCache, ThreatRingCache, pinnedThreat, shownThreats, threatsWanted } from './threatRings';
   import { SightCheck, sightOverlay } from './sightCheck';
@@ -297,6 +298,15 @@
   });
   // RangeRingNode's keep-away layer: while I place a unit held over a distance from enemy units (my deploy pick's or my open move Ask's KeepAway),
   // the area it may not reach, in a dark shade; rebuilt when a listed unit's models move.
+  // The unit card while I place a unit (UnitCard.Placing): the unit a team of mine picked, held while the selection stands as it was at the pick.
+  const placingFocus = new PlacingFocus();
+  const placingUnit = $derived.by((): string | null => {
+    const p = shown, s = snap;
+    if (p === null || s === null || isWatching(s)) return null;
+    const mid = [actingTeam, ...teams].map((t) => midDeploy(p, s.log, t)).find((m) => m !== null) ?? null;
+    return placingFocus.placing(mid?.unitId ?? null, selection?.pieceId ?? null);
+  });
+  const pickHovered = $derived.by(() => { void panel; return box?.pickHovered ?? null; });
   const keepAwayCache = new KeepAwayCache();
   const keepAwayLayer = $derived.by((): RingLayer | null => {
     const p = shown, s = snap;
@@ -493,7 +503,7 @@
       <InfoColumn
         {connection} {snap} {shown} {scene} {prediction} pendingUndoTo={pendingUndo} {rules} {geometry}
         {selection} {hoveredUnit} {catalog} myTeam={actingTeam} eligible={infoEligible} getSettings={() => settings} updateSettings={changeSettings}
-        onPickModel={pickModel} onTouch={(ids) => { touchedIds = new Set(ids); }} bind:overlay={infoOverlay}
+        onPickModel={pickModel} onTouch={(ids) => { touchedIds = new Set(ids); }} bind:overlay={infoOverlay} {pickHovered} placing={placingUnit}
       />
     {/if}
   </aside>

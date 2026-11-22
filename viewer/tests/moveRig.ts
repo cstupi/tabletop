@@ -63,7 +63,7 @@ export function moveRig(over: { enforcement?: Enforcement; squad?: number; parti
   let enforcement = game.enforcement;
   const state = (): ConnectionState => (reconnecting
     ? { phase: 'reconnecting', game: null, participantId: me, board: null, projection: null, log: [], maxWounds: new Map() }
-    : { phase: 'connected', game, participantId: me, board: applier.projection.board, projection: applier.projection, log: applier.log, maxWounds: new Map() }) as unknown as ConnectionState;
+    : { phase: 'connected', game, participantId: me, board: applier.projection.board, projection: applier.projection, log: applier.log, maxWounds: new Map(), maySetAside: new Set(), setAsideRules: new Map() }) as unknown as ConnectionState;
   const hooks = moveHooks({ geometry: () => geometry, violations, enforcement: () => enforcement, drops });
   const box = new DecisionBox({
     state, myTeams: () => teamsOf(game, me), acting: () => acting(applier.projection, teamsOf(game, me), applier.log),

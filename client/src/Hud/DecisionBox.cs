@@ -32,6 +32,8 @@ public partial class DecisionBox : PanelContainer
     readonly ScrollContainer _scroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
     HudRect? _slot; bool _fitQueued;
     Guid? _renderedAsk, _answering, _lastCommand, _refusalAsk; string? _refusal, _refusalDetail; readonly SealedReveals _reveals = new();
+    /// <summary>The set-aside facts the drawn Ask was drawn with (SetAsideView.DrawnKey): facts that arrive after it draw it again.</summary>
+    string _asideDrawn = "";
     IReadOnlyList<IReadOnlyList<RevealChip>>? _revealed; IReadOnlyList<IReadOnlyList<RevealChip>>? _revealDrawn;
     /// <summary>The card's head as drawn, and the quiet bands' key: a render redraws them only on a change.</summary>
     (CardHead? Head, int Ordinal) _head; string _quietKey = "";
@@ -241,7 +243,9 @@ public partial class DecisionBox : PanelContainer
             return;
         }
         Quiet([]);
-        if (_renderedAsk == mine.Ask.Id) return;
+        var aside = SetAsideView.DrawnKey(_s.MaySetAside, _s.SetAsideRules);
+        if (_renderedAsk == mine.Ask.Id && aside == _asideDrawn) return;
+        _asideDrawn = aside;
         var model = DecisionView.Of(p, game, names, _s.MyTeamId);   // only for an Ask not yet drawn: most renders keep the box as it is
         Reset(); _renderedAsk = mine.Ask.Id; _answering = _s.MyTeamId; _note.Text = "";
         if (fresh.Count == 0) _revealed = null;                                 // a reveal is cleared only after a render has shown it

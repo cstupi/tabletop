@@ -161,6 +161,31 @@ public sealed partial class GrimdarkFutureRules
     }
 
     /// <summary>
+    /// Per unit MaySetAside names, the rule it carries that lets it be set aside, as its army book prints it: the first of the unit's own rules, then
+    /// its models', that is Ambush or Scout or grants one (Infiltrate "Counts as having Ambush", Infiltrating Precision Strike, an Aura of one), else
+    /// Surprise Attack ("Counts as having Infiltrate"), else Ambush; with that entry's rule text.
+    /// </summary>
+    public IReadOnlyDictionary<Guid, SetAsideRule> SetAsideRules(GameState state, PropertySet properties) =>
+        MaySetAside(state, properties).ToDictionary(id => id, id => SetAsideRuleOf(state, properties, id));
+
+    static SetAsideRule SetAsideRuleOf(GameState state, PropertySet props, Guid unitId)
+    {
+        var d = state.Projection.Units[unitId].Definition;
+        var carried = d.Properties.Select(p => p.Name).Concat(d.Models.SelectMany(m => m.Properties.Select(p => p.Name))).Distinct();
+        var name = carried.FirstOrDefault(n => LetsSetAside(props, n, 0)) ?? (GfAmbush.Carries(d, GfAmbush.SurpriseAttack) ? GfAmbush.SurpriseAttack : GfNames.Ambush);
+        return new SetAsideRule(name, props.Entry(name)?.RuleText ?? "");
+    }
+
+    /// <summary>The entry is Ambush or Scout, an Aura of one, or grants one through its grant_property rows, a few links deep.</summary>
+    static bool LetsSetAside(PropertySet props, string name, int depth)
+    {
+        if (name is GfNames.Ambush or GfNames.Scout) return true;
+        if (depth > 4) return false;
+        if (name.EndsWith(" Aura", StringComparison.Ordinal) && LetsSetAside(props, name[..^" Aura".Length], depth + 1)) return true;
+        return props.Entry(name) is { } e && e.Effects.Any(f => f.Kind == EffectKind.GrantProperty && f.TargetEntry is { } t && LetsSetAside(props, t, depth + 1));
+    }
+
+    /// <summary>
     /// Passengers spec → What the client is told: for each unit that may be put in a Transport now (every model on the shelf), the Transport models
     /// MayDeployInside allows with nothing being placed. Empty once no Transport waits on the shelf, without reading the log.
     /// </summary>

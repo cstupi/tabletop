@@ -33,14 +33,19 @@ public sealed partial class GameSession
 
     ModelFacts Facts(GameState state) => new(state.Projection.Models.Keys.ToDictionary(id => id, id => state.Rules.MaxWounds(state, id)), state.Rules.DeployInside(state),
         Engine?.Properties is { } properties ? state.Rules.MaySetAside(state, properties) : [],
-        Engine?.Properties is { } props ? state.Rules.Threats(state, props) : new Dictionary<Guid, UnitThreat>(), state.Rules.InCover(state));
+        Engine?.Properties is { } props ? state.Rules.Threats(state, props) : new Dictionary<Guid, UnitThreat>(), state.Rules.InCover(state),
+        Engine?.Properties is { } ps ? state.Rules.SetAsideRules(state, ps) : new Dictionary<Guid, SetAsideRule>());
 
     static bool Same(ModelFacts a, ModelFacts b) =>
         a.MaxWounds.Count == b.MaxWounds.Count && b.MaxWounds.All(kv => a.MaxWounds.TryGetValue(kv.Key, out var v) && v == kv.Value)
         && (a.DeployInside ?? new Dictionary<Guid, IReadOnlyList<Guid>>()) is var x && (b.DeployInside ?? new Dictionary<Guid, IReadOnlyList<Guid>>()) is var y
         && x.Count == y.Count && y.All(kv => x.TryGetValue(kv.Key, out var v) && v.SequenceEqual(kv.Value))
         && (a.MaySetAside ?? []).SequenceEqual(b.MaySetAside ?? []) && (a.InCover ?? []).SequenceEqual(b.InCover ?? [])
+        && SameSetAside(a.SetAsideRules ?? new Dictionary<Guid, SetAsideRule>(), b.SetAsideRules ?? new Dictionary<Guid, SetAsideRule>())
         && SameThreats(a.Threats ?? new Dictionary<Guid, UnitThreat>(), b.Threats ?? new Dictionary<Guid, UnitThreat>());
+
+    static bool SameSetAside(IReadOnlyDictionary<Guid, SetAsideRule> a, IReadOnlyDictionary<Guid, SetAsideRule> b) =>
+        a.Count == b.Count && b.All(kv => a.TryGetValue(kv.Key, out var r) && r == kv.Value);
 
     static bool SameThreats(IReadOnlyDictionary<Guid, UnitThreat> a, IReadOnlyDictionary<Guid, UnitThreat> b) =>
         a.Count == b.Count && b.All(kv => a.TryGetValue(kv.Key, out var t) && t.Charge == kv.Value.Charge && t.ShootMove == kv.Value.ShootMove

@@ -388,6 +388,7 @@ export interface ModelFacts {
   readonly maySetAside?: readonly string[];
   readonly threats?: { readonly [key: string]: UnitThreat };
   readonly inCover?: readonly string[];
+  readonly setAsideRules?: { readonly [key: string]: SetAsideRule };
 }
 
 export interface ModelRelocation {
@@ -723,6 +724,11 @@ export interface SequenceStarted {
 export interface SetActiveTeam {
   readonly kind: 'set_active_team';
   readonly teamId: string;
+}
+
+export interface SetAsideRule {
+  readonly name: string;
+  readonly text: string;
 }
 
 export interface SetCondition {

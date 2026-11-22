@@ -40,7 +40,7 @@
 
   let {
     connection, snap, shown, scene, prediction, pendingUndoTo, rules, geometry, selection, hoveredUnit, catalog, myTeam, eligible, getSettings, updateSettings,
-    onPickModel, onTouch, overlay = $bindable(null),
+    onPickModel, onTouch, overlay = $bindable(null), pickHovered = null, placing = null,
   }: {
     connection: GameConnection; snap: ConnectionState;
     /** The projection to show: the prediction while an undo travels, else the connection's. */
@@ -55,6 +55,8 @@
     onPickModel: (modelId: string) => void; onTouch: (pieceIds: readonly string[]) => void;
     /** The hover label, drawn over the board. */
     overlay?: Overlay | null;
+    /** A deploy pick's row under the pointer, and the unit my team is placing (PlacingFocus's): the card shows a unit not yet on the table. */
+    pickHovered?: string | null; placing?: string | null;
   } = $props();
 
   const cache = new CombatLogCache();
@@ -75,7 +77,7 @@
   const watching = $derived(isWatching(snap));
   const log = $derived(snap.game !== null && playing && shown !== null ? cache.of(snap.log, pendingUndoTo, snap.game, shown) : null);
 
-  const focus = $derived(shown !== null && snap.game !== null && playing ? sheetFocusOf(shown, snap.game, myTeam, selection?.pieceId ?? null) : null);
+  const focus = $derived(shown !== null && snap.game !== null && playing ? sheetFocusOf(shown, snap.game, myTeam, selection?.pieceId ?? null, pickHovered, placing) : null);
 
   const sheet = $derived.by(() => {
     if (focus === null || shown === null || snap.game === null) return null;

@@ -82,11 +82,21 @@ public partial class UnitCard : VBoxContainer
         _card.CustomMinimumSize = new Vector2(0, MathF.Floor(Math.Max(0, Math.Min(_body.GetCombinedMinimumSize().Y, slot.H - chrome))));
     }
 
+    readonly PlacingFocus _placing = new();
+    Guid? _previewed;
+
+    /// <summary>A deploy pick's tile under the pointer (DecisionBox.PickHovered): the card shows that unit until the pointer leaves.</summary>
+    public void Preview(Guid? unit) { if (_previewed == unit) return; _previewed = unit; Render(); }
+
+    /// <summary>The unit a team of mine picked at a deploy Ask and is placing (DeployView.MidDeploy), else null.</summary>
+    Guid? Placing(Projection p) =>
+        new[] { _s.MyTeamId }.Concat(_s.MyTeamIds.Select(t => (Guid?)t)).Select(t => DeployView.MidDeploy(p, _s.Log, t)).FirstOrDefault(m => m is not null)?.UnitId;
+
     void Render()
     {
         var p = _s.Projection; var game = _s.Game;
         var unit = p is not null && game is not null && game.Status is GameStatus.Playing or GameStatus.Ended
-            ? SheetFocus.Of(p, game, _s.MyTeamId, _input.Selected?.PieceId) : null;
+            ? SheetFocus.Of(p, game, _s.MyTeamId, _input.Selected?.PieceId, _previewed, _placing.Placing(Placing(p), _input.Selected?.PieceId)) : null;
         if (unit != _unit) { _unit = unit; FocusChanged?.Invoke(unit); }
         Visible = unit is not null;
         if (unit is not { } u) { _sheet = null; _names = null; _content = null; return; }

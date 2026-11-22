@@ -60,7 +60,7 @@ public partial class Roster : PanelContainer
     {
         Visible = _s.Projection is not null && _s.Game is not null;
         if (_s.Projection is not { } p || _s.Game is not { } game) { Clear(); return; }
-        var teams = RosterView.Of(p, game, new Names(game, p), _s.MyTeamId, _s.MaxWounds, _s.MyTeamIds);
+        var teams = RosterView.Of(p, game, new Names(game, p), _s.MyTeamId, _s.MaxWounds, _s.MyTeamIds, _s.SetAsideRules);
         var keep = _drawnCollapsed == _collapsed && !_collapsed ? RosterView.Keep(_drawn, _drawnSelected, teams, _selected) : null;
         if (keep is null) { Rebuild(teams); return; }
         var next = new Dictionary<Guid, (Control Line, Control? Chips)>(); var order = new List<Control>();
@@ -232,6 +232,7 @@ public partial class Roster : PanelContainer
         foreach (var k in row.Conditions.Where(k => Ui.Icon(k) is null)) Chip(RosterView.Words(k));
         if (row.Inside is { } transport) Chip($"in {transport}");
         if (row.Reserve is { } reserve) Chip(reserve);
+        if (row.SetAside is { } aside) HudBits.FillAside(chips.Take("aside", HudBits.AsideChip), aside);   // the rule that lets it be held off the table (deployment only)
         c.ChipLine.Visible = chips.End() > 0;
     }
 

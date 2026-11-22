@@ -92,6 +92,9 @@ public interface IGameRules
     /// <summary>The units a player may set aside before deployment now, or return to deployment (OPR p.13 Ambush, p.14 Scout: "May be set aside before
     /// deployment", and whatever counts as having either). Empty by default. Wrapping rulesets must forward it.</summary>
     IReadOnlyList<Guid> MaySetAside(GameState state, PropertySet properties) => [];
+    /// <summary>Per unit MaySetAside names, the rule that lets it be set aside as the unit carries it, with that rule's text. Empty by default.
+    /// Wrapping rulesets must forward it.</summary>
+    IReadOnlyDictionary<Guid, SetAsideRule> SetAsideRules(GameState state, PropertySet properties) => new Dictionary<Guid, SetAsideRule>();
     /// <summary>Per unit with a living model on the table, how far its next activation reaches (threat range plan; OPR p.7 Advance and Charge, p.8 Who can
     /// shoot). Empty by default. Wrapping rulesets must forward it.</summary>
     IReadOnlyDictionary<Guid, UnitThreat> Threats(GameState state, PropertySet properties) => new Dictionary<Guid, UnitThreat>();

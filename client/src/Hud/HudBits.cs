@@ -16,6 +16,25 @@ public static class HudBits
         MouseFilter = tooltip.Length > 0 ? Control.MouseFilterEnum.Pass : Control.MouseFilterEnum.Ignore,
     };
 
+    /// <summary>A set-aside chip (SetAsideView): the theme's `wait` icon in the accent and the rule's name in the chip box; the tooltip on the whole
+    /// chip. Clicks pass to the row. Fill sets it again.</summary>
+    public static PanelContainer AsideChip()
+    {
+        var chip = new PanelContainer { ThemeTypeVariation = Variation.Chip, MouseFilter = Control.MouseFilterEnum.Pass };
+        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", Space.XS); chip.AddChild(row);
+        row.AddChild(Icon("wait", Ui.Accent, 14));
+        row.AddChild(new Label { MouseFilter = Control.MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
+        return chip;
+    }
+
+    public static void FillAside(Control chip, SetAsideChip c)
+    {
+        var row = chip.GetChild(0);
+        Look.Icon((TextureRect)row.GetChild(0), "wait", Ui.Accent);
+        Look.Ink(Look.Text((Label)row.GetChild(1), c.Name), Ui.Accent);
+        Look.Tip(chip, c.Tip);
+    }
+
     /// <summary>No tint: for the theme's coloured icons (activated, objective, the conditions), drawn as they are.</summary>
     public static Color Plain => Ui.Faded with { A = 1 };
 
