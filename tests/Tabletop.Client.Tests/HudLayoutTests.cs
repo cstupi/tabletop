@@ -46,7 +46,7 @@ public class HudLayoutTests
     {
         var r = HudLayout.Of(1280, 720, new HudVisible(Roster: true, UnitCard: true, Decision: true, Dice: true, LogOpen: true));
         Assert.Equal(
-            (new HudRect(792, 451, 480, 261), new HudRect(632, 182, 640, 261), new HudRect(8, 56, 420, 324)),
+            (new HudRect(792, 416, 480, 296), new HudRect(632, 112, 640, 296), new HudRect(8, 56, 420, 324)),
             (r[HudPart.Decision], r[HudPart.LogPanel], r[HudPart.Roster]));
     }
 
@@ -68,7 +68,20 @@ public class HudLayoutTests
         Assert.Equal(new HudRect(1234, 8, 38, 38), HudLayout.Of(1280, 720, new HudVisible(true, true, true, true, false), buttonSize: 20)[HudPart.LogButton]);   // never below 38
     }
 
-    /// <summary>The decision box leaves the table's centre clear: the right column, from below the toasts down to the screen's margin.</summary>
+    /// <summary>The right column's top: M below the corner buttons and the header where it spans the column. The toasts come and go over it.</summary>
+    static float ColumnTop(IReadOnlyDictionary<HudPart, HudRect> r)
+    {
+        var column = new HudRect(r[HudPart.LogButton].Right - 640, 0, 640, 1);   // the log's width, the column's widest part
+        return Math.Max(r[HudPart.LogButton].Bottom, r[HudPart.Header].SpansX(column) ? r[HudPart.Header].Bottom : 0) + 8;
+    }
+
+    [Fact]
+    public void The_toasts_come_and_go_over_the_other_parts()
+    {
+        Assert.Contains(HudPart.Toasts, HudLayout.Overlays);
+    }
+
+    /// <summary>The decision box leaves the table's centre clear: the right column, from below the corner buttons and the header down to the screen's margin.</summary>
     [Theory, MemberData(nameof(Sizes))]
     public void The_decision_box_sits_flush_at_the_bottom_right(int w, int h)
     {
@@ -78,12 +91,12 @@ public class HudLayoutTests
             var d = r[HudPart.Decision];
             Assert.Equal(w - 8, d.Right);
             Assert.Equal(h - 8, d.Bottom);
-            Assert.True(d.Y >= r[HudPart.Toasts].Bottom + 8, $"{v}: {d}");
-            if (!v.LogOpen) Assert.Equal(r[HudPart.Toasts].Bottom + 8, v.Dice ? r[HudPart.Dice].Y : d.Y);
+            Assert.True(d.Y >= ColumnTop(r), $"{v}: {d}");
+            if (!v.LogOpen) Assert.Equal(ColumnTop(r), v.Dice ? r[HudPart.Dice].Y : d.Y);
         }
     }
 
-    /// <summary>The open log hangs from the top of the right column, below the corner buttons and the toasts, down the right side.</summary>
+    /// <summary>The open log hangs from the top of the right column, below the corner buttons, down the right side.</summary>
     [Theory, MemberData(nameof(Sizes))]
     public void The_open_log_opens_from_the_top_right(int w, int h)
     {
@@ -92,7 +105,7 @@ public class HudLayoutTests
             var r = HudLayout.Of(w, h, v);
             var log = r[HudPart.LogPanel];
             Assert.Equal(w - 8, log.Right);
-            Assert.Equal(r[HudPart.Toasts].Bottom + 8, log.Y);
+            Assert.Equal(ColumnTop(r), log.Y);
             if (v.Decision) Assert.Equal(r[HudPart.Decision].Y - 8, log.Bottom);
         }
     }

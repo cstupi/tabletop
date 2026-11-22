@@ -28,7 +28,8 @@ public static class HudLayout
     public const float M = 8, Column = 420, CornerH = 40, HeaderW = 760, HeaderH = 96, ToastW = 360, ToastH = 120, DecisionW = 480,
         DiceH = 96, ReplayH = 112, LogW = 640, LogMaxH = 720, CornerButton = 38, LoadingH = 36, LoadingW = 280, BannerH = 136, EndW = 480, EndH = 360;
 
-    public static readonly IReadOnlySet<HudPart> Overlays = new HashSet<HudPart> { HudPart.Banner, HudPart.EndMessage };
+    /// <summary>Parts that come and go over the others: the turn banner, the end message and the toasts (a few seconds each, click-through).</summary>
+    public static readonly IReadOnlySet<HudPart> Overlays = new HashSet<HudPart> { HudPart.Banner, HudPart.EndMessage, HudPart.Toasts };
 
     /// <summary>The slots. buttonSize is the undo and log buttons' actual size (square icon buttons; a theme's face may be larger), never under
     /// CornerButton: they stand in the top right corner, Log at the corner and Undo left of it, the toasts below them. replayH is the replay
@@ -52,10 +53,10 @@ public static class HudLayout
         if (v.UnitCard) r[HudPart.UnitCard] = v.Roster ? new(M, top + half + M, Column, half) : new(M, top, Column, colH);
         // The loading strip (models, a reconnect): at the foot's centre, clear of both columns.
         var loading = r[HudPart.Loading] = new(MathF.Floor(w / 2 - LoadingW / 2), h - M - LoadingH, LoadingW, LoadingH);
-        // The right column, below the corner buttons, the toasts and the header down to the margin: the decision box flush at its foot,
+        // The right column, below the corner buttons and the header down to the margin (the toasts come and go over it): the decision box flush at its foot,
         // the dice above it, and the open log hanging from its top. With the decision box showing, the log takes the upper half.
         var span = new HudRect(w - M - Math.Max(LogW, DecisionW), 0, Math.Max(LogW, DecisionW), h);
-        float colTop = new[] { log, undo, toasts, header }.Where(span.SpansX).Max(o => o.Bottom) + M, colBottom = h - M, rightH = colBottom - colTop;
+        float colTop = new[] { log, undo, header }.Where(span.SpansX).Max(o => o.Bottom) + M, colBottom = h - M, rightH = colBottom - colTop;
         float stack = v.Decision ? MathF.Floor((rightH - M) / 2) : v.Dice ? DiceH : 0;
         float stackTop = v.LogOpen && stack > 0 ? colBottom - stack : colTop, floor = colBottom, x = w - M - DecisionW;
         if (v.Decision) { var dh = floor - stackTop - (v.Dice ? DiceH + M : 0); r[HudPart.Decision] = new(x, floor - dh, DecisionW, dh); floor -= dh + M; }
