@@ -38,6 +38,13 @@ public partial class MovePathNode : Node3D
                 for (var i = 0; i < ring.Count; i++) Add(colour, At(ring[i]), At(ring[(i + 1) % ring.Count]));
             }
         }
+        Draw(lines);
+        Visible = paths.Count > 0;
+    }
+
+    /// <summary>Each colour's layer (made on first use) refilled with its segments; a colour with none hidden.</summary>
+    void Draw(Dictionary<Color, List<(Vector3, Vector3)>> lines)
+    {
         foreach (var (colour, layer) in _layers) if (!lines.ContainsKey(colour)) layer.Node.Visible = false;
         foreach (var (colour, segments) in lines)
         {
@@ -57,7 +64,27 @@ public partial class MovePathNode : Node3D
             layer.Mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Lines, arrays);
             layer.Node.Visible = true;
         }
-        Visible = paths.Count > 0;
+    }
+
+    /// <summary>The line and both footprint colours (the team's and the dangerous one) drawn for one frame as a stroke under the slab at `at`, then
+    /// hidden unless paths came meanwhile: their layers, meshes and materials exist and have drawn before the first pickup.</summary>
+    public void Warm(Point3 at, Color team)
+    {
+        if (_shown.Count > 0) return;
+        var rgba = new Rgba(team.R, team.G, team.B, team.A);
+        var under = WorldFrame.ToGodot(new Point3(at.X, at.Y, -1));
+        var lines = new Dictionary<Color, List<(Vector3, Vector3)>>();
+        foreach (var c in new[] { MovePaths.Line(rgba), MovePaths.Colour(new PathFootprint(default, false), rgba), MovePaths.Colour(new PathFootprint(default, true), rgba) })
+            lines[new Color(c.R, c.G, c.B, c.A)] = [(under, under + new Vector3(0.1f, 0, 0))];
+        Draw(lines);
+        Visible = true;
+        AfterDraw();
+    }
+
+    async void AfterDraw()
+    {
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        if (IsInstanceValid(this) && _shown.Count == 0) Visible = false;
     }
 
     public new void Hide() => Visible = false;

@@ -5,10 +5,13 @@ using Tabletop.Geometry;
 namespace Tabletop.Client.Table;
 
 /// <summary>Reachable regions as flat triangles just above the slab: the server's parameters, rendered by Tabletop.Geometry, drawn here. A move's area
-/// is drawn in its bands (MoveBandLook), one mesh each, from vertex arrays built off the main thread (MeshesOf).</summary>
+/// is drawn in its bands (MoveBandLook), one standing mesh each, refilled from vertex arrays built off the main thread (MeshesOf); Warm draws every
+/// band once under the slab when a move Ask opens, so a pickup's area adds no new node, mesh or material to the frame it lands in.</summary>
 public partial class MoveRegionNode : Node3D
 {
     readonly List<MeshInstance3D> _meshes = [];
+    readonly Dictionary<MoveBand, (ArrayMesh Mesh, MeshInstance3D Node)> _bands = new();
+    readonly HashSet<MoveBand> _warming = [];
 
     /// <summary>One star-shaped region (the disembark region) as a fan about its centre.</summary>
     public void Show(IReadOnlyList<Point2> boundaryWire, Color colour)
@@ -33,18 +36,53 @@ public partial class MoveRegionNode : Node3D
     /// <summary>The held models' area in its bands, one mesh each, in its look for the moving team's colour.</summary>
     public void ShowBands(MoveBands area, Color team) => ShowBands(MeshesOf(area), team);
 
-    /// <summary>Built band meshes drawn, one mesh each: one array handed to Godot per band.</summary>
+    /// <summary>Built band meshes drawn, each band's standing mesh refilled: one array handed to Godot per band.</summary>
     public void ShowBands(BandMeshes meshes, Color team)
     {
         Hide();
-        var rgba = new Rgba(team.R, team.G, team.B, team.A);
-        foreach (var (band, vertices) in meshes.Layers)
+        foreach (var (band, vertices) in meshes.Layers) Fill(band, vertices, team);
+    }
+
+    /// <summary>A band's standing mesh (made on first use) refilled with these vertices in its look for the team's colour, hidden when it has none.</summary>
+    void Fill(MoveBand band, Vector3[] vertices, Color team)
+    {
+        _warming.Remove(band);
+        if (!_bands.TryGetValue(band, out var layer))
         {
-            var c = MoveBandLook.Colour(band, rgba);
-            var colour = new Color(c.R, c.G, c.B, c.A);
-            // The dangerous band draws over every model's clear and difficult bands (MoveBandLook.Priority, and Lift in MeshesOf).
-            Add(vertices, MoveBandLook.Striped(band) ? Striped(colour) : Palette.Translucent(colour));
+            var mesh = new ArrayMesh();
+            var node = new MeshInstance3D { Mesh = mesh, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, Visible = false };
+            AddChild(node);
+            _bands[band] = layer = (mesh, node);
         }
+        var c = MoveBandLook.Colour(band, new Rgba(team.R, team.G, team.B, team.A));
+        var colour = new Color(c.R, c.G, c.B, c.A);
+        // The dangerous band draws over every model's clear and difficult bands (MoveBandLook.Priority, and Lift in MeshesOf).
+        Material material = MoveBandLook.Striped(band) ? Striped(colour) : Palette.Translucent(colour);
+        if (layer.Node.MaterialOverride != material) layer.Node.MaterialOverride = material;
+        layer.Mesh.ClearSurfaces();
+        if (vertices.Length >= 3) layer.Mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, Arrays(vertices));
+        layer.Node.Visible = vertices.Length >= 3;
+    }
+
+    /// <summary>Each band not showing drawn for one frame as a sliver under the slab at `at`, in the team's look, then hidden: its node, mesh and
+    /// material exist and have drawn before the first pickup asks for them.</summary>
+    public void Warm(Point3 at, Color team)
+    {
+        var under = WorldFrame.ToGodot(new Point3(at.X, at.Y, -1));
+        Vector3[] sliver = [under, under + new Vector3(0.1f, 0, 0), under + new Vector3(0, 0, 0.1f)];
+        foreach (var band in Enum.GetValues<MoveBand>())
+        {
+            if (_bands.TryGetValue(band, out var shown) && shown.Node.Visible) continue;
+            Fill(band, sliver, team);
+            _warming.Add(band);
+        }
+        AfterDraw(() => { foreach (var band in _warming) _bands[band].Node.Visible = false; _warming.Clear(); });
+    }
+
+    async void AfterDraw(Action then)
+    {
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        if (IsInstanceValid(this)) then();
     }
 
     /// <summary>Several areas in one mesh, each as triangles (three points each).</summary>
@@ -70,14 +108,19 @@ public partial class MoveRegionNode : Node3D
         return vertices;
     }
 
-    void Add(Vector3[] vertices, Material material)
+    static Godot.Collections.Array Arrays(Vector3[] vertices)
     {
-        if (vertices.Length < 3) return;
         var arrays = new Godot.Collections.Array();
         arrays.Resize((int)Mesh.ArrayType.Max);
         arrays[(int)Mesh.ArrayType.Vertex] = vertices;
+        return arrays;
+    }
+
+    void Add(Vector3[] vertices, Material material)
+    {
+        if (vertices.Length < 3) return;
         var mesh = new ArrayMesh();
-        mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+        mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, Arrays(vertices));
         var instance = new MeshInstance3D { Mesh = mesh, MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
         AddChild(instance);
         _meshes.Add(instance);
@@ -116,5 +159,6 @@ public partial class MoveRegionNode : Node3D
     {
         foreach (var mesh in _meshes) if (IsInstanceValid(mesh)) mesh.QueueFree();
         _meshes.Clear();
+        foreach (var (band, layer) in _bands) if (!_warming.Contains(band)) layer.Node.Visible = false;
     }
 }

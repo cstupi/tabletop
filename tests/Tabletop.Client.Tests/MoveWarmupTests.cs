@@ -37,4 +37,13 @@ public class MoveWarmupTests
         Assert.Empty(run.Value.Contacts);
         Assert.Equal(before, p.Models.ToDictionary(kv => kv.Key, kv => kv.Value.Location));
     }
+
+    [Fact]
+    public void Precompile_compiles_every_method_of_the_types_and_their_closures_and_skips_generic_ones()
+    {
+        // MovePathCache has a constructor, Proposed and a closure-free body; MoveRegions nests lambdas' closure classes and a generic-free surface.
+        Assert.True(MoveWarmup.Precompile(typeof(MovePathCache)) >= 2);
+        Assert.True(MoveWarmup.Precompile(typeof(MoveRegions), typeof(Tabletop.Geometry.Collision)) > MoveWarmup.Precompile(typeof(MoveRegions)));
+        Assert.Equal(0, MoveWarmup.Precompile());
+    }
 }

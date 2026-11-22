@@ -78,7 +78,11 @@ public partial class DecisionBox
             minimum = regions.Minimum(lead.Id);
             Add(DecisionTiles.Bar(out setBar));
             _input.Allowance = remaining; _input.Region = legal; _input.Reach = regions;
-            _input.PrepareHold([.. legal.ModelIds.Where(id => p.Models.GetValueOrDefault(id)?.Location is OnTable).Select(id => p.Models[id].Slot.Base)]);   // rulers and rings before the first pickup
+            // Every mesh a pickup shows (rulers, landing rings, the area's bands, the paths) made and drawn once under the slab now, before any pickup.
+            var leadAt = ((OnTable)lead.Location).Placement.Position;
+            _input.PrepareHold([.. legal.ModelIds.Where(id => p.Models.GetValueOrDefault(id)?.Location is OnTable).Select(id => p.Models[id].Slot.Base)], leadAt);
+            _region?.Warm(leadAt, _regionColour);
+            _view.Paths.Warm(leadAt, _regionColour);
             // Drawn and committed agree: a rebuilt Ask (a refusal) or an Esc starts from the server's positions.
             void StartMove() { _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position); _input.Proposed = _proposed; _view.Snap(legal.ModelIds); }
             StartMove();

@@ -40,4 +40,28 @@ public static class MoveWarmup
         _ = DecisionCard.Bar(readouts, unit, regions.Minimum(lead.Id));
         return (MoveRuler.Gate(readouts, Enforcement.Strict), contacts);
     }
+
+    /// <summary>
+    /// Every method of these types (and the closures and iterators nested in them) compiled now, on any thread: the code a pickup's first frame
+    /// runs that the measured move above does not reach (the table's drag, rulers, rings, paths and marks, the decision box's gate) costs that
+    /// frame its compile otherwise. A generic or bodiless method is left to its first call. Returns how many were compiled.
+    /// </summary>
+    public static int Precompile(params Type[] types)
+    {
+        const System.Reflection.BindingFlags All = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
+            | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.DeclaredOnly;
+        var compiled = 0;
+        var queue = new Queue<Type>(types);
+        while (queue.TryDequeue(out var type))
+        {
+            foreach (var nested in type.GetNestedTypes(All)) if (!nested.ContainsGenericParameters) queue.Enqueue(nested);
+            foreach (var method in type.GetMethods(All).Cast<System.Reflection.MethodBase>().Concat(type.GetConstructors(All)))
+            {
+                if (method.IsAbstract || method.ContainsGenericParameters || method.GetMethodBody() is null) continue;
+                try { System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(method.MethodHandle); compiled++; }
+                catch (Exception) { }                                                     // a method the runtime will not compile ahead stays for its first call
+            }
+        }
+        return compiled;
+    }
 }

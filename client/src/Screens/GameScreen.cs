@@ -150,6 +150,11 @@ public partial class GameScreen : Control
         {
             _card?.Prebuild();
             if (_session.Projection is { } p) MoveWarmup.Run(p, Table.Volumes, Table.Size);
+            // The rest of a pickup's first frame compiled on the pool meanwhile (MoveWarmup.Precompile).
+            _ = System.Threading.Tasks.Task.Run(() => MoveWarmup.Precompile(typeof(TableInput), typeof(DecisionBox), typeof(MovePathNode), typeof(RulerNode),
+                typeof(LandingMarks), typeof(ViolationMarks), typeof(MoveRegionNode), typeof(DragBodies), typeof(Geometry.Collision), typeof(Geometry.Contacts),
+                typeof(ContactCheck), typeof(MoveRuler), typeof(MovePaths), typeof(MovePathCache), typeof(Geometry.SweptPath), typeof(Geometry.Movement),
+                typeof(MarkLabels), typeof(Violations), typeof(KeepAwayArea), typeof(DecisionCard), typeof(MoveRegions), typeof(Geometry.MoveReach), typeof(RulerPath)));
             GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
         }
         var entry = LoadingView.Curtain(table, _entered || _session.GameId is null || _settled.Done, done, total);
