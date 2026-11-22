@@ -13,7 +13,7 @@ public partial class UnitActionsNode : Control
     readonly HBoxContainer _row = new() { MouseFilter = MouseFilterEnum.Ignore };
     readonly List<(Button Button, OptionTile Option)> _buttons = new();
     readonly List<HudRect> _covered = new();
-    UnitActions? _shown; string? _lit; bool _dirty = true; UnitMarkerNodes? _markers;
+    UnitActions? _shown; string? _lit; bool _dirty = true; UnitMarkerNodes? _markers; HoverLabels? _labels; int _labelLines = 1;
     Action? _onDirty, _onTheme; Action<Guid>? _onUnit; Action<string?>? _onTile;
 
     const int Size = 42, IconSize = 26;   // a button's size, not spacing: the decision tile's 26 px icon in an 8 px inset
@@ -53,6 +53,8 @@ public partial class UnitActionsNode : Control
             foreach (var o in v.Options) _buttons.Add((Make(o), o));
         }
         _shown = v;
+        // The name label's lines as HoverLabels draws them over this unit: the name, and the wounds line when it has one.
+        _labelLines = HoverView.Of(p!, game!, new Names(game!, p), v.UnitId, null, _s.MaxWounds) is { } info && HoverView.WoundsLine(info.Wounds) is not null ? 2 : 1;
         Light(_lit);
     }
 
@@ -90,11 +92,19 @@ public partial class UnitActionsNode : Control
         if (_shown is not { } v) return;
         var cam = _view.Camera; var top = WorldFrame.ToGodot(v.Anchor);
         if (cam.IsPositionBehind(top)) { _row.Visible = false; return; }
-        var bottom = cam.UnprojectPosition(top).Y - Space.S;
-        if (Markers()?.RowRect(v.UnitId) is { } marks) bottom = Math.Min(bottom, marks.Position.Y - Space.XS);   // above the unit's marker row
+        var models = cam.UnprojectPosition(top).Y;
+        if (Markers()?.RowRect(v.UnitId) is { } marks) models = Math.Min(models, marks.Position.Y);   // above the unit's marker row
         var size = _row.GetCombinedMinimumSize(); var screen = GetViewportRect().Size;
-        var at = UnitActionsPlace.Rect(cam.UnprojectPosition(top).X, bottom, size.X, size.Y, new HudRect(0, 0, screen.X, screen.Y), Covered(), Space.S);
+        var at = UnitActionsPlace.Rect(cam.UnprojectPosition(top).X, models, size.X, size.Y, new HudRect(0, 0, screen.X, screen.Y), Covered(), Space.S,
+            Labels()?.NameBox(v.UnitId, _labelLines));                                                   // above its name label, shown or not
         _row.Position = new Vector2(at.X, at.Y); _row.Size = size; _row.Visible = true;
+    }
+
+    HoverLabels? Labels()
+    {
+        if (_labels is not null && IsInstanceValid(_labels)) return _labels;
+        _labels = _view.GetChildren().OfType<HoverLabels>().FirstOrDefault();
+        return _labels;
     }
 
     UnitMarkerNodes? Markers()

@@ -46,11 +46,17 @@ export interface Rect { readonly x: number; readonly y: number; readonly w: numb
 
 const overlaps = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
+/** UnitLabel: the unit's name label on screen, its bottom edge and height; the row keeps above it whether it shows or not. */
+export interface UnitLabel { readonly bottom: number; readonly height: number }
+
 /**
- * UnitActionsPlace.Rect: where the buttons' row stands on screen: centred over the point with its bottom on it, inside the view less the
- * margin, and off every covered rectangle (grown by the margin): the nearest clear place beside, above or below one it would sit under.
+ * UnitActionsPlace.Rect: where the buttons' row stands on screen: centred over the point, its bottom the margin above the models' top or the
+ * name label's top, whichever is higher; inside the view less the margin, and off every covered rectangle (grown by the margin): the nearest
+ * clear place beside, above or below one it would sit under.
  */
-export function placeRect(centreX: number, bottom: number, w: number, h: number, view: Rect, covered: readonly Rect[], margin: number): Rect {
+export function placeRect(centreX: number, top: number, w: number, h: number, view: Rect, covered: readonly Rect[], margin: number,
+  label: UnitLabel | null = null): Rect {
+  const bottom = Math.min(top, label === null ? top : label.bottom - label.height) - margin;
   const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v, lo), Math.max(lo, hi));
   const inside = (x: number, y: number): Rect => ({
     x: clamp(x, view.x + margin, view.x + view.w - margin - w), y: clamp(y, view.y + margin, view.y + view.h - margin - h), w, h,

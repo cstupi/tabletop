@@ -22,6 +22,7 @@
   import { WoundFloats, WoundNumbers } from './woundNumbers';
   import UnitActions from './UnitActions.svelte';
   import { unitActionsOf } from './unitActionsView';
+  import { hoverOf, woundsLine } from './hoverView';
   import HeaderBar from './HeaderBar.svelte';
   import InfoColumn from './InfoColumn.svelte';
   import Roster from './Roster.svelte';
@@ -211,7 +212,13 @@
     const v = unitActionsOf(p, s.game, actingTeam, selection?.pieceId ?? null, isWatching(s), b.numbered);
     return v !== null && b.answering(v.askId) ? v : null;
   });
-  const actionModels = $derived(unitActions === null || scene === null ? [] : scene.models.filter((m) => m.unitId === unitActions.unitId));
+  // Whether the unit's name label carries a wounds line under the name (hoverOverlay), for the room the buttons leave it.
+  const actionWoundLine = $derived.by(() => {
+    const s = snap, p = snap?.projection, v = unitActions;
+    if (s === null || p == null || s.game === null || v === null) return false;
+    const info = hoverOf(null, p, s.game, new Names(s.game, p), v.unitId, null, s.maxWounds);
+    return info !== null && woundsLine(info.wounds) !== null;
+  });
 
   // D2: the board's overlays (allowance rings, rulers, landing rings, violation labels) and the models in breach.
   const warned = $derived.by(() => { void version; return new Set(violations.marked.keys()); });
@@ -465,7 +472,7 @@
     {:else}
       <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} floating={woundFloats}>
         {#snippet above(project, scale, size)}
-          {#if unitActions !== null && box !== null}<UnitActions actions={unitActions} {box} {panel} models={actionModels} {project} {scale} {size} />{/if}
+          {#if unitActions !== null && box !== null}<UnitActions actions={unitActions} {box} {panel} {scene} woundLine={actionWoundLine} {project} {scale} {size} />{/if}
         {/snippet}
       </Board>
     {/if}

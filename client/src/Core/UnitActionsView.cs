@@ -32,12 +32,21 @@ public static class UnitActionsView
     }
 }
 
-/// <summary>Where the buttons' row stands on screen: centred over the point with its bottom on it, inside the view less the margin, and off
-/// every covered rectangle (the Hud's panels, grown by the margin): the nearest clear place beside, above or below a panel it would sit under.</summary>
+/// <summary>The unit's name label over it on screen (HoverLabels): its bottom edge and its height. The row keeps above it whether it shows or
+/// not, so a button that brings the label up never moves out from under the pointer.</summary>
+public readonly record struct UnitLabel(float Bottom, float Height)
+{
+    public float Top => Bottom - Height;
+}
+
+/// <summary>Where the buttons' row stands on screen: centred over the point, its bottom the margin above the models' top or the name label's
+/// top, whichever is higher; inside the view less the margin, and off every covered rectangle (the Hud's panels, grown by the margin): the
+/// nearest clear place beside, above or below a panel it would sit under.</summary>
 public static class UnitActionsPlace
 {
-    public static HudRect Rect(float centreX, float bottom, float w, float h, HudRect view, IReadOnlyList<HudRect> covered, float margin)
+    public static HudRect Rect(float centreX, float top, float w, float h, HudRect view, IReadOnlyList<HudRect> covered, float margin, UnitLabel? label = null)
     {
+        var bottom = Math.Min(top, label?.Top ?? top) - margin;
         HudRect Inside(float x, float y) => new(Math.Clamp(x, view.X + margin, Math.Max(view.X + margin, view.Right - margin - w)),
             Math.Clamp(y, view.Y + margin, Math.Max(view.Y + margin, view.Bottom - margin - h)), w, h);
         var grown = covered.Select(c => new HudRect(c.X - margin, c.Y - margin, c.W + 2 * margin, c.H + 2 * margin)).ToList();

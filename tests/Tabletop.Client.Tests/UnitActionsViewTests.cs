@@ -70,12 +70,21 @@ public class UnitActionsViewTests
     }
 
     [Fact]
-    public void The_row_sits_centred_above_the_point_inside_the_view()
+    public void The_row_sits_centred_a_step_above_the_models_inside_the_view()
     {
         var view = new HudRect(0, 0, 1280, 720);
-        Assert.Equal(new HudRect(580, 300, 120, 40), UnitActionsPlace.Rect(640, 340, 120, 40, view, [], 8));
+        Assert.Equal(new HudRect(580, 300, 120, 40), UnitActionsPlace.Rect(640, 348, 120, 40, view, [], 8));
         Assert.Equal(new HudRect(8, 8, 120, 40), UnitActionsPlace.Rect(10, 20, 120, 40, view, [], 8));   // pulled inside the view's margin
         Assert.Equal(new HudRect(1152, 672, 120, 40), UnitActionsPlace.Rect(1270, 900, 120, 40, view, [], 8));
+    }
+
+    [Fact]
+    public void The_row_stands_a_step_above_the_units_name_label()
+    {
+        var view = new HudRect(0, 0, 1280, 720);
+        Assert.Equal(new HudRect(580, 232, 120, 40), UnitActionsPlace.Rect(640, 348, 120, 40, view, [], 8, new UnitLabel(330, 50)));   // label top 280
+        Assert.Equal(new HudRect(580, 300, 120, 40), UnitActionsPlace.Rect(640, 348, 120, 40, view, [], 8, new UnitLabel(400, 20)));   // a label under the models' top
+        Assert.Equal(new HudRect(580, 8, 120, 40), UnitActionsPlace.Rect(640, 120, 120, 40, view, [], 8, new UnitLabel(90, 60)));      // still inside the view
     }
 
     [Fact]
@@ -83,10 +92,10 @@ public class UnitActionsViewTests
     {
         var view = new HudRect(0, 0, 1280, 720);
         var decision = new HudRect(840, 400, 432, 312);
-        var r = UnitActionsPlace.Rect(900, 500, 120, 40, view, [decision], 8);
+        var r = UnitActionsPlace.Rect(900, 508, 120, 40, view, [decision], 8);
         Assert.False(r.Overlaps(decision with { X = decision.X - 8, W = decision.W + 16, Y = decision.Y - 8, H = decision.H + 16 }));
         Assert.Equal(new HudRect(840, 352, 120, 40), r);                       // the nearest clear place: above the panel
         var header = new HudRect(260, 0, 760, 96);
-        Assert.Equal(new HudRect(580, 104, 120, 40), UnitActionsPlace.Rect(640, 60, 120, 40, view, [header], 8));   // under the header
+        Assert.Equal(new HudRect(580, 104, 120, 40), UnitActionsPlace.Rect(640, 68, 120, 40, view, [header], 8));   // under the header
     }
 }
