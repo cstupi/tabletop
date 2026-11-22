@@ -84,12 +84,27 @@ public class TopBarViewTests
         Assert.Equal(["Resume", "Options", "Leave game", "Home"], GameMenuView.Items(true).Select(GameMenuView.Text));
     }
 
-    [Theory]
-    [InlineData(false, false, false, EscPress.Open)]
-    [InlineData(true, false, false, EscPress.Close)]
-    [InlineData(true, true, true, EscPress.Close)]
-    [InlineData(false, true, false, EscPress.Pass)]
-    [InlineData(false, false, true, EscPress.Pass)]
-    public void Esc_opens_the_menu_only_when_nothing_else_takes_it(bool open, bool text, bool tableBusy, EscPress expected) =>
-        Assert.Equal(expected, GameMenuView.OnEsc(open, text, tableBusy));
+    [Fact]
+    public void Leave_game_is_offered_only_to_a_seated_player_who_is_not_watching()
+    {
+        Assert.True(GameMenuView.CanLeave(participant: true, watching: false));
+        Assert.False(GameMenuView.CanLeave(participant: false, watching: false));
+        Assert.False(GameMenuView.CanLeave(participant: true, watching: true));   // a replay, or an account with no team
+    }
+
+    [Fact]
+    public void Esc_opens_the_menu_when_nothing_else_takes_it() => Assert.Equal(EscPress.Open, GameMenuView.OnEsc(new EscState()));
+
+    [Fact]
+    public void Esc_closes_the_open_menu_whatever_else_is_going_on() =>
+        Assert.Equal(EscPress.Close, GameMenuView.OnEsc(new EscState(MenuOpen: true, TextFocus: true, Selection: true, AskCancel: true, Measuring: true)));
+
+    public static TheoryData<EscState> Busy => new()
+    {
+        new EscState(TextFocus: true), new EscState(Overlay: true), new EscState(AskCancel: true), new EscState(Selection: true),
+        new EscState(Holding: true), new EscState(Picks: true), new EscState(Measuring: true),
+    };
+
+    [Theory, MemberData(nameof(Busy))]
+    public void Esc_passes_to_whatever_uses_it_first(EscState state) => Assert.Equal(EscPress.Pass, GameMenuView.OnEsc(state));
 }

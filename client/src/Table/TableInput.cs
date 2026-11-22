@@ -47,6 +47,8 @@ public partial class TableInput : Node
     public Guid? HoveredTerrain { get; private set; }
     /// <summary>A drag is armed: past the threshold, models in hand.</summary>
     public bool Holding => _drag is { Armed: true };
+    /// <summary>An Esc would take something back here (Cancel): a drag, a Shift box, picked models, the selection or a measurement.</summary>
+    public EscState EscState => new(Selection: Selected is not null, Holding: _drag is not null || _box is not null, Picks: HasPicks, Measuring: _tape.Line is not null);
     /// <summary>The held pieces where a drag frame (or Esc) put them, all at once: the decision box gates its ghosts once per frame, not once per model.</summary>
     public event Action<IReadOnlyList<(Guid Id, Point3 At)>>? ModelsDragged;
     public event Action<Guid, Vector2>? PieceRightClicked;

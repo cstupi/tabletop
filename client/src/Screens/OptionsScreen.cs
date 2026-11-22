@@ -17,7 +17,10 @@ public partial class OptionsScreen : CanvasLayer
 {
     static OptionsScreen? _open;
 
-    /// <summary>Opens Options over whatever shows (the gear buttons, the game menu); a second call while it is open does nothing.</summary>
+    /// <summary>Options is open: it takes every key.</summary>
+    public static bool IsOpen => _open is not null && IsInstanceValid(_open);
+
+    /// <summary>Opens Options over whatever shows (Login's and Home's gears, the game menu); a second call while it is open does nothing.</summary>
     public static void Open(Node from)
     {
         if (_open is not null && IsInstanceValid(_open)) return;

@@ -50,8 +50,10 @@ approved) and their behaviour; changes where things sit. Spacing follows `2026-1
 - **Top bar** (across the top, right of the corner's Home): game name, status chip, one chip per team (team colour, state icon: ready /
   needs a player / needs an army; click opens Teams), **Still to do** as a count that opens its lines in a dropdown (none: hidden), the
   creator's **End setup** (primary, with the pieces off the table it will remove, as today), and **☰** the game menu.
-- **Game menu** (☰, and Esc when nothing else takes Esc: no open menu, no selection, no text focus): Resume, Options, Leave game, Home.
-  The only Leave game in lobby and setup; the right-click table menu and the LobbyPanel foot lose theirs. The Home ▸ menu keeps Leave.
+- **Game menu** (☰, and Esc when nothing else takes Esc: no text focus, no open overlay, no open Ask's Cancel, no selection, held piece,
+  picked models or measurement): Resume, Options, Leave game, Home. In lobby, setup and play, replay and watching too; in play ☰ takes the
+  header's gear place (Options is in the menu). Leave game only for a seated player who is not watching. The only Leave game in a game; the
+  right-click table menu and the LobbyPanel foot lose theirs. The Home ▸ menu keeps Leave.
 - **Selected piece:** the terrain card stays in its right-hand slot; its Mesh and Volumes folds stay on the card.
 - **Key hint bar** (bottom, one line, quiet band, key caps per the shared vocabulary): the setup keys; hidden while text has focus.
 

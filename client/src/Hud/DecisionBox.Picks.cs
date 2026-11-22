@@ -128,7 +128,7 @@ public partial class DecisionBox
         }
         _onTarget = clicked => { if (_s.Projection is { } p && AskAnswers.Resolve(p, clicked, legal.Targets) is { } unit && t.Aim(unit)) Show(); };
         _onEnter = Fire;
-        _onCancel = ClearTargets;
+        _onCancel = ClearTargets; _cancels = () => t.CanClear;
         Foot(fire); Foot(clear); Show();
     }
 

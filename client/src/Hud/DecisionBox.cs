@@ -39,7 +39,7 @@ public partial class DecisionBox : PanelContainer
     (Guid? Ask, Guid? Deploy) _picksFor;
     IReadOnlyList<(int Key, string Label, string OptionId)> _numbered = [];
     // The open Ask's handlers: set by its render, dropped by Unhook whenever the Ask ends by any route.
-    Action? _onEnter, _onStop; Func<bool>? _onCancel; Action<string>? _onNumber; Action<Guid>? _onTarget; Action<Guid, bool>? _onModel; Action<Guid>? _onUnit; Action? _onDeselect;
+    Action? _onEnter, _onStop; Func<bool>? _onCancel, _cancels; Action<string>? _onNumber; Action<Guid>? _onTarget; Action<Guid, bool>? _onModel; Action<Guid>? _onUnit; Action? _onDeselect;
     /// <summary>What glows on the table for the open Ask: model ids, unit ids, or both. A unit id lights every model of the unit.</summary>
     readonly HashSet<Guid> _glow = new();
     // Session and the input outlive the box: every subscription is a field and comes off in _ExitTree.
@@ -311,6 +311,7 @@ public partial class DecisionBox : PanelContainer
             narrowed = true; Show(hits, DecisionView.Number(hits));
         };
         _onCancel = () => { if (!narrowed) return false; narrowed = false; Show(all, full); return true; };
+        _cancels = () => narrowed;
         _onDeselect = () => { if (narrowed) { narrowed = false; Show(all, full); } };
     }
 
@@ -370,6 +371,10 @@ public partial class DecisionBox : PanelContainer
         if (mine.AnsweredTeams.Count > 0) _note.Text = string.Join(", ", mine.AnsweredTeams.Select(t => $"{t} has answered"));
     }
 
+    /// <summary>Whether an Esc now is the open Ask's Cancel (clear targets, reset a move or a deploy, widen a narrowed choice); the game menu
+    /// opens on Esc only when it is not.</summary>
+    public bool TakesEsc => Visible && _onCancel is not null && (_cancels?.Invoke() ?? true);
+
     public override void _Input(InputEvent e)
     {
         if (!Visible || KeyOverlay.IntentOf(e, GetViewport()) is not { } intent) return;
@@ -424,7 +429,7 @@ public partial class DecisionBox : PanelContainer
     /// <summary>The open Ask's handlers and table state, dropped whenever it ends by any route: our answer, a teammate's, a server close, a replacing Ask.</summary>
     void Unhook()
     {
-        _onTile = null; _onEnter = null; _onStop = null; _onCancel = null; _onNumber = null; _onTarget = null; _onModel = null; _onUnit = null; _onDeselect = null; _glow.Clear();
+        _onTile = null; _onEnter = null; _onStop = null; _onCancel = null; _cancels = null; _onNumber = null; _onTarget = null; _onModel = null; _onUnit = null; _onDeselect = null; _glow.Clear();
         if (_lit is not null && IsInstanceValid(_view)) Light(null);                 // a button freed under the pointer never hears its exit
         _proposed = null; _deployAt = null; _deployUnit = null; _turned.Clear(); _regate = null; _gate = new(true, null); _regions = null;
         if (_input is not null && IsInstanceValid(_input)) _input.Violations.Clear();   // a refused commit's marks come back with its ghosts (ApplyVerdict)

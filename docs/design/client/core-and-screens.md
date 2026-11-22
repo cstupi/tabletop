@@ -169,8 +169,8 @@ undo button `Ui.Theme`; nothing is recreated, so typed input survives. `DiceFace
 dimmed when the die failed.
 
 `ClientSettings` holds every option (`client/AGENTS.md` lists the fields), each nullable in the DTO so an older file loads with
-defaults. `OptionsScreen` (`Screens/`, spec `2026-11-21-options-screen-design.md`), opened from the gear on Login, Home and the play
-header through `OptionsScreen.Open`, is a full-screen `CanvasLayer` over `OptionsModel`: changes are pending until Apply, which goes
+defaults. `OptionsScreen` (`Screens/`, spec `2026-11-21-options-screen-design.md`), opened from the gear on Login and Home and from the game
+menu through `OptionsScreen.Open`, is a full-screen `CanvasLayer` over `OptionsModel`: changes are pending until Apply, which goes
 through `Session.UpdateSettings`; `Main` applies the theme (with `UiThemes.Adjusted` for text size and colour-blind teams), key bindings,
 UI scale, tooltip delay, buses and frame counter on `Session.SettingsChanged`.
 

@@ -5,15 +5,15 @@ using Tabletop.Client.Theming;
 namespace Tabletop.Client.Panels;
 
 /// <summary>
-/// The game menu of lobby and setup (spec 2026-11-21-setup-screen-layout-design.md → Game menu, GameMenuView): Resume, Options, Leave game, Home
-/// on a card over a dimmed window. ☰ opens it, and Esc when nothing else takes Esc (no text focus, nothing selected or held on the table);
-/// Esc or Resume closes it. It hears keys in _Input, ahead of the table's viewport.
+/// The game menu of lobby, setup, play, replay and watching (spec 2026-11-21-setup-screen-layout-design.md → Game menu, GameMenuView): Resume,
+/// Options, Leave game, Home on a card over a dimmed window. ☰ opens it, and Esc when nothing else takes Esc (GameMenuView.OnEsc over
+/// <see cref="State"/>); Esc or Resume closes it. It hears keys in _Input, ahead of the table's viewport.
 /// </summary>
 public partial class GameMenu : Control
 {
     VBoxContainer _items = null!;
-    /// <summary>Whether the table uses an Esc now: a selection, held pieces, picked models.</summary>
-    public Func<bool> TableBusy { get; init; } = () => false;
+    /// <summary>What else would use an Esc now (the Hud's overlays, the open Ask, the table); the menu fills in its own and the text focus.</summary>
+    public Func<EscState> State { get; init; } = () => new EscState();
     public Func<bool> CanLeave { get; init; } = () => false;
     public Action Options { get; init; } = () => { };
     public Action Leave { get; init; } = () => { };
@@ -62,7 +62,7 @@ public partial class GameMenu : Control
     {
         if (e is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) return;
         var text = GetViewport().GuiGetFocusOwner() is LineEdit or TextEdit or SpinBox;
-        switch (GameMenuView.OnEsc(Visible, text, TableBusy()))
+        switch (GameMenuView.OnEsc(State() with { MenuOpen = Visible, TextFocus = text }))
         {
             case EscPress.Open: Open(); GetViewport().SetInputAsHandled(); break;
             case EscPress.Close: Close(); GetViewport().SetInputAsHandled(); break;

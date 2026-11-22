@@ -19,7 +19,7 @@ public partial class GameScreen : Control
     readonly SetupFolds _folds = new();   // the terrain card's folds outlive each rebuild
     /// <summary>The open setup tool, remembered for the session (spec 2026-11-21-setup-screen-layout-design.md → Tool rail).</summary>
     static readonly SetupTools Tools = new();
-    SetupTopBar? _topBar; SetupRail? _rail; SetupToolPanel? _toolPanel; KeyHintBar? _hints; GameMenu? _gameMenu; SetupPieceKeys? _pieceKeys;
+    SetupTopBar? _topBar; SetupRail? _rail; SetupToolPanel? _toolPanel; KeyHintBar? _hints; GameMenu _gameMenu = null!; SetupPieceKeys? _pieceKeys;
     SubViewportContainer _tableBox = null!; Control _hud = null!; TerrainCard? _terrainCard; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
     LoadingCurtain _curtain = null!; LoadingPanel _strip = null!; readonly LoadingGate _stripGate = new(TimeSpan.FromMilliseconds(200)); bool _entered;
     Action<RenderCause>? _onFrame; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme, _onLayout;
@@ -81,6 +81,15 @@ public partial class GameScreen : Control
             _terrainCard.MinimumSizeChanged += QueueLayout; _terrainCard.VisibilityChanged += QueueLayout;
         }
         Input.SelectionChanged += ShowSelection;
+        // The game menu in every status (☰ in the setup top bar and the play header, and Esc when nothing else takes it); kept across rebuilds.
+        _hud.AddChild(_gameMenu = new GameMenu
+        {
+            State = EscState,
+            CanLeave = () => GameMenuView.CanLeave(_session.ParticipantId is { } me && me != Guid.Empty, _session.IsWatching),
+            Options = () => OptionsScreen.Open(this),
+            Leave = ConfirmLeave,
+            Home = () => Guarded.Run(_session.DisconnectAsync, Toast),
+        });
         // A late army arrives as a board after the game info: the waiting panel follows the board, and goes when the board ends the wait.
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) { ShowStatus(); if (_wasWaiting != _session.WaitingTeams.Count > 0) Rebuild(); else { _waiting?.Refresh(); Callable.From(ShowSelection).CallDeferred(); } } };
         _onRefused = r => { if (Feedback.Refusal(r) is { } text) Toast(text); };
@@ -145,6 +154,14 @@ public partial class GameScreen : Control
         FreePlayPanels();
     }
 
+    /// <summary>What would use an Esc before the game menu: Options, the key overlay or the Game over message open, the open Ask's Cancel,
+    /// and the table's selection, held pieces, picks and measurement.</summary>
+    EscState EscState() => Input.EscState with
+    {
+        Overlay = OptionsScreen.IsOpen || (_keys is { } k && IsInstanceValid(k) && k.Visible) || (_end is { } e && IsInstanceValid(e) && e.Visible),
+        AskCancel = _decision is { } d && IsInstanceValid(d) && d.TakesEsc,
+    };
+
     public void Toast(string text) { if (IsInstanceValid(_toasts)) _toasts.Show(text); }
 
     void Rebuild()
@@ -184,13 +201,13 @@ public partial class GameScreen : Control
         QueueLayout();
     }
 
-    /// <summary>Lobby and setup's frame (spec 2026-11-21-setup-screen-layout-design.md): the top bar and the game menu in both; in setup the tool
+    /// <summary>Lobby and setup's frame (spec 2026-11-21-setup-screen-layout-design.md): the top bar in both; in setup the tool
     /// rail, the open tool's panel, the key hint bar and the table's piece keys. Under the corner, the toasts and the cards.</summary>
     void BuildSetupFrame(bool setup)
     {
         var under = new List<Control>();
         under.Add(_topBar = new SetupTopBar());
-        _topBar.MenuRequested += () => _gameMenu?.Open();
+        _topBar.MenuRequested += _gameMenu.Open;
         _topBar.TeamsRequested += () => OpenTool(SetupTool.Teams, show: true);
         if (setup)
         {
@@ -201,14 +218,6 @@ public partial class GameScreen : Control
             AddChild(_pieceKeys = new SetupPieceKeys(this));
         }
         for (var i = 0; i < under.Count; i++) { _hud.AddChild(under[i]); _hud.MoveChild(under[i], i); under[i].MinimumSizeChanged += QueueLayout; }
-        _hud.AddChild(_gameMenu = new GameMenu
-        {
-            TableBusy = () => Input.Selected is not null || Input.Holding || Input.HasPicks,
-            CanLeave = () => _session.ParticipantId is { } me && me != Guid.Empty,
-            Options = () => OptionsScreen.Open(this),
-            Leave = ConfirmLeave,
-            Home = () => Guarded.Run(_session.DisconnectAsync, Toast),
-        });
         if (setup) { _toolPanel!.Open(Tools.Open); _rail!.Show(Tools.Open); }
     }
 
@@ -223,9 +232,9 @@ public partial class GameScreen : Control
 
     void FreeSetupFrame()
     {
-        foreach (var node in new Node?[] { _topBar, _rail, _toolPanel, _hints, _gameMenu, _pieceKeys })
+        foreach (var node in new Node?[] { _topBar, _rail, _toolPanel, _hints, _pieceKeys })
             if (node is not null && IsInstanceValid(node)) { node.GetParent()?.RemoveChild(node); node.QueueFree(); }
-        _topBar = null; _rail = null; _toolPanel = null; _hints = null; _gameMenu = null; _pieceKeys = null;
+        _topBar = null; _rail = null; _toolPanel = null; _hints = null; _pieceKeys = null;
     }
 
     /// <summary>The corner's line (CornerLine): the name, clipped to the corner's slot with its whole text as the tooltip, the status chip,

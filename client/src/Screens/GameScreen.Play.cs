@@ -67,14 +67,14 @@ public partial class GameScreen
         _menu.PickPieceRequested += Input.PickNextPiece; _menu.PickPointRequested += Input.PickNextPoint;
         _onItem = item => Input.Locks.Chosen(item);                                       // Unlock and Lock are local
         _menu.ItemChosen += _onItem;
-        // A watcher changes nothing (Session.IsWatching): no piece, team or roster menu. Leave game is the game menu's (lobby and setup) and Home's.
+        // A watcher changes nothing (Session.IsWatching): no piece, team or roster menu. Leave game is the game menu's and Home's.
         _onPieceRight = (id, at) => { if (MenuCtx() is { } ctx) _menu?.Open(Menus.Piece(ctx, id, Godot.Input.IsKeyPressed(Key.Shift)), at); };
         Input.PieceRightClicked += _onPieceRight;
 
         // The parts die with the screen, so their own events need no unsubscribing.
         _header.TeamMenuRequested += OpenTeamMenu;
         _header.GameOverPressed += _end.Open;
-        _header.SettingsRequested += () => OptionsScreen.Open(this);
+        _header.MenuRequested += _gameMenu.Open;
         _card.ModelPicked += SelectModel;
         _card.Lit += pieces => { if (_decision is { } d && IsInstanceValid(d)) d.Light(pieces); };   // a weapon or group row under the pointer lights its models
         _decision.TargetsChanged += ShowTargets;

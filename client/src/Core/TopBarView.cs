@@ -40,13 +40,22 @@ public sealed record TopBarView(IReadOnlyList<TeamChip> Teams, IReadOnlyList<ToD
 /// <summary>The game menu's items, top to bottom.</summary>
 public enum GameMenuItem { Resume, Options, Leave, Home }
 
-/// <summary>What an Esc press does in lobby and setup: nothing here (Pass), open the game menu, or close it.</summary>
+/// <summary>What an Esc press does in lobby, setup and play: nothing here (Pass), open the game menu, or close it.</summary>
 public enum EscPress { Pass, Open, Close }
+
+/// <summary>Everything that may use an Esc before the game menu: a text field with the key, an overlay (Options, the key overlay, the Game
+/// over message), the open Ask's Cancel (clear targets, reset a move or a deploy, widen a narrowed choice), the table's selection, held
+/// pieces (a drag, a box), picked models and a measurement.</summary>
+public sealed record EscState(bool MenuOpen = false, bool TextFocus = false, bool Overlay = false, bool AskCancel = false, bool Selection = false,
+    bool Holding = false, bool Picks = false, bool Measuring = false);
 
 /// <summary>The game menu (spec → Game menu): ☰, and Esc when nothing else takes Esc.</summary>
 public static class GameMenuView
 {
-    /// <summary>Leave game only for a participant: it gives up the seat.</summary>
+    /// <summary>Leave game only for a participant: it gives up the seat. Not while watching (a replay, an account with no team).</summary>
+    public static bool CanLeave(bool participant, bool watching) => participant && !watching;
+
+    /// <summary>Leave game only when <see cref="CanLeave"/>.</summary>
     public static IReadOnlyList<GameMenuItem> Items(bool canLeave) =>
         canLeave ? [GameMenuItem.Resume, GameMenuItem.Options, GameMenuItem.Leave, GameMenuItem.Home] : [GameMenuItem.Resume, GameMenuItem.Options, GameMenuItem.Home];
 
@@ -55,8 +64,9 @@ public static class GameMenuView
         GameMenuItem.Resume => "Resume", GameMenuItem.Options => "Options", GameMenuItem.Leave => "Leave game", _ => "Home",
     };
 
-    /// <summary>The open menu closes on Esc; a closed one opens unless a text field has the key or the table uses it (a selection, a held
-    /// piece, a ruler).</summary>
-    public static EscPress OnEsc(bool menuOpen, bool textFocus, bool tableBusy) =>
-        menuOpen ? EscPress.Close : textFocus || tableBusy ? EscPress.Pass : EscPress.Open;
+    /// <summary>The open menu closes on Esc; a closed one opens only when the Esc would do nothing else.</summary>
+    public static EscPress OnEsc(EscState s) =>
+        s.MenuOpen ? EscPress.Close
+        : s.TextFocus || s.Overlay || s.AskCancel || s.Selection || s.Holding || s.Picks || s.Measuring ? EscPress.Pass
+        : EscPress.Open;
 }

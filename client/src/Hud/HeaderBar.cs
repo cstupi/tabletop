@@ -8,7 +8,7 @@ namespace Tabletop.Client.Hud;
 
 /// <summary>Top centre (UX redesign part 2 → Header), at most three single lines. The round, then one tile per team side by side (its band,
 /// name, score as a numeral, a dot per unit in play filled once it has acted, the ▶ turn mark and a brighter border on the active team, the
-/// player icon on mine), the objectives and the gear. The acting unit with its action's icon and the step strip; after the end the Game over
+/// player icon on mine), the objectives and ☰, the game menu. The acting unit with its action's icon and the step strip; after the end the Game over
 /// button, which reopens the end message. The waiting line: `Your move` in my team's colour, else the hourglass, the waiting team's band and
 /// what it does, cut with an ellipsis (the whole line its tooltip). The lines draw the fullest HeaderFit whose first two lines fit the
 /// width GameScreen gives (FitTo).</summary>
@@ -18,7 +18,7 @@ public partial class HeaderBar : PanelContainer
     readonly HBoxContainer _top = new();
     readonly HBoxContainer _tiles = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }, _activation = new(), _waiting = new();
     readonly Button _gameOver = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, Visible = false, Alignment = HorizontalAlignment.Left };
-    readonly Button _settings = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Options", FocusMode = FocusModeEnum.None };
+    Button _menu = null!;
     // Session and Ui outlive the header: the subscriptions are fields and come off in _ExitTree.
     Action<RenderCause>? _onFrame; Action? _onTheme;
     string? _drawnTop, _drawnMiddle, _drawnWait;   // what each line last drew
@@ -34,7 +34,7 @@ public partial class HeaderBar : PanelContainer
 
     public event Action<Guid, Vector2>? TeamMenuRequested;
     public event Action? GameOverPressed;
-    public event Action? SettingsRequested;
+    public event Action? MenuRequested;
 
     public void Bind(Session session, TableView view, TableInput input)
     {
@@ -44,8 +44,7 @@ public partial class HeaderBar : PanelContainer
         _activation.AddThemeConstantOverride("separation", Space.S); _waiting.AddThemeConstantOverride("separation", Space.S);
         lines.AddChild(_top); lines.AddChild(_activation); lines.AddChild(_waiting);
         _roundBox.AddThemeConstantOverride("separation", Space.XS); _roundBox.AddChild(_roundIcon); _roundBox.AddChild(_roundText);
-        _top.AddChild(_roundBox); _top.AddChild(_tiles); _top.AddChild(_settings);
-        _settings.Pressed += () => SettingsRequested?.Invoke();
+        _top.AddChild(_roundBox); _top.AddChild(_tiles);   // ☰ after them (Restyle)
         _gameOver.Pressed += () => GameOverPressed?.Invoke();
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Game | RenderCause.Board)) != 0) Render(); };
         session.Frame.Render += _onFrame;
@@ -65,8 +64,18 @@ public partial class HeaderBar : PanelContainer
     void Restyle()
     {
         Look.Icon(_roundIcon, "round", Ui.Accent);
-        _settings.Icon = Ui.Icon("settings");
-        _settings.Text = _settings.Icon is null ? "Options" : "";   // never a zero-width button
+        MenuButton();
+    }
+
+    /// <summary>☰ at line 1's end, made again with the theme's icon and colours.</summary>
+    void MenuButton()
+    {
+        var at = _menu is not null && IsInstanceValid(_menu) ? _menu.GetIndex() : _top.GetChildCount();
+        if (_menu is not null && IsInstanceValid(_menu)) { _top.RemoveChild(_menu); _menu.QueueFree(); }
+        _menu = HudBits.IconButton("game-menu", "Menu (Esc)", 22);
+        _menu.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+        _menu.Pressed += () => MenuRequested?.Invoke();
+        _top.AddChild(_menu); _top.MoveChild(_menu, at);
     }
 
     /// <summary>The slot's width: the lines redraw at the fullest fit for it when it changes.</summary>
@@ -125,7 +134,7 @@ public partial class HeaderBar : PanelContainer
         if (waitKey != _drawnWait) { _drawnWait = waitKey; Waiting(quiet, wait); }
     }
 
-    /// <summary>Line 1: the round, the tiles, the objectives when marksOnTop, the gear. The round box, the tiles box and the gear stand from Bind;
+    /// <summary>Line 1: the round, the tiles, the objectives when marksOnTop, ☰. The round box, the tiles box and ☰ stand from Bind;
     /// the tiles and marks are kept controls (Kept) a render sets.</summary>
     void Top(HeaderFit fit, bool marksOnTop, (int Round, string? Phase) round, IReadOnlyList<TeamTile> tiles, IReadOnlyList<(Guid MarkerId, Guid? TeamId)> objectives,
         HeaderModel m, GameInfo game)
