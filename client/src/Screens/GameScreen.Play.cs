@@ -165,6 +165,7 @@ public partial class GameScreen
         HudPlacement.Top(_toasts, f[HudPart.Toasts]);
         if (Shows(_strip)) HudPlacement.Bottom(_strip, f[HudPart.Loading]);
         if (Shows(_header)) HudPlacement.Top(_header!, f[HudPart.Header]);
+        if (Shows(_replay)) _replay!.Place(f[HudPart.Replay]);
         if (_logDrawer is { } log && IsInstanceValid(log)) log.Place(f[HudPart.LogButton], f.Rects.TryGetValue(HudPart.LogPanel, out var panel) ? panel : null);
         if (_undo is { } undo && IsInstanceValid(undo)) HudPlacement.Fill(undo, f[HudPart.UndoButton]);
         // Placed while hidden too: the banner shows itself between layouts, and nothing queues one when it does.
