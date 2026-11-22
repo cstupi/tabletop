@@ -268,7 +268,7 @@ public partial class TableInput : Node
             case InputEventMouseButton { ButtonIndex: MouseButton.Right, Pressed: true } b when !Input.IsMouseButtonPressed(MouseButton.Middle):
                 var (point, piece) = Pick(b.Position);
                 if (piece is PieceNode marked && Eligible.Contains(marked.ModelId)) { ModelClicked?.Invoke(marked.ModelId, true); break; }   // a casualty pick takes a wound back
-                if (piece is not null && !b.AltPressed) PieceRightClicked?.Invoke(IdOf(piece), b.Position); else if (b.AltPressed) TableRightClicked?.Invoke(WorldFrame.ToGodot(point));
+                if (piece is not null && !b.AltPressed) PieceRightClicked?.Invoke(IdOf(piece), GetTree().Root.GetMousePosition()); else if (b.AltPressed) TableRightClicked?.Invoke(WorldFrame.ToGodot(point));   // the menu opens in screen space; b.Position is the table viewport's, offset by the setup rail and panel
                 break;
             case InputEventKey k: OnKey(k); break;
         }
