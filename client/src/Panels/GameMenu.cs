@@ -18,6 +18,8 @@ public partial class GameMenu : Control
     public Action Options { get; init; } = () => { };
     public Action Leave { get; init; } = () => { };
     public Action Home { get; init; } = () => { };
+    /// <summary>Raised as the menu opens: the screen drops what the pointer was hovering on the table, which the dim covers now.</summary>
+    public event Action? Opened;
 
     public override void _Ready()
     {
@@ -44,6 +46,7 @@ public partial class GameMenu : Control
         }
         Visible = true;
         MoveToFront();
+        Opened?.Invoke();
     }
 
     public void Close() => Visible = false;

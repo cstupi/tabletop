@@ -90,6 +90,7 @@ public partial class GameScreen : Control
             Leave = ConfirmLeave,
             Home = () => Guarded.Run(_session.DisconnectAsync, Toast),
         });
+        _gameMenu.Opened += Input.ClearHover;
         // A late army arrives as a board after the game info: the waiting panel follows the board, and goes when the board ends the wait.
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) { ShowStatus(); if (_wasWaiting != _session.WaitingTeams.Count > 0) Rebuild(); else { _waiting?.Refresh(); Callable.From(ShowSelection).CallDeferred(); } } };
         _onRefused = r => { if (Feedback.Refusal(r) is { } text) Toast(text); };
