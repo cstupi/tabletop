@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Collections.Concurrent;
 
 namespace Tabletop.Geometry;
@@ -136,6 +137,7 @@ public sealed class MoveReach
     /// The target held to the reach: untouched when a path within the allowance (or, through difficult terrain, within the cap) gets there, else the
     /// point nearest it that one does. With `cap`, every path is held to it (the unit is capped: p.11 "all models in the unit may not move more than 6"").
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public Point2 Clamp(Point2 target, double? cap = null)
     {
         if (cap is { } c)
@@ -159,6 +161,7 @@ public sealed class MoveReach
     const double Beyond = 2.5;
 
     /// <summary>How far past what it may reach a point is: negative inside.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     double Excess(Point2 p)
     {
         var any = _any.Distance(p, _capLimit + Beyond) - _capLimit;
@@ -200,34 +203,128 @@ public sealed class MoveReach
 
     /// <summary>The reachable area (Triangles) split by BandAt, each band as triangles; `least` as Triangles takes it. A band nothing in reach gives is
     /// empty: with no difficult volume binding there is no Difficult band, with no volume dangerous to a path in reach no Dangerous band.</summary>
-    public MoveBands Bands(Func<Point2, double>? least = null)
+    public MoveBands Bands(Func<Point2, double>? least = null) => Bands(least, ReachMesh.Build);
+
+    /// <summary>A walk of an area's square (ReachMesh.Build's): the tests hold it to the plain walk it replaced.</summary>
+    internal delegate List<Point2>[] Walk(Point2 origin, double reach, int bands, ReachMesh.Fields fields, Func<Point2, double, MoveSpace.Cover> cover);
+
+    internal MoveBands Bands(Func<Point2, double>? least, Walk walk)
     {
         if (Allowance <= Tolerance.Distance) return new MoveBands([], [], []);
-        var levels = _levels.Value;
-        // Three nested levels, each at most zero inside: reached clear, reached round danger, reached at all. A band is one level less the one inside it.
+        _ = _levels.Value;
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         void Values(Point2 p, Span<double> into)
         {
-            var r = Excess(p);
-            double i, c;
-            if (r > Beyond) i = c = r;                         // well outside the area only "outside" matters, and both are at least r
+            var (r, i, c) = Nested(p, least);
+            Write(r, i, c, into);
+        }
+        var bands = walk(Origin, Allowance, 3, Values, Cover);
+        return new MoveBands(bands[0], bands[1], bands[2]);
+    }
+
+    /// <summary>
+    /// Several models' areas drawn as one (the held models of a move): each band the union of that band of every model's area (Bands), so a band
+    /// drawn over another (MoveBandLook's order: clear, difficult, dangerous on top) shows every model's, and no two triangles of one band overlap.
+    /// One walk over a box holding every area, each band's field the least of the models' at a point, held within ReachMesh.Deep of zero (the walk
+    /// reads nothing more there, so the triangles are those of the exact least), a model whose straight line cannot bring any band under the least so
+    /// far (nor one whose reach alone stays past it) not searched; a point the straight line reaches takes it for every field. Cut on the first model's grid, so its own area is cut
+    /// where its Bands cuts it (`least` per model, as Bands takes it, or null).
+    /// </summary>
+    public static MoveBands Union(IReadOnlyList<MoveReach> reaches, IReadOnlyList<Func<Point2, double>?>? least = null)
+    {
+        var live = Enumerable.Range(0, reaches.Count).Where(k => reaches[k].Allowance > Tolerance.Distance).ToArray();
+        if (live.Length == 0) return new MoveBands([], [], []);
+        if (live.Length == 1) return reaches[live[0]].Bands(least?[live[0]]);
+        var models = live.Select(k => reaches[k]).ToArray();
+        var floors = live.Select(k => least?[k]).ToArray();
+        foreach (var m in models) _ = m._levels.Value;
+        var min = new Point2(models.Min(m => m.Origin.X - m.Allowance), models.Min(m => m.Origin.Y - m.Allowance));
+        var max = new Point2(models.Max(m => m.Origin.X + m.Allowance), models.Max(m => m.Origin.Y + m.Allowance));
+        var fine = ReachMesh.Fine(models.Max(m => m.Allowance));
+        var deep = ReachMesh.Deep(fine);
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        void Values(Point2 p, Span<double> into)
+        {
+            Span<double> straight = stackalloc double[models.Length];
+            Span<int> order = stackalloc int[models.Length];
+            Span<double> one = stackalloc double[3];
+            for (var k = 0; k < models.Length; k++) { order[k] = k; straight[k] = models[k].Origin.DistanceTo(p) - models[k].Allowance; }
+            straight.Sort(order);
+            into[0] = into[1] = into[2] = deep;
+            for (var n = 0; n < models.Length; n++)
+            {
+                // No band of a model is under its straight line less its allowance: past every band's least so far, it changes none.
+                if (straight[n] >= Math.Max(into[0], Math.Max(into[1], into[2]))) break;
+                var (r, i, c) = models[order[n]].Nested(p, floors[order[n]], enough: Math.Max(into[0], Math.Max(into[1], into[2])));
+                Write(r, i, c, one);
+                for (var b = 0; b < 3; b++) into[b] = Math.Min(into[b], one[b]);
+            }
+            for (var b = 0; b < 3; b++) into[b] = Math.Max(into[b], -deep);
+        }
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        MoveSpace.Cover Cover(Point2 centre, double half)
+        {
+            var covered = true;
+            foreach (var m in models)
+                switch (m.Cover(centre, half))
+                {
+                    case MoveSpace.Cover.Edge: return MoveSpace.Cover.Edge;
+                    case MoveSpace.Cover.Free: covered = false; break;
+                }
+            return covered ? MoveSpace.Cover.Covered : MoveSpace.Cover.Free;
+        }
+        var bands = ReachMesh.Build(models[0].Origin, min, max, fine, 3, Values, Cover);
+        return new MoveBands(bands[0], bands[1], bands[2]);
+    }
+
+    /// <summary>Three nested levels at a point, each at most zero inside: reached at all (r), reached round danger (i), reached clear (c); r ≤ i ≤ c.
+    /// Where the straight line from the start meets no obstacle of any group, every level is that line less the allowance (each field's own
+    /// first answer), so it is not asked of each field.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    internal (double R, double I, double C) Nested(Point2 p, Func<Point2, double>? least, bool direct = true, double enough = double.PositiveInfinity)
+    {
+        var levels = _levels.Value;
+        double r, i, c;
+        const int every = MoveSpace.Walls | MoveSpace.Bodies | MoveSpace.Difficult | MoveSpace.Dangerous | MoveSpace.Unstable;
+        var straight = Origin.DistanceTo(p);
+        if (direct && straight <= Allowance + Beyond && !_space.Blocked(p, every) && _space.Clear(Origin, p, every, fromStart: true)) r = i = c = straight - Allowance;
+        else
+        {
+            r = Excess(p);
+            // Well outside the area only "outside" matters, and both are at least r; and at or past `enough` (the least a union has so far), nothing.
+            if (r > Beyond || r >= enough) i = c = r;
             else
             {
                 c = Math.Max(levels.Clear(p), r);
                 i = Math.Max(Math.Min(c, levels.Inner(p)), r);
             }
-            if (least is not null)
-            {
-                var floor = least(p) - Origin.DistanceTo(p);
-                r = Math.Max(r, floor); i = Math.Max(i, floor); c = Math.Max(c, floor);
-            }
-            into[0] = Finite(c);
-            into[1] = Finite(Math.Max(i, -c));
-            into[2] = Finite(Math.Max(r, -i));
         }
-        var walls = MoveSpace.Walls | MoveSpace.Bodies | (_avoiding is null ? 0 : MoveSpace.Difficult) | MoveSpace.Dangerous | MoveSpace.Unstable;
-        var bands = ReachMesh.Build(Origin, Allowance, 3, Values, (centre, half) => _space.Straddles(centre, half, walls, MoveSpace.Walls));
-        return new MoveBands(bands[0], bands[1], bands[2]);
+        if (least is not null)
+        {
+            var floor = least(p) - straight;
+            r = Math.Max(r, floor); i = Math.Max(i, floor); c = Math.Max(c, floor);
+        }
+        return (r, i, c);
     }
+
+    /// <summary>A band is one level less the one inside it.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    static void Write(double r, double i, double c, Span<double> into)
+    {
+        into[0] = Finite(c);
+        into[1] = Finite(Math.Max(i, -c));
+        into[2] = Finite(Math.Max(r, -i));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    MoveSpace.Cover Cover(Point2 centre, double half)
+    {
+        var walls = MoveSpace.Walls | MoveSpace.Bodies | (_avoiding is null ? 0 : MoveSpace.Difficult) | MoveSpace.Dangerous | MoveSpace.Unstable;
+        return _space.Straddles(centre, half, walls, MoveSpace.Walls);
+    }
+
+    /// <summary>Settles now the fields the bands read (Bands, BandAt, Union), so a later build only walks the mesh.</summary>
+    public void PrepareBands() => _ = _levels.Value;
 
     static double Finite(double v) => double.IsFinite(v) ? v : v > 0 ? 1e9 : -1e9;
 
@@ -266,6 +363,7 @@ public sealed class MoveReach
         /// <summary>The terms Inner adds to Clear's; the inner level is the least of both.</summary>
         public double Inner(Point2 p) => Least(_inner, p);
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         double Least((MoveSpace.Field Field, double Limit)[] terms, Point2 p)
         {
             var best = double.PositiveInfinity;

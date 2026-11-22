@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Tabletop.Geometry;
 
 /// <summary>
@@ -8,6 +10,7 @@ namespace Tabletop.Geometry;
 internal sealed partial class MoveSpace
 {
     /// <summary>The line from a corner towards `to` leaves the corner's ring on one side: it can be part of a shortest path.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     static bool Tangent(in Node n, Point2 to)
     {
         var d = to - n.At;
@@ -16,6 +19,7 @@ internal sealed partial class MoveSpace
     }
 
     /// <summary>The shortest path from the start to `goal` of length at most `limit` meeting no obstacle of the groups in `mask`; null when none is.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public (List<Point2> Path, double Length)? Route(Point2 goal, int mask, double limit)
     {
         var start = Origin;
@@ -32,6 +36,7 @@ internal sealed partial class MoveSpace
         Array.Fill(g, double.PositiveInfinity); Array.Fill(parent, -2);
         var open = new PriorityQueue<int, double>();
         double bestGoal = double.PositiveInfinity; var goalParent = -2;
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         void Relax(int from, Point2 at, double gAt, bool fromStart)
         {
             if (gAt + at.DistanceTo(goal) < bestGoal && gAt + at.DistanceTo(goal) <= limit + Tolerance.Distance && Clear(at, goal, mask, fromStart))
@@ -66,6 +71,7 @@ internal sealed partial class MoveSpace
     }
 
     /// <summary>Every corner reachable from the start within `limit` avoiding the groups in `mask`, with its distance and the corner before it.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public Field Settle(int mask, double limit)
     {
         var start = Origin;
@@ -76,6 +82,7 @@ internal sealed partial class MoveSpace
         var g = new double[count]; var parent = new int[count]; var closed = new bool[count];
         Array.Fill(g, double.PositiveInfinity); Array.Fill(parent, -2);
         var open = new PriorityQueue<int, double>();
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         void Relax(int from, Point2 at, double gAt, bool fromStart)
         {
             for (var k = 0; k < count; k++)
@@ -114,9 +121,10 @@ internal sealed partial class MoveSpace
         public double Limit => limit;
         public int Mask => mask;
         public IReadOnlyList<(Point2 At, double G, int Parent)> Corners => settled;
-        int _hint = -1;
+        readonly ThreadLocal<int> _hint = new(() => -1);
 
         /// <summary>The source a point is reached from: -1 the start, else a settled corner; null when it is reached from none within `bound`.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public (int Source, double Distance)? Best(Point2 p, double bound = double.PositiveInfinity)
         {
             var origin = space.Origin;
@@ -124,8 +132,8 @@ internal sealed partial class MoveSpace
             if (space.Clear(origin, p, mask, fromStart: true)) return (-1, origin.DistanceTo(p));
             (int, double)? best = null; var bestD = bound;
             // The corner the last point asked was reached from comes first: asked in order across a grid, it is usually this one's too, and a close
-            // first answer lets the scan skip most corners unchecked. Only the speed depends on it.
-            var hint = _hint;
+            // first answer lets the scan skip most corners unchecked. Kept per thread, as the area walks its cells on several. Only the speed depends on it.
+            var hint = _hint.Value;
             if (hint >= 0 && hint < settled.Count && settled[hint].G + settled[hint].At.DistanceTo(p) is var h && h < bestD && space.Clear(settled[hint].At, p, mask))
             { best = (hint, h); bestD = h; }
             for (var i = 0; i < settled.Count; i++)
@@ -137,10 +145,11 @@ internal sealed partial class MoveSpace
                 if (!space.Clear(at, p, mask)) continue;
                 best = (i, d); bestD = d;
             }
-            if (best is { } found) _hint = found.Item1;
+            if (best is { } found) _hint.Value = found.Item1;
             return best;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public double Distance(Point2 p, double bound = double.PositiveInfinity) => Best(p, bound)?.Distance ?? double.PositiveInfinity;
 
         /// <summary>The path to p through the corners, or null when p is reached from none.</summary>
@@ -158,6 +167,7 @@ internal sealed partial class MoveSpace
         /// The point nearest `target` that a path no longer than `within` reaches: from the start and each settled corner with length left, as far
         /// toward the target as the length left and the way allow; the nearest of those.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public (Point2 At, double Gap)? Nearest(Point2 target, double within)
         {
             (Point2, double)? best = null;

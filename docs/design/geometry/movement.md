@@ -99,11 +99,14 @@ through it within the cap, and the client draws that one area.
   ahead by `PrepareRoute` (the client calls it on the pool when the Ask opens).
 - `Clamp(target, cap?)`: the target when reachable, else the nearest point a path within the limit gets to (from the start
   and each settled corner, as far toward the target as the length left and the way allow). With `cap`, the unit is held to it.
-- `Triangles(least?)`: the area as triangles. `ReachMesh` walks a quadtree over the square of the allowance: a cell clear of
-  the limit by more than its diagonal, with no shape or table edge crossing it, is drawn whole or dropped (a path length
-  changes no faster than the distance moved); one inside a wall is dropped; the rest split down to about 0.25", which
+- `Triangles(least?)`: the area as triangles. `ReachMesh` walks a quadtree over the square of the allowance, from coarse cells
+  8" across (each walked on its own pool thread, the triangles joined in cell order, so the result is the same as one walk): a
+  cell clear of the limit by more than its diagonal, with no shape or table edge crossing it, is drawn whole or dropped (a path
+  length changes no faster than the distance moved); one inside a wall is dropped; the rest split down to about 0.25", which
   marching squares cut at the limit: interpolated along an edge where the field is smooth, bisected where an obstacle cuts
-  it off. `least`, a minimum move's straight distance (p.13 Aircraft), cuts the middle out.
+  it off; a fine cell wholly inside is two triangles, a cut one a fan from its first corner. A point whose straight line from
+  the start meets no obstacle of any group takes that line's length for every field. `least`, a minimum move's straight
+  distance (p.13 Aircraft), cuts the middle out.
 
 `Movement.Region(…)` is `MoveReach.Build(…).Triangles(least)` as a `MovementRegion(Origin, Allowance,
 CappedByDifficultTerrain, Triangles)`.
@@ -120,6 +123,14 @@ draws the area split by what reaching a point costs (`BandAt`, `Bands(least?)` a
 
 Each is a level of fields settled on first use, a field whose groups (`MoveSpace.Dangerous`, `MoveSpace.Unstable`) add nothing in reach being the
 reach's own; the bands and the route share them (by groups and limit). `ReachMesh` walks one quadtree for the three, a band one level less the one inside it, so the bands are disjoint and cover the area.
+
+`MoveReach.Union(reaches, least?)` draws several models' areas as one (a move's held models): each band is the union of that band of every
+model's area, so a band drawn over another (clear, difficult, dangerous on top) shows every model's, and no two triangles of one band overlap. One
+walk over a box holding every area, on the first model's grid, each band's field the least of the models' at a point; a field is held within
+`ReachMesh.Deep` of zero (past every coarse cell's diagonal and a fine cell's side the walk reads only its sign, so the triangles are those of the
+exact least), and a model whose straight line less its allowance cannot bring a band under the least so far is not searched.
+`ReachMeshReferenceTests` holds the walk to the plain walk it replaced (cells to 2", four triangles a fine cell, one thread: the same area and the
+same points inside) and the union to each model's `BandAt`.
 
 ## The wire carries destinations, not paths
 
