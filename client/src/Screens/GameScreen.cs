@@ -25,7 +25,7 @@ public partial class GameScreen : Control
     /// <summary>The open setup tool, remembered for the session (spec 2026-11-21-setup-screen-layout-design.md → Tool rail).</summary>
     static readonly SetupTools Tools = new();
     SetupTopBar? _topBar; SetupRail? _rail; SetupToolPanel? _toolPanel; KeyHintBar? _hints; GameMenu _gameMenu = null!; SetupPieceKeys? _pieceKeys;
-    SubViewportContainer _tableBox = null!; Control _hud = null!; TerrainCard? _terrainCard; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
+    SubViewportContainer _tableBox = null!; Control _hud = null!; Backdrop _backdrop = null!; TerrainCard? _terrainCard; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
     LoadingCurtain _curtain = null!; LoadingPanel _strip = null!; readonly LoadingVeil _veil = new(); readonly LoadingGate _stripGate = new(TimeSpan.FromMilliseconds(200)); bool _entered;
     Action<RenderCause>? _onFrame; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme, _onLayout;
 
@@ -34,6 +34,7 @@ public partial class GameScreen : Control
         _session = Main.Instance.Session;
         // The table's box and the lobby's page, each placed by Layout: the table fills play, setup's frame slot (HudLayout.Setup's Body) in setup.
         var root = new Control { MouseFilter = MouseFilterEnum.Ignore }; root.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(root);
+        root.AddChild(_backdrop = new Backdrop { Visible = false });   // behind the lobby's page only: never over the table
         var viewportContainer = _tableBox = new SubViewportContainer { Stretch = true, MouseTarget = true };
         viewportContainer.SetAnchorsPreset(LayoutPreset.FullRect);
         var viewport = new SubViewport { HandleInputLocally = true }; viewportContainer.AddChild(viewport); root.AddChild(viewportContainer);
@@ -203,7 +204,7 @@ public partial class GameScreen : Control
         var playing = game.Status is GameStatus.Playing or GameStatus.Ended;
         // The lobby has no table to edit: its page takes the window under the top bar; setup puts the table back in its frame.
         var lobbyOnly = game.Status == GameStatus.Lobby;
-        _sideColumn.Visible = lobbyOnly;
+        _sideColumn.Visible = lobbyOnly; _backdrop.Visible = lobbyOnly;
         _tableBox.Visible = !lobbyOnly;
         if (_wasWaiting)
         {

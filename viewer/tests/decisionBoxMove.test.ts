@@ -24,7 +24,7 @@ describe('the move Ask', () => {
     expect(r.hooks.allowance()).toEqual([{ centre: { x: 10, y: 10 }, radius: 6 }]);
     r.hooks.picked([b]);
     expect(r.hooks.allowance()).toEqual([{ centre: { x: 10, y: 10 }, radius: 6 }, { centre: { x: 12, y: 10 }, radius: 6 }]);
-    expect(r.control('commit')).toMatchObject({ label: 'Commit', key: '⏎', primary: true });
+    expect(r.control('commit')).toMatchObject({ label: 'Commit', key: '1', primary: true });
   });
 
   it('each listed model\'s area is asked of the geometry once per Ask, with the Ask\'s dangerous and unstable volumes', () => {
@@ -187,7 +187,7 @@ describe('the move Ask', () => {
   it('the stop sends continues true', () => {
     const r = moveRig();
     r.openMove(region({ modelIds: r.ids, stoppable: true }));
-    expect(r.control('stop')).toMatchObject({ label: 'Stop here', key: 'C' });
+    expect(r.control('stop')).toMatchObject({ label: 'Stop here', key: '2' });
     expect(r.box.stop()).toBe(true);
     expect(answerOf(r.sent[0]).continues).toBe(true);
   });

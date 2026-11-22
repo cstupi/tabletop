@@ -1,35 +1,73 @@
 using Tabletop.Geometry; using Tabletop.Protocol;
 namespace Tabletop.Client.Core;
 
-/// <summary>The selected unit's action buttons over it (spec 2026-11-21-actions-over-unit-design.md): the Ask they answer, the unit, the point
-/// above its tallest model at its models' centroid, and the decision box's tiles for its options, in the box's order.</summary>
-public sealed record UnitActions(Guid AskId, Guid UnitId, Point3 Anchor, IReadOnlyList<OptionTile> Options)
+/// <summary>The bar over the acting unit (spec 2026-11-21-actions-over-unit-design.md): the Ask it answers, the unit, the point above its
+/// tallest model at its models' centroid, the decision box's tiles for the Ask's options in the box's order, the card's foot actions with their
+/// numbers (CardActions), and while I pick shooting targets the enemy units I may target, each with its point.</summary>
+public sealed record UnitActions(Guid AskId, Guid UnitId, Point3 Anchor, IReadOnlyList<OptionTile> Options, IReadOnlyList<CardAction> Actions,
+    IReadOnlyList<UnitTarget> Targets)
 {
     /// <summary>A button's tooltip: the option's word and its key cap ("Advance  2"); the word alone with no key.</summary>
     public static string Tip(OptionTile t) => t.Key > 0 ? $"{t.Word}  {DecisionCard.KeyCap(t.Key)}" : t.Word;
 }
 
+/// <summary>A unit I may shoot, and the point above its tallest model where its target icon stands.</summary>
+public sealed record UnitTarget(Guid UnitId, Point3 Anchor);
+
 public static class UnitActionsView
 {
     static readonly IReadOnlyDictionary<Guid, int> NoWounds = new Dictionary<Guid, int>();
 
-    /// <summary>The buttons while my open Ask asks for an activation (activate, act_or_end_phase) and offers the selected unit an option;
-    /// null while watching or replaying, for another team's Ask or any other Ask, with nothing selected, for a unit the Ask offers nothing or
-    /// one with no model on the table. The keys are the box's numbering when given (numbered), else the box narrowed to the unit's options.</summary>
+    /// <summary>
+    /// The bar for my open Ask, over its acting unit: for an activation (activate, act_or_end_phase) the selected unit, with its options;
+    /// for any other Ask the unit of mine acting now (the action frame's), else the selected unit of mine the Ask names, with all the Ask's
+    /// options. Then the card's foot actions, numbered after the tiles. Null while watching or replaying, for another team's Ask, with no such
+    /// unit or one with no model on the table. The keys are the box's numbering when given (numbered), else the box's own (an activation's
+    /// narrowed to the unit's options).
+    /// </summary>
     public static UnitActions? Of(Projection p, GameInfo game, Guid? myTeam, Guid? selected, bool watching,
         IReadOnlyList<(int Key, string Label, string OptionId)>? numbered = null)
     {
-        if (watching || selected is not { } unit || !p.Units.ContainsKey(unit)) return null;
-        if (AskViewModel.Mine(p, game, myTeam)?.Ask is not { Legal: Options options } ask || !DecisionCard.Activations.Contains(ask.Question)) return null;
-        var hits = DecisionView.ChoicesOf(options, p, unit);
-        if (hits.Count == 0) return null;
+        if (watching || AskViewModel.Mine(p, game, myTeam) is not { } mine) return null;
+        var ask = mine.Ask;
+        bool Mine(Guid u) => p.Units.ContainsKey(u) && SheetFocus.TeamOf(p, game, u)?.Id == myTeam;
+        Guid unit; IReadOnlyList<AskOption> shown;
+        if (DecisionCard.Activations.Contains(ask.Question))
+        {
+            if (selected is not { } s || !p.Units.ContainsKey(s) || ask.Legal is not Options o) return null;
+            shown = DecisionView.ChoicesOf(o, p, s);
+            if (shown.Count == 0) return null;
+            unit = s;
+            numbered ??= DecisionView.Number(shown);
+        }
+        else
+        {
+            bool Named(Guid u) => mine.Highlights.Any(id => id == u || p.Models.GetValueOrDefault(id)?.UnitId == u);
+            if (HeaderView.ActionFrame(p)?.Context.ActorUnitId is { } actor && Mine(actor)) unit = actor;
+            else if (selected is { } s && Mine(s) && Named(s)) unit = s;
+            else return null;
+            shown = ask.Legal is Options o ? o.Choices : [];
+            numbered ??= DecisionView.Of(p, game, new Names(game, p), myTeam).Numbered;
+        }
+        if (Anchor(p, unit) is not { } anchor) return null;
+        var tiles = DecisionCard.Groups(ask, shown, numbered, p, game, new Names(game, p), NoWounds).SelectMany(g => g.Tiles).ToList();
+        var actions = CardActions.Numbered(CardActions.Of(ask, mine.Mode, p), numbered.Count);
+        var targets = ask.Legal is Assignment a ? TargetsOf(p, new TargetAssignment(a).Candidates) : [];
+        return new UnitActions(ask.Id, unit, anchor, tiles, actions, targets);
+    }
+
+    /// <summary>The point above a unit's tallest model at its models' centroid; null with none on the table.</summary>
+    public static Point3? Anchor(Projection p, Guid unit)
+    {
         var on = p.Models.Values.Where(m => m.UnitId == unit && m.Location is OnTable).ToList();
         if (on.Count == 0) return null;
         var at = on.Select(m => ((OnTable)m.Location).Placement.Position).ToList();
-        var anchor = new Point3(at.Average(q => q.X), at.Average(q => q.Y), on.Max(m => ((OnTable)m.Location).Placement.Position.Z + m.Slot.Height));
-        var tiles = DecisionCard.Groups(ask, hits, numbered ?? DecisionView.Number(hits), p, game, new Names(game, p), NoWounds).SelectMany(g => g.Tiles).ToList();
-        return new UnitActions(ask.Id, unit, anchor, tiles);
+        return new Point3(at.Average(q => q.X), at.Average(q => q.Y), on.Max(m => ((OnTable)m.Location).Placement.Position.Z + m.Slot.Height));
     }
+
+    /// <summary>The target icons: each unit I may shoot now (TargetAssignment.Candidates) with a model on the table, at its point.</summary>
+    public static IReadOnlyList<UnitTarget> TargetsOf(Projection p, IEnumerable<Guid> candidates) =>
+        candidates.Select(u => Anchor(p, u) is { } at ? new UnitTarget(u, at) : null).OfType<UnitTarget>().ToList();
 }
 
 /// <summary>The unit's name label over it on screen (HoverLabels): its bottom edge and its height. The row keeps above it whether it shows or

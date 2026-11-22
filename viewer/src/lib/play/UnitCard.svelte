@@ -80,16 +80,16 @@
   .pips { color: var(--team); letter-spacing: 1px; white-space: nowrap; }
   .gp { flex: none; min-width: 3.5rem; font-size: .85rem; }
   .caption { font-size: .75rem; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; margin-top: var(--space-1); }
-  .stat { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); border: 1px solid var(--accent); line-height: 1.5; white-space: nowrap; }
+  .stat { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-2); border: 1px solid var(--accent); line-height: 1.5; white-space: nowrap; }
   .stat :global(.hud-icon) { color: var(--accent); }
   .flow, .group { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); align-items: center; }
   .group { flex-wrap: nowrap; border: 1px solid transparent; }
   .group.marked { border-color: var(--accent); }
-  .badge, .chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1); border: 1px solid var(--rule); font-size: .8rem; line-height: 1.5; color: var(--text); white-space: nowrap; }
+  .badge, .chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-2); border: 1px solid var(--rule); font-size: .8rem; line-height: 1.5; color: var(--text); white-space: nowrap; }
   .chip.warn { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); }
   .warn { color: var(--warning); }
   .dim { color: var(--dim); }
-  .flat { flex: 1; min-width: 0; min-height: 0; justify-content: flex-start; padding: var(--space-1) var(--space-1); border: 0; border-radius: 0; clip-path: none; box-shadow: none;
+  .flat { flex: 1; min-width: 0; min-height: 0; justify-content: flex-start; padding: var(--space-1) var(--space-1); border: 0; border-radius: 0; clip-path: none; border-image: none; box-shadow: none;
     background: none; color: var(--text); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .flat:hover:not(:disabled) { background: var(--rule); color: var(--text); }
   .gone { opacity: 0.45; }

@@ -4,7 +4,7 @@ import { Applier } from '../src/lib/live/apply';
 import { acting, teamsOf } from '../src/lib/lobby/seats';
 import { DecisionBox, type Control, type DecisionPanel } from '../src/lib/play/decisionBox';
 import { RuleTexts } from '../src/lib/play/ruleTexts';
-import type { Board, Command, EventPayload, GameInfo, LegalSet, Refused } from '../src/lib/protocol/wire.generated';
+import type { Board, Command, EventPayload, GameInfo, LegalSet, Refused, SetAsideRule } from '../src/lib/protocol/wire.generated';
 import { P1, P2, TEAM1, TEAM2, askOf, boardOf, gameOf, newId, option, sample, slotOf, unitOf } from './play';
 
 type Deferred = { id: string; resolve: (o: SendOutcome) => void; reject: (e: unknown) => void };
@@ -18,9 +18,11 @@ function rig(over: { game?: GameInfo; board?: Board; maxWounds?: Record<string, 
   const pending: Deferred[] = [];
   const listeners = new Set<(r: Refused) => void>();
   const participantId = over.participantId ?? P1;
+  /** ModelFacts' set-aside members, replaced by a test as a new frame would. */
+  const facts = { maySetAside: new Set<string>() as ReadonlySet<string>, setAsideRules: new Map<string, SetAsideRule>() as ReadonlyMap<string, SetAsideRule> };
   const state = (): ConnectionState => ({
     phase: 'connected', game, participantId, board: applier.projection.board, projection: applier.projection, log: applier.log,
-    maxWounds: new Map(Object.entries(over.maxWounds ?? {})),
+    maxWounds: new Map(Object.entries(over.maxWounds ?? {})), maySetAside: facts.maySetAside, setAsideRules: facts.setAsideRules,
   }) as unknown as ConnectionState;
   const box = new DecisionBox({
     state,
@@ -35,7 +37,7 @@ function rig(over: { game?: GameInfo; board?: Board; maxWounds?: Record<string, 
   });
   const refusedFrame = (i: number, detail: string): Refused => ({ kind: 'refused', messageId: pending[i]!.id, reason: 'illegal', detail });
   const r = {
-    s, game, applier, box, sent,
+    s, game, applier, box, sent, facts,
     apply(...payloads: EventPayload[]) { return r.applyAs(P1, ...payloads); },
     applyAs(actor: string, ...payloads: EventPayload[]) {
       const events = payloads.map((p) => ({ seq: ++seq, actor, payload: p }) as never);
@@ -114,11 +116,23 @@ describe('the decision box controller', () => {
 
   it('picking a unit to activate is never answered by a click on it, even with one action', () => {
     const r = rig();
-    r.apply(open(askOf(opts(option('a', 'Advance', [r.s.squad.id]), option('h', 'Hold', [r.s.squad.id]), option('i', 'Idle', [r.s.rivals.id])))));   // question: activate
+    r.apply(open(askOf(opts(option('i', 'Idle', [r.s.squad.id])))));   // question: activate
     r.box.render();
     expect([...r.box.eligible]).toEqual([]);
-    r.box.target(r.s.rival.id);
+    r.box.target(r.s.model.id);
     expect(r.sent).toHaveLength(0);
+  });
+
+  // The owner, 2026-11-21: "Its automatically moving to the shooting phase when i reclick the unit."
+  it('a click on my acting unit that one option names only selects it', () => {
+    const r = rig();
+    r.apply(open(askOf(opts(option('s', 'Shoot', [r.s.squad.id]), option('c', 'Charge', [r.s.rivals.id])), { question: 'shoot_or_not' })));
+    r.box.render();
+    r.box.target(r.s.model.id);
+    r.box.target(r.s.squad.id);
+    expect(r.sent).toHaveLength(0);
+    r.box.target(r.s.rival.id);
+    expect(answerOf(r.sent[0]!)).toEqual({ kind: 'chosen', optionId: 'c' });
   });
 
   it('a unit several choices name narrows the box, renumbered, and Esc widens it', () => {
@@ -201,10 +215,52 @@ describe('the decision box controller', () => {
     const r = rig();
     r.apply(open(askOf({ kind: 'confirmation' }, { question: 'end_round', prompt: 'End the round', teams: [TEAM1, TEAM2], allowPass: false })));
     r.box.render();
-    expect(r.labels()).toEqual(['End the round [⏎]']);
-    expect(r.button('enter')!.primary).toBe(true);
+    expect(r.labels()).toEqual(['End the round [1]']);
+    expect(r.button('confirm')!.primary).toBe(true);
     expect(r.box.enter()).toBe(true);
     expect(answerOf(r.sent[0]!)).toEqual({ kind: 'confirmed' });
+  });
+
+  // The bar over the acting unit stands for every step until the answer is sent, not only the activation pick.
+  it('an Ask is being answered until its answer is sent, whatever its mode', () => {
+    const r = rig();
+    const ask = askOf({ kind: 'assignment', items: [option('g1', 'Rifles', ['w1'])], targets: [r.s.rivals.id], maxDistinctTargets: 1 },
+      { question: 'declare_targets', allowPass: false });
+    r.apply(open(ask));
+    r.box.render();
+    expect(r.box.answering(ask.id)).toBe(true);
+    r.box.target(r.s.rival.id);
+    r.box.press('fire');
+    expect(r.box.answering(ask.id)).toBe(false);
+  });
+
+  // The owner, 2026-11-21: "if 1,2,3 decides then users should hit 1 not enter". An Ask with only foot actions has its primary on 1.
+  it('a number key presses the foot action it caps: the primary first, after the tiles', () => {
+    const r = rig();
+    r.apply(open(askOf({ kind: 'confirmation' }, { question: 'end_round', prompt: 'End the round', allowPass: false })));
+    r.box.render();
+    expect(r.box.number(1)).toBe(true);
+    expect(answerOf(r.sent[0]!)).toEqual({ kind: 'confirmed' });
+
+    const shoot = rig();
+    shoot.apply(open(askOf({ kind: 'assignment', items: [option('g1', 'Rifles', ['w1'])], targets: [shoot.s.rivals.id], maxDistinctTargets: 1 },
+      { question: 'declare_targets', allowPass: true })));
+    shoot.box.render();
+    expect(['fire', 'clear', 'pass'].map((id) => shoot.button(id)!.key)).toEqual(['1', '2', '3']);
+    expect(shoot.box.number(1)).toBe(false);                     // Fire is dim until a target is aimed
+    shoot.box.target(shoot.s.rival.id);
+    expect(shoot.box.number(2)).toBe(true);                      // Clear
+    expect(shoot.box.targets!.assigned.size).toBe(0);
+    shoot.box.target(shoot.s.rival.id);
+    expect(shoot.box.number(1)).toBe(true);
+    expect(answerOf(shoot.sent[0]!)).toEqual({ kind: 'assigned', targets: { g1: shoot.s.rivals.id } });
+
+    const act = rig();
+    act.apply(open(askOf(opts(option('a', 'Advance', [act.s.squad.id]), option('h', 'Hold', [act.s.squad.id])), { question: 'act_or_end_phase' })));
+    act.box.render();
+    expect(act.button('pass')!.key).toBe('3');
+    expect(act.box.number(3)).toBe(true);
+    expect(answerOf(act.sent[0]!)).toEqual({ kind: 'passed' });
   });
 
   it('pick pieces toggles a piece and one pick of one answers at once', () => {
@@ -243,6 +299,19 @@ describe('the decision box controller', () => {
     expect(answerOf(r.sent[0]!)).toEqual({ kind: 'selected_pieces', pieceIds: [r.s.squad.id] });
   });
 
+  it('a deploy pick draws the set-aside chip and Set aside beside a unit the server names, again when the facts arrive after the Ask', () => {
+    const r = rig();
+    r.apply(open(askOf({ kind: 'pieces', eligible: [r.s.squad.id], min: 1, max: 1 }, { question: 'deploy', prompt: 'Deploy one unit', allowPass: false })));
+    r.box.render();
+    expect(r.panel.controls[0]).not.toHaveProperty('chip');
+    r.facts.maySetAside = new Set([r.s.squad.id]);
+    r.facts.setAsideRules = new Map([[r.s.squad.id, { name: 'Ambush', text: 'May be set aside before deployment. More.' }]]);
+    r.box.render();
+    expect(r.panel.controls[0]).toMatchObject({ kind: 'row', chip: { name: 'Ambush' }, aside: { id: `aside:${r.s.squad.id}`, tip: 'May be set aside before deployment. More.' } });
+    r.box.press(`aside:${r.s.squad.id}`);
+    expect(r.sent[0]).toEqual({ kind: 'set_condition', subject: { kind: 'unit', id: r.s.squad.id }, condition: 'set-aside', present: true });
+  });
+
   it('targets aim the picked groups, a chip picks its group alone, Clear targets or Esc clears, Enter fires', () => {
     const r = rig();
     const ask = askOf({ kind: 'assignment', items: [option('g1', 'Rifles', ['w1']), option('g2', 'Pistols', ['w2'])], targets: [r.s.rivals.id], maxDistinctTargets: 2 },
@@ -260,12 +329,12 @@ describe('the decision box controller', () => {
     expect(r.box.cancel()).toBe(true);
     expect(r.box.targets!.assigned.size).toBe(0);
     expect(r.box.cancel()).toBe(false);
-    expect(r.button('clear-targets')!.disabled).toBe(true);
+    expect(r.button('clear')!.disabled).toBe(true);
     r.box.target(r.s.rivals.id);
-    expect(r.button('clear-targets')!.disabled).toBe(false);
-    r.box.press('clear-targets');
+    expect(r.button('clear')!.disabled).toBe(false);
+    r.box.press('clear');
     expect(r.box.targets!.assigned.size).toBe(0);
-    expect(r.button('clear-targets')!.disabled).toBe(true);
+    expect(r.button('clear')!.disabled).toBe(true);
     expect(r.sent).toEqual([]);
     r.box.target(r.s.rivals.id);
     expect(r.box.enter()).toBe(true);

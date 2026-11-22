@@ -1,34 +1,49 @@
 <!-- viewer/src/lib/play/UnitActions.svelte -->
-<!-- UnitActionsNode.cs: the action buttons over the selected unit during my activation (spec 2026-11-21-actions-over-unit-design.md): a round
-     icon button per option the decision box offers that unit, in the box's order, centred above the unit's models and its name label on the board and
-     kept inside it (placeRect). A click presses the box's tile for that option; the pointer on a button lights its tile, and on a tile lights its button. -->
+<!-- UnitActionsNode.cs: the bar over the acting unit during every step of my activation (spec 2026-11-21-actions-over-unit-design.md): a round
+     icon button per option the decision box offers, in the box's order, then the card's foot actions (the primary lit, a dim one with its reason as
+     title), centred above the unit's models and its name label on the board and kept inside it (placeRect). A click presses the box's tile or
+     button; the pointer on an option lights its tile, and on a tile lights its button. While I pick shooting targets, a target icon stands over
+     each enemy unit I may shoot; a click on it is the board's click on that unit. -->
 <script lang="ts">
   import type { Scene } from '../board/frame';
+  import { actionTip, type CardAction } from './cardActions';
   import type { DecisionBox, DecisionPanel } from './decisionBox';
   import DecisionIcon from './DecisionIcon.svelte';
   import { hoverLabelBox } from './hoverLabels';
-  import { placeRect, tipOf, type UnitActions } from './unitActionsView';
+  import { placeRect, tipOf, type UnitActions, type UnitTarget } from './unitActionsView';
 
-  let { actions, box, panel, scene, woundLine, project, scale, size }: {
-    actions: UnitActions; box: DecisionBox; panel: DecisionPanel; scene: Scene; woundLine: boolean;
+  let { actions, targets, box, panel, scene, woundLine, project, scale, size, names, onHoverUnit }: {
+    actions: UnitActions; targets: readonly UnitTarget[]; box: DecisionBox; panel: DecisionPanel; scene: Scene; woundLine: boolean;
     project: (p: { x: number; y: number }) => { x: number; y: number }; scale: number; size: { width: number; height: number };
+    names: (unitId: string) => string; onHoverUnit: (unitId: string | null) => void;
   } = $props();
 
   const BUTTON = 42, GAP = 4, SPACE = 8;   // a button's size (the tile's 26 px icon in an 8 px inset); --s1 between buttons, --s2 above the models
+  const view = $derived({ x: 0, y: 0, w: size.width, h: size.height });
 
-  const rect = $derived.by(() => {
-    const centre = project(actions.anchor);
-    // The top edge of the unit's bases on screen, the table's far side up.
-    const models = scene.models.filter((m) => m.unitId === actions.unitId);
-    const top = models.reduce((t, m) => {
+  /** The top edge of a unit's bases on screen, the table's far side up, from its centre's projection. */
+  function topOf(unitId: string, anchor: { x: number; y: number }): { x: number; y: number } {
+    const centre = project(anchor);
+    const y = scene.models.filter((m) => m.unitId === unitId).reduce((t, m) => {
       const r = m.circle.kind === 'circle' ? m.circle.radius : 0;
       return Math.min(t, project(m.centre).y - r * scale);
     }, centre.y);
-    const w = actions.options.length * BUTTON + (actions.options.length - 1) * GAP;
+    return { x: centre.x, y };
+  }
+
+  const count = $derived(actions.options.length + actions.actions.length);
+  const rect = $derived.by(() => {
+    const at = topOf(actions.unitId, actions.anchor);
+    const w = count * BUTTON + (count - 1) * GAP;
     // Above the unit's name label too, shown or not, so a button that brings it up never moves out from under the pointer.
-    return placeRect(centre.x, top, w, BUTTON, { x: 0, y: 0, w: size.width, h: size.height }, [], SPACE,
-      hoverLabelBox(scene, actions.unitId, woundLine, project, scale));
+    return placeRect(at.x, at.y, w, BUTTON, view, [], SPACE, hoverLabelBox(scene, actions.unitId, woundLine, project, scale));
   });
+  const targetRects = $derived(targets.map((t) => {
+    const at = topOf(t.unitId, t.anchor);
+    return { target: t, rect: placeRect(at.x, at.y, BUTTON, BUTTON, view, [], SPACE, hoverLabelBox(scene, t.unitId, false, project, scale)) };
+  }));
+  // The foot's actions as the card shows them now (enabled as its buttons, a dim one's reason), else as the bar was made.
+  const live = $derived.by((): readonly CardAction[] => { void panel; const now = box.actions; return actions.actions.map((a) => now.find((x) => x.id === a.id) ?? { ...a, enabled: false }); });
   const lit = (_: DecisionPanel, optionId: string): boolean => box.hoveredControl === `opt:${optionId}`;
   const noFocus = (e: Event) => e.preventDefault();
 </script>
@@ -40,11 +55,27 @@
       {#if o.icon !== null}<DecisionIcon name={o.icon} size={26} />{:else}{o.word}{/if}
     </button>
   {/each}
+  {#each live as a (a.id)}
+    <button type="button" class="act" class:primary={a.primary} tabindex="-1" title={actionTip(a)} aria-label={actionTip(a)} disabled={!a.enabled}
+      onmousedown={noFocus} onclick={() => box.press(a.id)}>
+      {#if a.icon !== null}<DecisionIcon name={a.icon} size={26} />{:else}{a.word}{/if}
+    </button>
+  {/each}
 </div>
+{#each targetRects as { target, rect: r } (target.unitId)}
+  <button type="button" class="act target" tabindex="-1" title="Aim at {names(target.unitId)}" aria-label="Aim at {names(target.unitId)}"
+    style:left="{r.x}px" style:top="{r.y}px" onmousedown={noFocus} onclick={() => box.target(target.unitId)}
+    onpointerenter={() => onHoverUnit(target.unitId)} onpointerleave={() => onHoverUnit(null)}>
+    <DecisionIcon name="shoot" size={26} />
+  </button>
+{/each}
 
 <style>
   .actions { position: absolute; z-index: 1; display: flex; gap: var(--space-1); }
-  .act { width: 42px; height: 42px; min-height: 0; padding: var(--space-2); border-radius: 50%; clip-path: none; box-shadow: 0 2px 8px #0000004d; }
-  .act.lit:not(:disabled) { background-color: var(--btn-hover); }
+  .act { width: 42px; height: 42px; min-height: 0; padding: var(--space-2); border-radius: 50%; clip-path: none; border-image: none; background-color: var(--panel-solid); border: 1px solid var(--panel-border); box-shadow: 0 2px 8px #0000004d; }
+  .act.lit:not(:disabled) { background-color: color-mix(in srgb, var(--accent) 25%, var(--panel-solid)); }
+  .act.primary:not(:disabled) { background-color: var(--accent); color: var(--bg); }
+  .act:disabled { opacity: 0.45; }
+  .target { position: absolute; z-index: 1; }
   :global([data-theme='fantasy']) .act { border-radius: 50%; }
 </style>

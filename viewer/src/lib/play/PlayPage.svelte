@@ -21,7 +21,7 @@
   import Banner from './Banner.svelte';
   import { WoundFloats, WoundNumbers } from './woundNumbers';
   import UnitActions from './UnitActions.svelte';
-  import { unitActionsOf } from './unitActionsView';
+  import { targetsOf, unitActionsOf } from './unitActionsView';
   import { hoverOf, woundsLine } from './hoverView';
   import HeaderBar from './HeaderBar.svelte';
   import InfoColumn from './InfoColumn.svelte';
@@ -38,6 +38,7 @@
   import { RangeRingCache, ringsOverlay, type RingLayer } from './rangeRings';
   import { sheetFocusOf, teamOf } from './sheetFocus';
   import { midDeploy } from './deployView';
+  import { PlacingFocus } from './setAsideView';
   import { KeepAwayCache, keepAwayFor, SHADE, SHADE_WORDS } from './keepAwayArea';
   import { AllThreatCache, ThreatRingCache, pinnedThreat, shownThreats, threatsWanted } from './threatRings';
   import { SightCheck, sightOverlay } from './sightCheck';
@@ -204,7 +205,7 @@
   const marks = $derived.by(() => { void panel; return box?.marks; });
   const teams = $derived(snap === null ? [] : myTeams(snap));
   const actingTeam = $derived(snap?.projection != null ? acting(snap.projection, teams, snap.log) : null);
-  // The action buttons over the selected unit on my activation (UnitActionsNode): the box's options for it, gone once the answer is sent.
+  // The bar over the acting unit on every step of my activation (UnitActionsNode): the box's options and foot actions, gone once the answer is sent.
   const unitActions = $derived.by(() => {
     void panel;
     const s = snap, b = box, p = snap?.projection;
@@ -212,6 +213,13 @@
     const v = unitActionsOf(p, s.game, actingTeam, selection?.pieceId ?? null, isWatching(s), b.numbered);
     return v !== null && b.answering(v.askId) ? v : null;
   });
+  // While I pick shooting targets, a target icon over each enemy unit the box's assignment may aim at now.
+  const unitTargets = $derived.by(() => {
+    void panel;
+    const p = snap?.projection, t = box?.targets;
+    return unitActions === null || p == null || t == null ? [] : targetsOf(p, t.candidates);
+  });
+  const unitName = (id: string): string => { const s = snap; return s?.projection != null && s.game !== null ? new Names(s.game, s.projection).unit(id) : ''; };
   // Whether the unit's name label carries a wounds line under the name (hoverOverlay), for the room the buttons leave it.
   const actionWoundLine = $derived.by(() => {
     const s = snap, p = snap?.projection, v = unitActions;
@@ -297,6 +305,15 @@
   });
   // RangeRingNode's keep-away layer: while I place a unit held over a distance from enemy units (my deploy pick's or my open move Ask's KeepAway),
   // the area it may not reach, in a dark shade; rebuilt when a listed unit's models move.
+  // The unit card while I place a unit (UnitCard.Placing): the unit a team of mine picked, held while the selection stands as it was at the pick.
+  const placingFocus = new PlacingFocus();
+  const placingUnit = $derived.by((): string | null => {
+    const p = shown, s = snap;
+    if (p === null || s === null || isWatching(s)) return null;
+    const mid = [actingTeam, ...teams].map((t) => midDeploy(p, s.log, t)).find((m) => m !== null) ?? null;
+    return placingFocus.placing(mid?.unitId ?? null, selection?.pieceId ?? null);
+  });
+  const pickHovered = $derived.by(() => { void panel; return box?.pickHovered ?? null; });
   const keepAwayCache = new KeepAwayCache();
   const keepAwayLayer = $derived.by((): RingLayer | null => {
     const p = shown, s = snap;
@@ -472,7 +489,8 @@
     {:else}
       <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} floating={woundFloats}>
         {#snippet above(project, scale, size)}
-          {#if unitActions !== null && box !== null}<UnitActions actions={unitActions} {box} {panel} {scene} woundLine={actionWoundLine} {project} {scale} {size} />{/if}
+          {#if unitActions !== null && box !== null}<UnitActions actions={unitActions} targets={unitTargets} {box} {panel} {scene} woundLine={actionWoundLine} {project} {scale} {size}
+            names={unitName} onHoverUnit={(u) => { pointedUnit = u; }} />{/if}
         {/snippet}
       </Board>
     {/if}
@@ -493,7 +511,7 @@
       <InfoColumn
         {connection} {snap} {shown} {scene} {prediction} pendingUndoTo={pendingUndo} {rules} {geometry}
         {selection} {hoveredUnit} {catalog} myTeam={actingTeam} eligible={infoEligible} getSettings={() => settings} updateSettings={changeSettings}
-        onPickModel={pickModel} onTouch={(ids) => { touchedIds = new Set(ids); }} bind:overlay={infoOverlay}
+        onPickModel={pickModel} onTouch={(ids) => { touchedIds = new Set(ids); }} bind:overlay={infoOverlay} {pickHovered} placing={placingUnit}
       />
     {/if}
   </aside>

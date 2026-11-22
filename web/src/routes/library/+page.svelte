@@ -237,8 +237,8 @@
   .warn { color: var(--warning) }
   .tile:hover { border-color: var(--accent); color: var(--text) }
   .on .tile { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); background: var(--rule) }
-  :global([data-theme='fantasy']) .tile { border-radius: 4px; background: #F1E6CA; border-color: #4A2F1B55 }
-  :global([data-theme='fantasy']) .on .tile { border-color: var(--wood); box-shadow: inset 0 0 0 2px var(--wood); background: #E6D3A8 }
+  :global([data-theme='fantasy']) .tile { border-radius: 4px; background: var(--panel-solid) }
+  :global([data-theme='fantasy']) .on .tile { border-color: var(--wood); box-shadow: inset 0 0 0 2px var(--wood) }
   :global([data-theme='scifi']) .tile { clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px) }
   .usage { display: flex; flex-direction: column; gap: var(--space-1); margin: 0 }
   .meter { display: block; height: 6px; background: var(--rule); overflow: hidden }

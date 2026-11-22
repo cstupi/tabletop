@@ -8,6 +8,7 @@ import type { Ask, AskOption, GameInfo, MoveRegion, Options } from '../protocol/
 import { mine as myAsk, type AskMode } from './askView';
 import { DEPLOY_QUESTIONS } from './deployView';
 import type { Names } from './names';
+import { teamOf } from './sheetFocus';
 
 const KEYED = 9;
 
@@ -41,15 +42,21 @@ const keys = (entries: readonly { label: string; id: string }[]): Numbered[] =>
 export function number(choices: readonly AskOption[]): Numbered[] { return keys(choices.map((c) => ({ label: c.label, id: c.id }))); }
 
 /**
- * The pieces a table click answers with: those exactly one choice names. A piece several choices name (activate: one option per unit and
- * action) cannot answer; a click on it selects the unit and narrows the box (choicesOf).
+ * The pieces a table click answers with: the other team's pieces (a target pick) that exactly one choice names. A piece several choices name
+ * cannot answer; a click on it selects the unit and narrows the box (choicesOf). A unit of a team the Ask addresses (my own unit, the acting
+ * unit, a Shaken unit's Idle) never answers by a click: the click selects it, and the action is the bar over the unit, the box or a key.
  */
-export function clickAnswers(options: Options, question?: string): Set<string> {
-  // Picking a unit to activate never answers by a click: a unit with one action (a Shaken unit's Idle) is selected, and the action is its button.
-  if (question === 'activate' || question === 'act_or_end_phase') return new Set();
+export function clickAnswers(options: Options, ask: Ask, p: Projection, game: GameInfo): Set<string> {
   const counts = new Map<string, number>();
   for (const c of options.choices) for (const id of new Set(c.pieces)) counts.set(id, (counts.get(id) ?? 0) + 1);
-  return new Set([...counts].filter(([, count]) => count === 1).map(([id]) => id));
+  return new Set([...counts].filter(([id, count]) => count === 1 && othersPiece(ask, p, game, id)).map(([id]) => id));
+}
+
+/** A unit or model whose team the Ask does not address; false for anything else. */
+export function othersPiece(ask: Ask, p: Projection, game: GameInfo, id: string): boolean {
+  const unit = p.units.has(id) ? id : p.models.get(id)?.unitId;
+  const team = unit === undefined ? null : teamOf(p, game, unit);
+  return team !== null && !ask.teams.includes(team.id);
 }
 
 /** The choices that name a unit, by its id or one of its models' ids, in their order. */

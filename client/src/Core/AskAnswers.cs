@@ -22,17 +22,14 @@ public static class AskAnswers
         return null;
     }
 
-    /// <summary>A click on a piece exactly one option names answers that option; none or several answer nothing.</summary>
-    public static Chosen? ChosenByClick(Options options, Projection p, Guid clicked)
+    /// <summary>A click on a piece of the other team's (a team the Ask does not address) that exactly one option names answers that option
+    /// (a target pick). A click on a unit of a team the Ask addresses never answers: it selects the unit (DecisionView.ClickAnswers).</summary>
+    public static Chosen? ChosenByClick(Ask ask, Projection p, GameInfo game, Guid clicked)
     {
+        if (ask.Legal is not Options options || !DecisionView.OthersPiece(ask, p, game, clicked)) return null;
         var hits = options.Choices.Where(c => Resolve(p, clicked, c.Pieces) is not null).ToList();
         return hits.Count == 1 ? new Chosen(hits[0].Id) : null;
     }
-
-    /// <summary><see cref="ChosenByClick(Options, Projection, Guid)"/> for an Ask: nothing when it picks a unit to activate (DecisionView.ClickAnswers),
-    /// where a click selects the unit and its action is a button.</summary>
-    public static Chosen? ChosenByClick(Options options, Projection p, Guid clicked, string question) =>
-        question is AskQuestions.Activate or AskQuestions.ActOrEndPhase ? null : ChosenByClick(options, p, clicked);
 
     public static TokensSpent Spent(IReadOnlyDictionary<Guid, int> values) =>
         new(values.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value));

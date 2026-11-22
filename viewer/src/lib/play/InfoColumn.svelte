@@ -40,7 +40,7 @@
 
   let {
     connection, snap, shown, scene, prediction, pendingUndoTo, rules, geometry, selection, hoveredUnit, catalog, myTeam, eligible, getSettings, updateSettings,
-    onPickModel, onTouch, overlay = $bindable(null),
+    onPickModel, onTouch, overlay = $bindable(null), pickHovered = null, placing = null,
   }: {
     connection: GameConnection; snap: ConnectionState;
     /** The projection to show: the prediction while an undo travels, else the connection's. */
@@ -55,6 +55,8 @@
     onPickModel: (modelId: string) => void; onTouch: (pieceIds: readonly string[]) => void;
     /** The hover label, drawn over the board. */
     overlay?: Overlay | null;
+    /** A deploy pick's row under the pointer, and the unit my team is placing (PlacingFocus's): the card shows a unit not yet on the table. */
+    pickHovered?: string | null; placing?: string | null;
   } = $props();
 
   const cache = new CombatLogCache();
@@ -75,7 +77,7 @@
   const watching = $derived(isWatching(snap));
   const log = $derived(snap.game !== null && playing && shown !== null ? cache.of(snap.log, pendingUndoTo, snap.game, shown) : null);
 
-  const focus = $derived(shown !== null && snap.game !== null && playing ? sheetFocusOf(shown, snap.game, myTeam, selection?.pieceId ?? null) : null);
+  const focus = $derived(shown !== null && snap.game !== null && playing ? sheetFocusOf(shown, snap.game, myTeam, selection?.pieceId ?? null, pickHovered, placing) : null);
 
   const sheet = $derived.by(() => {
     if (focus === null || shown === null || snap.game === null) return null;
@@ -233,13 +235,13 @@
   .log.open { flex: 1 1 10rem; min-height: 10rem; }
   :global([data-theme='fantasy']) .log { padding: calc(var(--space-2) + var(--frame-inset)); }
   .head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
-  .toggle { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 2rem; padding: 0; border: 0; border-radius: 0; clip-path: none; box-shadow: none;
+  .toggle { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 2rem; padding: 0; border: 0; border-radius: 0; clip-path: none; border-image: none; box-shadow: none;
     background: none; color: var(--text); }
   .toggle:hover:not(:disabled) { background: none; color: var(--accent); }
   .toggle h2 { margin: 0; font-size: .9rem; }
   .chev { display: inline-flex; transition: transform .12s; }
   .chev.open { transform: rotate(90deg); }
-  kbd { font-family: var(--font-num); font-size: .7rem; line-height: 1; padding: var(--space-1) var(--space-1); border: 1px solid var(--rule); border-radius: 3px; color: var(--dim); }
+  kbd { font-family: var(--font-num); font-size: .7rem; line-height: 1; padding: var(--space-2); border: 1px solid var(--rule); border-radius: 3px; color: var(--dim); }
   .filter { min-height: 2rem; min-width: 0; font-size: .9rem; }
   .detailed { display: flex; flex: none; align-items: center; gap: var(--space-1); font-size: .9rem; white-space: nowrap; }
   .foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--rule); }

@@ -130,8 +130,8 @@ public partial class HoverLabels : Node3D
         _terrainShown = hover;
         foreach (var c in _terrainPanel.GetChildren()) { _terrainPanel.RemoveChild(c); c.QueueFree(); }
         _terrainPanel.Theme = Ui.Theme; _terrainPanel.AddThemeStyleboxOverride("panel", Ui.FloatingPanel()); _terrainPanel.Size = Vector2.Zero;
-        var box = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; box.AddThemeConstantOverride("separation", 8); _terrainPanel.AddChild(box);
-        var head = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; head.AddThemeConstantOverride("separation", 12); box.AddChild(head);
+        var box = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; box.AddThemeConstantOverride("separation", Space.S); _terrainPanel.AddChild(box);
+        var head = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; head.AddThemeConstantOverride("separation", Space.M); box.AddChild(head);
         head.AddChild(new Label { Text = hover.Name, ThemeTypeVariation = Variation.Display });
         if (hover.Height.Length > 0) head.AddChild(new Label { Text = hover.Height, ThemeTypeVariation = Variation.Dim, VerticalAlignment = VerticalAlignment.Center });
         var chips = new HFlowContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(hover.Effects.Count > 1 ? 300 : 0, 0) }; chips.AddThemeConstantOverride("h_separation", 6); chips.AddThemeConstantOverride("v_separation", 6); box.AddChild(chips);

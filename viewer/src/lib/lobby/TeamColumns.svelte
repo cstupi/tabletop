@@ -139,7 +139,7 @@
   .compact .army { padding-left: var(--space-1); font-size: .85rem; }
   .army.warn { color: var(--warning); }
   .army.none { color: var(--dim); }
-  .army select { flex: 1 1 auto; min-width: 0; color: var(--text); }
+  .army select { flex: 1 1 auto; min-width: 0; color: var(--field-text); }
   .you-tag { color: var(--accent); flex: none; }
   .move { flex: none; width: 2.4rem; min-height: 1.8rem; padding: 0 var(--space-1); font-size: .9rem; }
   .empty { color: var(--dim); }

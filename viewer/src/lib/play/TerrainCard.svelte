@@ -39,7 +39,7 @@
   .card { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-2); overflow-y: auto;
     flex: 0 1 auto; max-height: 45%; min-height: 6rem; font-size: .95rem; }
   p { margin: 0; }
-  .band { display: flex; align-items: baseline; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-left: 6px solid var(--effect);
+  .band { display: flex; align-items: baseline; gap: var(--space-2); padding: var(--space-2); border-left: 6px solid var(--effect);
     background: color-mix(in srgb, var(--effect) 12%, transparent); }
   .head { margin: 0; flex: 1; min-width: 0; font-family: var(--font-display, var(--font-body)); font-weight: 700; text-transform: none; letter-spacing: 0;
     font-size: 1.15rem; line-height: 1.2; color: var(--text); overflow-wrap: anywhere; }

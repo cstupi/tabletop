@@ -44,7 +44,7 @@ public partial class GameScreen
         _logDrawer.CombatLog.FocusUnit = _card.UnitId;
         _hud.AddChild(_banner = new TurnBanner()); _banner.Bind(_session);
         _hud.AddChild(_end = new EndMessage()); _end.Bind(_session, Table, Input);
-        _hud.AddChild(_keys = new KeyOverlay()); _keys.Bind(_session, Table, Input);
+        _hud.AddChild(_keys = new KeyOverlay()); _keys.Bind(_session, Table, Input); _keys.Actions = () => IsInstanceValid(_decision) ? _decision!.Actions : [];
         _decision.KeysRequested += () => { if (IsInstanceValid(_keys) && _keys.Visible) _keys.Visible = false; else KeyOverlay.Request(); };   // the card's ⌨
 
         // Table overlays: Node3D children of the table, and the markers and floating text in a canvas layer of the table's own viewport.
@@ -76,6 +76,7 @@ public partial class GameScreen
         _header.GameOverPressed += _end.Open;
         _header.MenuRequested += _gameMenu.Open;
         _card.ModelPicked += SelectModel;
+        _decision.PickHovered += id => { if (_card is { } c && IsInstanceValid(c)) c.Preview(id); };   // a deploy pick's tile under the pointer shows in the card
         _card.Lit += pieces => { if (_decision is { } d && IsInstanceValid(d)) d.Light(pieces); };   // a weapon or group row under the pointer lights its models
         _decision.TargetsChanged += ShowTargets;
         _logDrawer.Reported += Toast;

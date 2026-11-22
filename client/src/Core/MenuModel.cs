@@ -98,7 +98,7 @@ public static class MenuModel
         if (maySetAside?.Contains(unitId) == true)
         {
             var aside = u.Conditions.Contains(SetAside);
-            items.Add(new(aside ? "Return to deployment" : "Set aside", MenuInput.None, _ => new SetCondition(new Subject(SubjectKind.Unit, unitId), SetAside, !aside)));
+            items.Add(new(aside ? "Return to deployment" : "Set aside", MenuInput.None, _ => SetAsideView.Toggle(unitId, !aside)));
         }
         foreach (var c in deployInside?.GetValueOrDefault(unitId) ?? [])
             if (p.Models.GetValueOrDefault(c) is { } hull && p.Units.GetValueOrDefault(hull.UnitId) is { } transport)

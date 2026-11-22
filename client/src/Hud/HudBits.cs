@@ -16,6 +16,25 @@ public static class HudBits
         MouseFilter = tooltip.Length > 0 ? Control.MouseFilterEnum.Pass : Control.MouseFilterEnum.Ignore,
     };
 
+    /// <summary>A set-aside chip (SetAsideView): the theme's `wait` icon in the accent and the rule's name in the chip box; the tooltip on the whole
+    /// chip. Clicks pass to the row. Fill sets it again.</summary>
+    public static PanelContainer AsideChip()
+    {
+        var chip = new PanelContainer { ThemeTypeVariation = Variation.Chip, MouseFilter = Control.MouseFilterEnum.Pass };
+        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", Space.XS); chip.AddChild(row);
+        row.AddChild(Icon("wait", Ui.Accent, 14));
+        row.AddChild(new Label { MouseFilter = Control.MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
+        return chip;
+    }
+
+    public static void FillAside(Control chip, SetAsideChip c)
+    {
+        var row = chip.GetChild(0);
+        Look.Icon((TextureRect)row.GetChild(0), "wait", Ui.Accent);
+        Look.Ink(Look.Text((Label)row.GetChild(1), c.Name), Ui.Accent);
+        Look.Tip(chip, c.Tip);
+    }
+
     /// <summary>No tint: for the theme's coloured icons (activated, objective, the conditions), drawn as they are.</summary>
     public static Color Plain => Ui.Faded with { A = 1 };
 
@@ -31,7 +50,7 @@ public static class HudBits
     {
         var cap = new PanelContainer { ThemeTypeVariation = Variation.Chip, MouseFilter = Control.MouseFilterEnum.Ignore, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
         var box = Ui.Theme.GetStylebox("panel", Variation.Chip).Duplicate() as StyleBoxFlat;
-        if (box is not null) { box.BorderColor = ink is { } i ? i with { A = 0.6f } : Ui.DimText; box.ContentMarginTop = box.ContentMarginBottom = 0; box.ContentMarginLeft = box.ContentMarginRight = Space.XS; cap.AddThemeStyleboxOverride("panel", box); }
+        if (box is not null) { box.BorderColor = ink is { } i ? i with { A = 0.6f } : Ui.DimText; cap.AddThemeStyleboxOverride("panel", box); }
         var label = new Label { Text = key, ThemeTypeVariation = Variation.Dim, MouseFilter = Control.MouseFilterEnum.Ignore };
         if (ink is { } c) label.AddThemeColorOverride("font_color", c with { A = 0.75f });
         cap.AddChild(label);
@@ -72,8 +91,9 @@ public static class HudBits
     {
         foreach (var c in b.GetChildren()) { b.RemoveChild(c); c.QueueFree(); }
         var pad = new MarginContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        foreach (var edge in new[] { "margin_left", "margin_right" }) pad.AddThemeConstantOverride(edge, Space.S);
-        foreach (var edge in new[] { "margin_top", "margin_bottom" }) pad.AddThemeConstantOverride(edge, Space.XS);
+        var inset = Ui.Current.Materials.Button.Inset;   // a text button: M across, S down, inside the face's drawn frame
+        foreach (var edge in new[] { "margin_left", "margin_right" }) pad.AddThemeConstantOverride(edge, inset + Space.M);
+        foreach (var edge in new[] { "margin_top", "margin_bottom" }) pad.AddThemeConstantOverride(edge, inset + Space.S);
         var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", Space.S); pad.AddChild(row);
         // The button face's own text colour: the theme's button text, which reads on a dark face (Fantasy) and a light one alike.
         var ink = Ui.Of(Ui.Current.ButtonText);
@@ -90,7 +110,7 @@ public static class HudBits
     /// <summary>A flat button of the theme's icon alone in the text colour (the accent on hover), its words in the tooltip.</summary>
     public static Button IconButton(string icon, string tooltip, int size = 16)
     {
-        var b = new Button { Flat = true, ThemeTypeVariation = Variation.FlatButton, FocusMode = Control.FocusModeEnum.None, TooltipText = tooltip, Icon = Ui.Icon(icon),
+        var b = new Button { Flat = true, ThemeTypeVariation = Variation.IconOnly, FocusMode = Control.FocusModeEnum.None, TooltipText = tooltip, Icon = Ui.Icon(icon),
             SizeFlagsVertical = Control.SizeFlags.ShrinkBegin };
         if (b.Icon is null) b.Text = tooltip;   // never a zero-width button
         b.AddThemeConstantOverride("icon_max_width", size);

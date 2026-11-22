@@ -906,12 +906,10 @@ The web app wears the Godot client's two themes, Sci-fi (default) and Fantasy
 - **Fonts.** The client's files, byte-identical, under `static/themes/<id>/fonts/` with their OFL
   texts and `LICENSES.md`: Orbitron (display), Rajdhani SemiBold (body), JetBrains Mono (numerals)
   for Sci-fi; Cinzel (display, numerals), EB Garamond (body) for Fantasy. `font-src 'self'`.
-- **Shapes.** Sci-fi panels, buttons and inputs are clipped at the corners (`clip-path`) with a
-  1 px cyan line, the line redrawn across each cut by corner gradients, and accent bars on panel
-  edges. A clip hides an outline, so a focused Sci-fi control turns its frame light and 2 px.
-  Fantasy panels are parchment (`paper.svg`, an `feTurbulence` grain) in a dark wood frame with a
-  brass line, after the client's `panel.svg`; buttons are wood with a brass line (`button.svg`);
-  focus is a 2 px dark outline.
+- **Materials.** Panels, dialogs, buttons and inputs are the client's material images (`scripts/ThemeTextures`, served from
+  `static/themes/<id>/`) as `border-image` nine-patches, the frame outside the padding: Sci-fi gunmetal plates and backlit keys,
+  Fantasy walnut framed in iron and brass with brass-rimmed plaques and parchment fields. The page's background is the backdrop
+  picture and tile (a starfield over a nebula; leather under a lamp). Focus is a 2 px outline.
 - **Rules.** Theme-wide control rules sit in `:where()`, so a component's scoped style wins.
   Buttons take `.primary`, `.danger` or `.quiet`; `.panel`, `.seg` (aria-pressed group), `.empty`,
   `.loading`, `.notice` are the shared blocks in `src/app.css`. Spacing is `--space-1`…`--space-6`.

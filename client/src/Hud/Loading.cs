@@ -103,7 +103,7 @@ public partial class LoadingCurtain : Control
         top.AddChild(new Label { Text = game.Name, ThemeTypeVariation = Variation.Display, MouseFilter = MouseFilterEnum.Ignore });
         var chip = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsVertical = SizeFlags.ShrinkCenter };
         var box = new StyleBoxFlat { BgColor = Ui.Accent with { A = 0.18f }, BorderColor = Ui.Accent }; box.SetBorderWidthAll(1); box.SetCornerRadiusAll(10);
-        box.ContentMarginLeft = box.ContentMarginRight = Space.S; box.ContentMarginTop = box.ContentMarginBottom = Space.XS;
+        box.SetContentMarginAll(Space.S);   // S inside the strip's border (spacing rule 5)
         chip.AddThemeStyleboxOverride("panel", box);
         chip.AddChild(new Label { Text = game.Status.ToUpperInvariant(), ThemeTypeVariation = Variation.Accent, MouseFilter = MouseFilterEnum.Ignore });
         top.AddChild(chip);

@@ -74,6 +74,7 @@ public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : I
     public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId, IReadOnlySet<Guid> deploying) => inner.MayDeployInside(state, unitId, containerModelId, deploying);
     public IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside(GameState state) => inner.DeployInside(state);
     public IReadOnlyList<Guid> MaySetAside(GameState state, PropertySet properties) => inner.MaySetAside(state, properties);
+    public IReadOnlyDictionary<Guid, SetAsideRule> SetAsideRules(GameState state, PropertySet properties) => inner.SetAsideRules(state, properties);
     public IReadOnlyDictionary<Guid, UnitThreat> Threats(GameState state, PropertySet properties) => inner.Threats(state, properties);
     public IReadOnlyList<Guid> InCover(GameState state) => inner.InCover(state);
     public AnswerBreachFound? AnswerBreach(GameState state, Ask ask, AskAnswer answer) => inner.AnswerBreach(state, ask, answer);

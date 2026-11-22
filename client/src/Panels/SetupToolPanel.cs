@@ -22,7 +22,7 @@ public partial class SetupToolPanel : PanelContainer
     public override void _Ready()
     {
         _s = Main.Instance.Session;
-        var box = SetupRail.Band(); box.SetContentMarginAll(Space.S); AddThemeStyleboxOverride("panel", box);   // compact over the table: two team columns fit
+        AddThemeStyleboxOverride("panel", ThemeBuilder.Nine(Ui.Current.Materials.Panel, Space.S, Space.S));   // compact over the table: two team columns fit
         _column = new VBoxContainer(); _column.AddThemeConstantOverride("separation", Space.M); AddChild(_column);
         _head = new HBoxContainer(); _head.AddThemeConstantOverride("separation", Space.S); _column.AddChild(_head);
         _head.AddChild(_icon = HudBits.Icon("terrain", Ui.Accent, 20));
