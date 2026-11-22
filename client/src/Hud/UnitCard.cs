@@ -99,7 +99,7 @@ public partial class UnitCard : VBoxContainer
             ? SheetFocus.Of(p, game, _s.MyTeamId, _input.Selected?.PieceId, _previewed, _placing.Placing(Placing(p), _input.Selected?.PieceId)) : null;
         if (unit != _unit) { _unit = unit; FocusChanged?.Invoke(unit); }
         Visible = unit is not null;
-        if (unit is not { } u) { _sheet = null; _names = null; _content = null; return; }
+        if (unit is not { } u) { _sheet = null; _names = null; _content = null; _pending.Clear(); return; }
         var names = new Names(game!, p!);
         var sheet = UnitSheet.Of(p!, names, u, _s.Rules, _s.MaxWounds);
         _sheet = sheet; _names = names;
@@ -111,7 +111,7 @@ public partial class UnitCard : VBoxContainer
             var scroll = _content?.Sheet.UnitId == u ? _card.ScrollVertical : 0;
             var parts = UnitCardParts.Changed(_content, content);
             _content = content;
-            RenderCard(content, parts);
+            RenderSpread(parts);
             if (scroll > 0) RestoreScroll(scroll);
         }
         RenderStrip(p!, game!, names, sheet);
@@ -133,6 +133,33 @@ public partial class UnitCard : VBoxContainer
     /// (why my open choice limits this unit, AskOption.Note), the model groups, the weapons and the rules. Each part is its own box in the body,
     /// set again only when UnitCardParts names it, and its controls stand across renders (Kept): a render sets their text, colours and
     /// visibility, so a new selection makes no controls once the card has drawn a unit as large.</summary>
+    /// <summary>The parts a render still has to draw, from the latest content: a new unit's card draws its parts within a few milliseconds in the
+    /// selecting frame and the rest one frame after another (each part's new text costs its shaping; a large unit's weapons and rules took a
+    /// 30 ms frame at once).</summary>
+    readonly SortedSet<UnitCardPart> _pending = new(); bool _drawQueued;
+    const double PartBudgetMs = 4;
+
+    void RenderSpread(IReadOnlyList<UnitCardPart> parts)
+    {
+        _pending.UnionWith(parts);
+        DrawPending();
+    }
+
+    void DrawPending()
+    {
+        _drawQueued = false;
+        if (_content is not { } c || !IsInstanceValid(this)) { _pending.Clear(); return; }
+        var start = Time.GetTicksUsec();
+        while (_pending.Count > 0)
+        {
+            var part = _pending.Min;
+            _pending.Remove(part);
+            RenderCard(c, [part]);
+            if ((Time.GetTicksUsec() - start) / 1000.0 >= PartBudgetMs) break;
+        }
+        if (_pending.Count > 0 && !_drawQueued) { _drawQueued = true; Screens.FrameBudget.Next(DrawPending); }
+    }
+
     void RenderCard(UnitCardContent c, IReadOnlyList<UnitCardPart> parts)
     {
         if (_parts.Count == 0)
