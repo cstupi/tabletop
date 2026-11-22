@@ -9,7 +9,11 @@ namespace Tabletop.Management.Content.Armies;
 public sealed record AfList(string Id, string Name, string GameSystem, List<AfUnit> Units);
 public sealed record AfUnit(string SelectionId, string Name, int Size, JsonElement Quality, JsonElement Defense,
     List<AfRule>? Rules, List<AfLoadoutItem>? Loadout, AfBases? Bases, bool Combined, string? JoinToUnit, string? ArmyId = null,
-    JsonElement? Weapons = null, JsonElement? Items = null, JsonElement? SelectedUpgrades = null, JsonElement? Cost = null, string? Id = null);
+    JsonElement? Weapons = null, JsonElement? Items = null, JsonElement? SelectedUpgrades = null, JsonElement? Cost = null, string? Id = null, AfProduct? Product = null);
+/// <summary>The official products Army Forge lists for an entry, read for their labels alone. The owner, 2026-11-22: "Don't store army forge links or
+/// images or use them as I don't own them." So a store link's `url` and the product's `imageUrls`, `avatarImageUrl` and `description` are never read.</summary>
+public sealed record AfProduct(List<AfStoreLink?>? StoreLinksDigital, List<AfStoreLink?>? StoreLinksPhysical);
+public sealed record AfStoreLink(string? Label);
 /// <summary>A rule, or (`type` "ArmyBookWeapon", inside an upgrade's `content`) a weapon the upgrade gives, with the weapon's fields.</summary>
 public sealed record AfRule(string Name, JsonElement? Rating, string? Type = null, JsonElement? Range = null, int? Attacks = null, List<AfRule>? SpecialRules = null)
 {

@@ -70,7 +70,7 @@ public abstract partial class RepositoryContract
             new ModelSlot(Guid.CreateVersion7(), 0, "Sergeant", new Dictionary<string, string> { ["Tough"] = "1" }, [new PropertyInstance("Hero", null)], Base.Circle(1), 1.5, null,
                 [new Weapon(Guid.CreateVersion7(), "Rifle", new Dictionary<string, string> { ["Range"] = "24", ["Attacks"] = "1" }, [new PropertyInstance("AP", 1)])], "book"),
             new ModelSlot(Guid.CreateVersion7(), 1, "Trooper", new Dictionary<string, string>(), [], Base.Circle(1), 1.5, null, [], "book"),
-        ]),
+        ], Points: 120) { ProductNames = ["Squad", "Squad (Heavy Weapons)"] },
         new Unit(Guid.CreateVersion7(), 1, "Walker", new Dictionary<string, string>(), [],
             [new ModelSlot(Guid.CreateVersion7(), 0, "Walker", new Dictionary<string, string>(), [], Base.Oval(2, 1.5), 3, null, [], null)]),
         new Unit(Guid.CreateVersion7(), 2, "Swarm", new Dictionary<string, string> { ["Quality"] = "5+", ["Defense"] = "6+" }, [],

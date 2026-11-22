@@ -980,6 +980,7 @@ export interface Unit {
   readonly models: readonly ModelSlot[];
   readonly reserve?: UnitReserve;
   readonly points?: number;
+  readonly productNames?: readonly string[];
 }
 
 export interface UnitCoherency {

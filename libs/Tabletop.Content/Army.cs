@@ -28,7 +28,12 @@ public sealed record ModelSlot(
 public sealed record Unit(
     Guid Id, int Ordinal, string Name,
     IReadOnlyDictionary<string, string> Stats, IReadOnlyList<PropertyInstance> Properties,
-    IReadOnlyList<ModelSlot> Models, UnitReserve? Reserve = null, int? Points = null);
+    IReadOnlyList<ModelSlot> Models, UnitReserve? Reserve = null, int? Points = null)
+{
+    /// <summary>The names of the official products the army list names for the unit's entries (labels only: never a link, image or description);
+    /// null when it named none or the army was imported before they were kept. Only the web mesh picker reads them, to rank its suggestions.</summary>
+    public IReadOnlyList<string>? ProductNames { get; init; }
+}
 
 /// <summary>What places a reserve unit: Property, a property name held at Of, which is a model slot id or a unit id of the same army.</summary>
 public sealed record UnitReserve(string Property, Guid Of);

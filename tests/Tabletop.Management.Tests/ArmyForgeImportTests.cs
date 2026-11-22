@@ -162,6 +162,39 @@ public class ArmyForgeImportTests
         Assert.Equal([("Squad", (int?)170), ("Old", null)], units.Select(u => (u.Name, u.Points)));      // 100 + 15, and the joined champion's 50 + 5
     }
 
+    /// <summary>The owner, 2026-11-22: the official products Army Forge lists for a unit rank the mesh picker's suggestions, by name only —
+    /// "Don't store army forge links or images or use them as I don't own them." Each entry's store-link labels, trimmed and once each
+    /// (a joined entry's too); every URL, image and description is dropped.</summary>
+    [Fact]
+    public void A_unit_keeps_its_product_names_and_nothing_else_of_the_product()
+    {
+        var json = """
+          {"id":"t","name":"T","gameSystem":"gf","units":[
+          {"selectionId":"av","name":"Avatar","size":1,"quality":3,"defense":2,"rules":[],"combined":false,"joinToUnit":null,
+           "bases":{"round":"60","square":"60"},"loadout":[{"name":"Claws","type":"ArmyBookWeapon","count":1,"range":0,"attacks":4,"specialRules":[]}],
+           "product":{"imageUrls":["army-books/unitProduct/x/a.png","https://img.example/b.png"],"description":"A big daemon","avatarImageUrl":"army-books/unitProduct/x/c.png",
+             "storeLinksDigital":[{"url":"https://www.example.com/object/avatar-of-change","label":" Avatar of Change "},{"url":"https://www.example.com/object/epic","label":"Avatar of Change [Epic]"}],
+             "storeLinksPhysical":[{"url":"https://shop.example.com/avatar","label":"avatar of change"},{"url":"https://shop.example.com/none","label":""},{"url":"https://shop.example.com/link","label":"https://shop.example.com/link"},{"url":"https://shop.example.com/nolabel"}]}},
+          {"selectionId":"sq","name":"Squad","size":2,"quality":4,"defense":5,"rules":[],"combined":false,"joinToUnit":null,
+           "bases":{"round":"25","square":"20"},"loadout":[{"name":"Rifle","type":"ArmyBookWeapon","count":2,"range":24,"attacks":1,"specialRules":[]}],
+           "product":{"storeLinksDigital":[{"url":"https://www.example.com/squad","label":"Squad"}]}},
+          {"selectionId":"champ","name":"Champion","size":1,"quality":3,"defense":4,"combined":false,"joinToUnit":"sq","rules":[],
+           "bases":{"round":"32","square":"32"},"loadout":[{"name":"Rifle","type":"ArmyBookWeapon","count":1,"range":24,"attacks":1,"specialRules":[]}],
+           "product":{"storeLinksPhysical":[{"url":"https://shop.example.com/champ","label":"Champion"}]}},
+          {"selectionId":"old","name":"Old","size":1,"quality":4,"defense":4,"combined":false,"joinToUnit":null,"rules":[],"product":null,
+           "bases":{"round":"25","square":"25"},"loadout":[{"name":"Rifle","type":"ArmyBookWeapon","count":1,"range":24,"attacks":1,"specialRules":[]}]}]}
+          """;
+        var army = ArmyForgeImport.ToArmy(ArmyForgeClient.Parse(json), "x", Catalog);
+        Assert.Equal([["Avatar of Change", "Avatar of Change [Epic]"], ["Squad", "Champion"], null], army.Units.Select(u => u.ProductNames?.ToArray()));
+        foreach (var unit in army.Units)
+        {
+            var stored = ContentJson.Serialize(unit);
+            Assert.DoesNotContain("http", stored, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("army-books", stored);
+            Assert.DoesNotContain("daemon", stored, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     [Fact]
     public void A_joined_hero_becomes_a_model_of_the_unit_it_joined()
     {
