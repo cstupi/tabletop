@@ -20,4 +20,8 @@ fi
 if grep -rnE 'new (Godot\.)?Color\(|\bColors\.|\bColor\.(FromHtml|Color8|FromHsv)\b|\bColor\s+\w+\s*=\s*new\(|\b(Self)?Modulate\s*=\s*new\(|\bColor\s*=\s*new\(' client/src/Hud client/src/Panels client/src/Screens; then
     echo "check-client: a colour literal in Hud, Panels or Screens; use Ui or Variation" >&2; status=1
 fi
+# Spacing (spec 2026-11-21-spacing-rules-design.md): a separation, margin or content margin names a Space step, never a number (0 is no spacing).
+if grep -rnE --include='*.cs' --exclude=Space.cs 'AddThemeConstantOverride\([^;]*(separation|margin|side|edge)[^;]*\b[1-9][0-9]*\b|ContentMargin(Left|Right|Top|Bottom)\s*=\s*[^;,}]*\b[1-9][0-9]*\b|SetContentMarginAll\([^)]*\b[1-9][0-9]*\b' client/src/Hud client/src/Panels client/src/Screens client/src/Theme; then
+    echo "check-client: a spacing literal in Hud, Panels, Screens or Theme; use a Space step" >&2; status=1
+fi
 exit $status
