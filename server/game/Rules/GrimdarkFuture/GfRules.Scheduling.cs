@@ -69,16 +69,18 @@ public sealed partial class GrimdarkFutureRules
         // shoot (p.7: Rush "can't shoot"); the player picks between the two.
         if (InstinctiveAttack(state, props, unit) is { } attack)
             return (actionRows.Where(a => a == Charge ? attack.Charge : attack.Shoot && a != Rush).ToList(), InstinctiveNote);
-        // p.7: "Units may only take a Charge action if at least one model is within charge distance of the target unit".
-        return actionRows.Contains(Charge) && GfMelee.ChargeTargets(state, props, unit.Id).Count == 0
-            ? (actionRows.Where(a => a != Charge).ToList(), NoChargeNote)
-            : (actionRows, null);
+        // p.7: "Units may only take a Charge action if at least one model is within charge distance of the target unit"; 3.5.1 p.11, 3.6.0 p.12 hold a
+        // move in or through Difficult terrain to 6", so a target only that cap keeps out of reach gets its own note.
+        if (!actionRows.Contains(Charge) || GfMelee.ChargeTargets(state, props, unit.Id).Count > 0) return (actionRows, null);
+        var note = GfMelee.ChargeTargets(state, props, unit.Id, difficult: false).Count > 0 ? DifficultNoChargeNote : NoChargeNote;
+        return (actionRows.Where(a => a != Charge).ToList(), note);
     }
 
     public const string AircraftNote = "Aircraft: may only use Advance actions, even if Shaken";
     public const string ShakenNote = "Shaken: must spend this activation being idle, which stops it being Shaken at the end of the activation";
     public const string ImmobileNote = "Immobile: may only use Hold actions";
     public const string NoChargeNote = "No Charge: no enemy unit within charge distance";
+    public const string DifficultNoChargeNote = "No Charge: moving in or through Difficult terrain limits the move to 6\", which reaches no enemy unit";
 
     public Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer) => answer switch
     {

@@ -462,6 +462,13 @@ sequenceDiagram
     M->>CT: consolidate: 3 inches if a unit died, else the charger falls back 1 inch
 ```
 
+Charge is offered (`GrimdarkFutureRules.ActivationChoices`) only when `GfMelee.ChargeTargets` finds a unit some charging model reaches
+by `Movement.ContactInReach` under the move's own terrain: impassable volumes, and for a unit that does not ignore Difficult terrain
+(Strider, Flying, the Banner of Eternal Flame) the 6" cap of 3.5.1 p.11 / 3.6.0 p.12 (*"If any model in a unit moves in or through Difficult
+terrain at any point of its move, then all models in the unit may not move more than 6” for that movement"*): a path past 6" goes round the
+Difficult and Steep ground, and a unit counted as in difficult terrain, or with a model standing in it (`GfMoves.StandsIn`: that model moves
+in it as soon as it moves), reaches no farther than 6". A unit kept out only by the cap gets `DifficultNoChargeNote`, else `NoChargeNote`.
+
 The defender is asked three times in one charge (four under 3.6.0, with `counter`): close in, strike back, and allocation inside
 each `deal-wounds`. Under 3.5.1 `counter` precedes `impact` (the book leaves the order ambiguous) and each Counter model takes one Impact die; under 3.6.0 `impact` precedes `counter` (p.14 *"before either unit attacks"*) and Counter takes no dice (`GfEdition.ImpactBeforeCounter`, `CounterReducesImpact`). Under 3.6.0 the defender's team is asked `counter` (p.13 *"May strike first with this weapon when charged, unless this unit is Fatigued"*; `GfEdition.CounterOptional`), and a Fatigued or Shaken defender (p.10, *"counting as Fatigued"*) is not asked and has no Counter strike (`CounterLostWhenFatigued`); either way `counter` records `counter_held` and the Counter weapons strike with the rest in `strike-back`. Counter-Attack (*"Strikes first when charged"*) is not asked under either edition. Under 3.6.0 `impact` also takes Brace off the charger's total Impact dice (Army Forge's common rules: *"Enemies charging this unit get -X total Impact rolls, unless this unit is Fatigued"*): X is read off the defender's melee weapons with weapon-type collapse, so five Spears with Brace(1) take one die, floor 0, and a Fatigued or Shaken defender takes none off (`GfMelee.Brace`). `melee-start` has to record both units' `WoundsThisActivation` **before**
 anything strikes, because `compare` subtracts that baseline under 3.5.1. A step inserted before `melee-start`

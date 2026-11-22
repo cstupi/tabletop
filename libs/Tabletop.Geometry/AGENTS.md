@@ -39,7 +39,8 @@ Geometry values and computations: distance, line of sight, cover, collision (res
   `ContactVertical` the lead rests on its open surface nearest the target's level and is contact only within that height of the target's base, and
   each landing comes back with its rest height. The game server's `charge_contact` asks whether a charge could have reached contact, and the
   simulator's policy charges that way. `Movement.ContactInReach` is the same test for one model (a plan path to contact, then a contact landing
-  within the vertical reach on a path within the limit), the game server's charge targets. Collision keeps bodies apart in the client's drag.
+  within the vertical reach on a path within the limit; given difficult volumes and a cap, each landing's path judged as `Check` judges it, the landing
+  search run only when the shortest path is over the cap and difficult ground lies within the limit), the game server's charge targets. Collision keeps bodies apart in the client's drag.
 
 ## Commands
 
