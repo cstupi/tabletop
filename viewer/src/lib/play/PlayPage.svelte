@@ -489,11 +489,11 @@
   .top { grid-area: top; min-width: 0; }
   .roster { grid-area: roster; min-height: 0; }
   .stage { grid-area: stage; position: relative; min-height: 0; min-width: 0; }
-  .float { position: absolute; z-index: 2; left: 50%; transform: translateX(-50%); pointer-events: none; max-width: calc(100% - 2 * var(--s4)); }
+  .float { position: absolute; z-index: 2; left: 50%; transform: translateX(-50%); pointer-events: none; max-width: calc(100% - 2 * var(--space-3)); }
   .float.banner { top: 20%; }
-  .float.foot { bottom: var(--s4); display: flex; flex-direction: column; gap: var(--s2); align-items: center; }
+  .float.foot { bottom: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); align-items: center; }
   .float.foot p { margin: 0; box-shadow: 0 2px 10px #0000004d; }
-  .side { grid-area: side; display: flex; flex-direction: column; gap: var(--s3); min-height: 0; overflow: hidden; padding: var(--s3);
+  .side { grid-area: side; display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; overflow: hidden; padding: var(--space-2);
     border-left: 1px solid var(--rule); background: color-mix(in srgb, var(--panel-solid) 60%, transparent); }
   @media (max-width: 75rem) { .play { grid-template-columns: auto minmax(0, 1fr) 20rem; } }
   /* A short window: the column scrolls as a whole, each part at its own height, the log at least 24rem. */

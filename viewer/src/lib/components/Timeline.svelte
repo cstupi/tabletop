@@ -43,10 +43,10 @@
 
 <style>
   .timeline {
-    display: flex; gap: var(--s2); align-items: center; padding: var(--s2) var(--s4);
+    display: flex; gap: var(--space-2); align-items: center; padding: var(--space-2) var(--space-3);
     border-top: 1px solid var(--rule); background: var(--panel-solid);
   }
   input[type='range'] { flex: 1 1 12rem; accent-color: var(--accent); }
-  label { display: inline-flex; align-items: center; gap: var(--s1); }
+  label { display: inline-flex; align-items: center; gap: var(--space-1); }
   .line { flex: 2 1 20rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

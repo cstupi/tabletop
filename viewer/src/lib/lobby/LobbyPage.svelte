@@ -158,33 +158,33 @@
 <style>
   /* Wide: the teams scroll on their own and the Game panel stays whole, its Start setup always in view. Narrow: one scrolling column. */
   .lobby { min-height: 0; }
-  .inner { height: 100%; max-width: 110rem; margin: 0 auto; padding: var(--s5) var(--s4); display: grid; grid-template-columns: minmax(0, 1fr) 22rem; grid-template-rows: minmax(0, 1fr);
-    gap: var(--s5); align-items: start; }
-  .teams { max-height: 100%; overflow-y: auto; padding-right: var(--s1); }
+  .inner { height: 100%; max-width: 110rem; margin: 0 auto; padding: var(--space-4) var(--space-3); display: grid; grid-template-columns: minmax(0, 1fr) 22rem; grid-template-rows: minmax(0, 1fr);
+    gap: var(--space-4); align-items: start; }
+  .teams { max-height: 100%; overflow-y: auto; padding-right: var(--space-1); }
   .settings { max-height: 100%; display: flex; flex-direction: column; }
   .settings > h2 { flex: none; }
-  .body { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 calc(-1 * var(--s2)); padding: 0 var(--s2); }
+  .body { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 calc(-1 * var(--space-2)); padding: 0 var(--space-2); }
   @media (max-width: 60rem) {
     .lobby { overflow-y: auto; }
     .inner { height: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
     .teams, .settings { max-height: none; overflow: visible; }
   }
-  .head { display: flex; align-items: center; gap: var(--s5); margin-bottom: var(--s3); }
+  .head { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-3); }
   .head h2 { margin: 0; }
   .start { min-width: 12rem; }
-  .todo { list-style: none; margin: 0 0 var(--s5); padding: 0; display: flex; flex-wrap: wrap; gap: var(--s2) var(--s5); color: var(--accent); }
-  .todo li { display: inline-flex; align-items: center; gap: var(--s1); }
+  .todo { list-style: none; margin: 0 0 var(--space-4); padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); color: var(--accent); }
+  .todo li { display: inline-flex; align-items: center; gap: var(--space-1); }
   .todo li.missing { color: var(--warning); }
   .settings { margin: 0; }
-  form { display: flex; flex-direction: column; gap: var(--s3); }
-  label { display: flex; flex-direction: column; align-items: stretch; gap: var(--s1); margin: 0; color: var(--dim); font-size: .95rem; }
+  form { display: flex; flex-direction: column; gap: var(--space-3); }
+  label { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-1); margin: 0; color: var(--dim); font-size: .95rem; }
   label :global(input), label select { width: 100%; color: var(--text); font-size: 1rem; }
   label small { font-size: .85rem; }
-  fieldset { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s3); }
-  .apply { display: flex; align-items: center; gap: var(--s3); }
-  .foot { flex: none; display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--rule); }
+  fieldset { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3); }
+  .apply { display: flex; align-items: center; gap: var(--space-3); }
+  .foot { flex: none; display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--rule); }
   dl { margin: 0; display: flex; flex-direction: column; }
-  dl > div { display: flex; justify-content: space-between; gap: var(--s3); padding: var(--s2) 0; border-top: 1px solid var(--rule); }
+  dl > div { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; border-top: 1px solid var(--rule); }
   dl > div:first-child { border-top: 0; padding-top: 0; }
   dt { color: var(--dim); }
   dd { margin: 0; text-align: right; }

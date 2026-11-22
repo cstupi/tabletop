@@ -16,7 +16,7 @@
 </ul>
 
 <style>
-  .piece-menu { position: absolute; z-index: 5; margin: 0; padding: 0.2rem; list-style: none; background: var(--panel);
+  .piece-menu { position: absolute; z-index: 5; margin: 0; padding: var(--space-1); list-style: none; background: var(--panel);
     border: 1px solid var(--line); border-radius: 3px; min-width: 9rem; }
   button { display: block; width: 100%; text-align: left; border: 0; }
 </style>

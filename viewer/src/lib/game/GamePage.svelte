@@ -100,16 +100,16 @@
 <style>
   .game { display: flex; flex-direction: column; height: 100%; min-height: 0; }
   .game > :global(:last-child) { flex: 1; min-height: 0; }
-  .strip { flex: none; display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s4); min-height: 3.25rem;
+  .strip { flex: none; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); min-height: 3.25rem;
     background: var(--panel-solid); border-bottom: 1px solid var(--rule); }
-  .back { display: inline-flex; align-items: center; gap: var(--s1); text-decoration: none; white-space: nowrap; }
-  .sep { width: 1px; align-self: stretch; margin: var(--s1) 0; background: var(--rule); }
+  .back { display: inline-flex; align-items: center; gap: var(--space-1); text-decoration: none; white-space: nowrap; }
+  .sep { width: 1px; align-self: stretch; margin: var(--space-1) 0; background: var(--rule); }
   .title { margin: 0; font-size: 1.05rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .title::after { display: none; }
   .conn { color: var(--warning); font-size: .9rem; white-space: nowrap; }
   .push { flex: 1; }
   .waiting { color: var(--dim); font-size: .95rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .strip-alert { flex: none; margin: 0; }
-  .center { display: grid; place-items: center; padding: var(--s5); }
+  .center { display: grid; place-items: center; padding: var(--space-4); }
   .center .panel { max-width: 30rem; width: 100%; }
 </style>

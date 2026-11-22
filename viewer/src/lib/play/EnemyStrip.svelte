@@ -18,7 +18,7 @@
 </section>
 
 <style>
-  .strip { margin: 0; padding: var(--s2) var(--s3); background: var(--panel-solid); border: 1px solid var(--rule); border-left: 3px solid var(--warning); font-size: .9rem; }
+  .strip { margin: 0; padding: var(--space-2) var(--space-2); background: var(--panel-solid); border: 1px solid var(--rule); border-left: 3px solid var(--warning); font-size: .9rem; }
   p { margin: 0; overflow-wrap: anywhere; }
   .name { font-weight: 700; }
   .success { color: var(--success); }

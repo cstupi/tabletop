@@ -117,22 +117,22 @@
 </section>
 
 <style>
-  .log { display: flex; flex-direction: column; gap: var(--s1); flex: 1; min-height: 0; font-size: .95rem; line-height: 1.35; }
-  .bar { display: flex; align-items: center; gap: var(--s2); }
+  .log { display: flex; flex-direction: column; gap: var(--space-1); flex: 1; min-height: 0; font-size: .95rem; line-height: 1.35; }
+  .bar { display: flex; align-items: center; gap: var(--space-2); }
   .grow { flex: 1; }
   .filter { min-height: 2rem; font-size: .9rem; }
-  .detailed { display: flex; align-items: center; gap: var(--s1); font-size: .9rem; }
-  .flat { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; padding: 3px; border: 0; border-radius: 0;
+  .detailed { display: flex; align-items: center; gap: var(--space-1); font-size: .9rem; }
+  .flat { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; padding: var(--space-1); border: 0; border-radius: 0;
     clip-path: none; box-shadow: none; background: none; color: var(--text); cursor: pointer; }
   .flat:hover:not(:disabled) { background: var(--rule); color: var(--accent); }
   .flat:disabled { opacity: .4; cursor: default; }
-  .sheet { flex: 1; min-height: 0; margin: 0; padding-right: var(--s1); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+  .sheet { flex: 1; min-height: 0; margin: 0; padding-right: var(--space-1); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
   .sheet.mono { font-family: ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace; font-size: .78rem; line-height: 1.3; }
   .p { cursor: pointer; }
   .p:hover { background: var(--rule); }
-  .p.band { box-shadow: inset 3px 0 0 var(--team); padding-left: 6px; }
+  .p.band { box-shadow: inset 3px 0 0 var(--team); padding-left: var(--space-2); }
   .p.picked { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   .struck { text-decoration: line-through; }
   .dim { color: var(--dim); }
-  .none { margin: var(--s2) 0; color: var(--dim); }
+  .none { margin: var(--space-2) 0; color: var(--dim); }
 </style>

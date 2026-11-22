@@ -29,10 +29,10 @@
 {/each}
 
 <style>
-  .roll { border: 1px solid var(--line); border-radius: 3px; padding: 0.4rem 0.5rem; margin-bottom: 0.5rem; }
-  h3 { margin: 0 0 0.25rem; font-size: 1rem; }
-  p { margin: 0.15rem 0; }
-  .dice { display: flex; flex-wrap: wrap; gap: 0.25rem; }
-  .die { border: 1px solid var(--line); border-radius: 3px; padding: 0 0.3rem; color: var(--muted); }
+  .roll { border: 1px solid var(--line); border-radius: 3px; padding: var(--space-2) var(--space-2); margin-bottom: var(--space-2); }
+  h3 { margin: 0 0 var(--space-1); font-size: 1rem; }
+  p { margin: var(--space-1) 0; }
+  .dice { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+  .die { border: 1px solid var(--line); border-radius: 3px; padding: 0 var(--space-1); color: var(--muted); }
   .die.hit { border-color: #6ddf7c; color: #6ddf7c; }
 </style>

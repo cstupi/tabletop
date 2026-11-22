@@ -62,10 +62,10 @@
 {/if}
 
 <style>
-  .waiting { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s2); margin: 0; padding: var(--s4); flex: none; }
+  .waiting { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); margin: 0; padding: var(--space-3); flex: none; }
   h2 { margin: 0; font-size: .95rem; }
   p { margin: 0; }
   .warn { color: var(--warning); }
-  label { display: grid; gap: var(--s1); width: 100%; }
+  label { display: grid; gap: var(--space-1); width: 100%; }
   select { width: 100%; }
 </style>

@@ -114,39 +114,39 @@
 </div>
 
 <style>
-  .columns { display: grid; grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr)); gap: var(--s5); align-items: start; }
-  .columns.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
+  .columns { display: grid; grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr)); gap: var(--space-4); align-items: start; }
+  .columns.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   .column { display: flex; flex-direction: column; background: var(--panel-solid); border: 2px solid color-mix(in srgb, var(--team) 85%, transparent);
     border-left-width: 7px; min-width: 0; }
   .column.watching { border-color: color-mix(in srgb, var(--dim) 50%, transparent); }
   .column.over { background: color-mix(in srgb, var(--team) 22%, var(--panel-solid)); }
-  .band { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) var(--s4); background: var(--team); color: var(--bg); }
+  .band { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-3); background: var(--team); color: var(--bg); }
   .watching .band { background: color-mix(in srgb, var(--dim) 25%, transparent); color: var(--text); }
-  .compact .band { padding: var(--s1) var(--s2); gap: var(--s2); }
+  .compact .band { padding: var(--space-1) var(--space-2); gap: var(--space-2); }
   .words { display: flex; flex-direction: column; min-width: 0; }
   h3 { margin: 0; font-size: 1.15rem; letter-spacing: .06em; text-transform: uppercase; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .compact h3 { font-size: .95rem; }
-  .state { display: inline-flex; align-items: center; gap: var(--s1); font-size: .9rem; }
-  .members { list-style: none; margin: 0; padding: var(--s4); display: flex; flex-direction: column; gap: var(--s3); }
-  .compact .members { padding: var(--s2); gap: var(--s1); }
-  .member { display: flex; flex-direction: column; gap: var(--s1); padding: var(--s2); }
+  .state { display: inline-flex; align-items: center; gap: var(--space-1); font-size: .9rem; }
+  .members { list-style: none; margin: 0; padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3); }
+  .compact .members { padding: var(--space-2); gap: var(--space-1); }
+  .member { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2); }
   .member[draggable='true'] { cursor: grab; }
   .member.you { background: color-mix(in srgb, var(--accent) 10%, transparent); }
-  .name, .army { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+  .name, .army { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
   .player { color: var(--team); display: inline-flex; }
   .text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
-  .army { padding-left: var(--s3); font-size: .95rem; }
-  .compact .army { padding-left: var(--s1); font-size: .85rem; }
+  .army { padding-left: var(--space-3); font-size: .95rem; }
+  .compact .army { padding-left: var(--space-1); font-size: .85rem; }
   .army.warn { color: var(--warning); }
   .army.none { color: var(--dim); }
   .army select { flex: 1 1 auto; min-width: 0; color: var(--text); }
   .you-tag { color: var(--accent); flex: none; }
-  .move { flex: none; width: 2.4rem; min-height: 1.8rem; padding: 0 var(--s1); font-size: .9rem; }
+  .move { flex: none; width: 2.4rem; min-height: 1.8rem; padding: 0 var(--space-1); font-size: .9rem; }
   .empty { color: var(--dim); }
-  footer { display: flex; flex-direction: column; align-items: center; gap: var(--s2); padding: 0 var(--s4) var(--s4); }
+  footer { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); padding: 0 var(--space-3) var(--space-3); }
   .join { min-width: 8rem; }
-  .plus { flex: none; margin-left: auto; min-height: 0; padding: 0 var(--s2); line-height: 1.4; }
+  .plus { flex: none; margin-left: auto; min-height: 0; padding: 0 var(--space-2); line-height: 1.4; }
   .why { margin: 0; color: var(--dim); font-size: .85rem; text-align: center; }
-  .add { display: flex; align-items: center; justify-content: center; gap: var(--s2); min-height: 10rem; border-style: dashed; }
+  .add { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 10rem; border-style: dashed; }
   .compact .add { min-height: 0; }
 </style>

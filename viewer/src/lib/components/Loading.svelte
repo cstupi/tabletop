@@ -22,14 +22,14 @@
 {/if}
 
 <style>
-  .block { display: grid; place-items: center; height: 100%; min-height: 8rem; padding: var(--s4); box-sizing: border-box; }
-  .block .box { width: min(20rem, 100%); padding: var(--s4) var(--s5); margin: 0; }
-  .strip { position: absolute; z-index: 3; top: var(--s3); left: 50%; transform: translateX(-50%); pointer-events: none;
-    max-width: calc(100% - 2 * var(--s4)); }
-  .strip .box { width: 15rem; padding: var(--s2) var(--s4); margin: 0; }
+  .block { display: grid; place-items: center; height: 100%; min-height: 8rem; padding: var(--space-3); box-sizing: border-box; }
+  .block .box { width: min(20rem, 100%); padding: var(--space-3) var(--space-4); margin: 0; }
+  .strip { position: absolute; z-index: 3; top: var(--space-2); left: 50%; transform: translateX(-50%); pointer-events: none;
+    max-width: calc(100% - 2 * var(--space-3)); }
+  .strip .box { width: 15rem; padding: var(--space-2) var(--space-3); margin: 0; }
   .strip .loading { font-size: .9rem; }
   .loading { padding: 0; margin: 0; white-space: nowrap; }
-  .inline .loading { padding: var(--s4) 0; }
-  progress { display: block; height: .25rem; margin-top: var(--s2); }
+  .inline .loading { padding: var(--space-3) 0; }
+  progress { display: block; height: .25rem; margin-top: var(--space-2); }
   .inline progress { max-width: 20rem; margin-top: 0; }
 </style>

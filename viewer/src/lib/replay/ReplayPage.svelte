@@ -210,37 +210,37 @@
 <style>
   .replay { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; min-height: 0; }
   .top {
-    display: flex; align-items: center; gap: var(--s2) var(--s5); flex-wrap: wrap;
-    padding: var(--s2) var(--s4); background: var(--panel-solid); border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center; gap: var(--space-2) var(--space-4); flex-wrap: wrap;
+    padding: var(--space-2) var(--space-3); background: var(--panel-solid); border-bottom: 1px solid var(--rule);
   }
   .back { color: var(--dim); text-decoration: none; white-space: nowrap; }
   .back:hover { color: var(--text); }
-  .title { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+  .title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
   h1 { margin: 0; font-size: 1.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22rem; }
-  .where { display: flex; align-items: baseline; gap: var(--s3); flex: 1 1 auto; min-width: 0; }
+  .where { display: flex; align-items: baseline; gap: var(--space-2); flex: 1 1 auto; min-width: 0; }
   .round { font-weight: 600; white-space: nowrap; }
   .activation { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .scores { display: flex; align-items: center; gap: var(--s4); flex: none; }
-  .team { display: inline-flex; align-items: center; gap: var(--s2); white-space: nowrap; }
+  .scores { display: flex; align-items: center; gap: var(--space-3); flex: none; }
+  .team { display: inline-flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
   .team strong { font-family: var(--font-num, inherit); font-size: 1.1rem; }
   .swatch { width: 0.75rem; height: 0.75rem; border-radius: 50%; box-shadow: 0 0 0 1px var(--rule); }
   .body { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; min-height: 0; }
   .stage { position: relative; min-width: 0; min-height: 0; }
-  .pad { padding: var(--s4); margin: 0; }
+  .pad { padding: var(--space-3); margin: 0; }
   .side {
-    display: flex; flex-direction: column; gap: var(--s3); min-height: 0; overflow: hidden;
-    padding: var(--s3); border-left: 1px solid var(--rule); background: var(--panel-solid);
+    display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; overflow: hidden;
+    padding: var(--space-2); border-left: 1px solid var(--rule); background: var(--panel-solid);
   }
   .card-slot { flex: 0 1 auto; min-height: 0; max-height: 55%; display: flex; flex-direction: column; }
   .card-slot :global(.card) { max-height: none; min-height: 0; }
   .hint { margin: 0; color: var(--dim); }
-  .log-slot { flex: 1 1 0; min-height: 8rem; display: flex; flex-direction: column; gap: var(--s2); }
+  .log-slot { flex: 1 1 0; min-height: 8rem; display: flex; flex-direction: column; gap: var(--space-2); }
   h2 { margin: 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); }
   .log-slot :global(.log) { flex: 1; min-height: 0; }
   .log-slot :global(.log .rows) { flex: 1; max-height: none; min-height: 0; }
   /* The card's and the log's text buttons read as text, not as the theme's button face. */
   .side :global(button.flat) {
-    justify-content: flex-start; min-height: 0; padding: 0.1rem 0.2rem; background: none; box-shadow: none; border: 0; clip-path: none;
+    justify-content: flex-start; min-height: 0; padding: var(--space-1) var(--space-1); background: none; box-shadow: none; border: 0; clip-path: none;
     color: inherit; transform: none; display: block; text-align: left; overflow: hidden; text-overflow: ellipsis;
   }
   .side :global(button.flat:hover:not(:disabled)) { background: none; color: var(--accent); }

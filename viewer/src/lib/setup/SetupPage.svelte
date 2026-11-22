@@ -183,12 +183,12 @@
   .tools, .card-col { min-height: 0; overflow-y: auto; background: var(--panel-solid); }
   .tools { border-right: 1px solid var(--rule); display: flex; flex-direction: column; }
   .card-col { border-left: 1px solid var(--rule); }
-  .help { margin: auto 0 0; padding: var(--s3) var(--s4); font-size: .85rem; border-top: 1px solid var(--rule); }
-  kbd { font-family: var(--font-num); font-size: .8em; padding: 0 .3em; border: 1px solid var(--rule); color: var(--text); }
+  .help { margin: auto 0 0; padding: var(--space-2) var(--space-3); font-size: .85rem; border-top: 1px solid var(--rule); }
+  kbd { font-family: var(--font-num); font-size: .8em; padding: 0 var(--space-1); border: 1px solid var(--rule); color: var(--text); }
   .stage { position: relative; min-height: 0; min-width: 0; background: var(--board-bg); }
-  .pad { margin: var(--s4); }
-  .banner { position: absolute; top: var(--s3); left: 50%; transform: translateX(-50%); max-width: min(36rem, calc(100% - 2 * var(--s4)));
-    display: flex; gap: var(--s2); align-items: baseline; padding: var(--s2) var(--s3); background: var(--panel-solid); color: var(--text);
+  .pad { margin: var(--space-3); }
+  .banner { position: absolute; top: var(--space-2); left: 50%; transform: translateX(-50%); max-width: min(36rem, calc(100% - 2 * var(--space-3)));
+    display: flex; gap: var(--space-2); align-items: baseline; padding: var(--space-2) var(--space-2); background: var(--panel-solid); color: var(--text);
     border-left: 3px solid var(--failure); box-shadow: 0 2px 8px #0006; z-index: 4; }
   @media (max-width: 70rem) {
     .setup, .setup.carded { grid-template-columns: 16rem minmax(0, 1fr); }

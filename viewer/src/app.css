@@ -10,7 +10,7 @@ main.viewer > * { flex: 1; min-height: 0; }
 
 /* A document page: centred, scrolls on its own. */
 .doc { overflow-y: auto; }
-.doc > .inner { max-width: var(--page); margin: 0 auto; padding: var(--s5) var(--s4) var(--s7); }
+.doc > .inner { max-width: var(--page); margin: 0 auto; padding: var(--space-4) var(--space-3) var(--space-6); }
 
 /* The older viewer parts' names, mapped onto the theme. */
 :root { --ink: var(--text); --muted: var(--dim); --line: var(--rule); }
@@ -29,7 +29,7 @@ main.viewer > * { flex: 1; min-height: 0; }
 }
 
 /* A status chip: lobby, setup, playing, ended. */
-.chip { display: inline-flex; align-items: center; gap: var(--s1); padding: 0 var(--s2); min-height: 1.5rem; font-size: .8rem;
+.chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); min-height: 1.5rem; font-size: .8rem;
   border: 1px solid var(--rule); color: var(--dim); white-space: nowrap; }
 .chip.lobby, .chip.setup { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); }
 .chip.playing { color: var(--success); border-color: color-mix(in srgb, var(--success) 45%, transparent); }
@@ -37,10 +37,10 @@ main.viewer > * { flex: 1; min-height: 0; }
 :where([data-theme='fantasy']) .chip { border-radius: 3px; }
 
 /* A compact button for dense rows and tool panels. */
-:where(button, .button).small { min-height: 2rem; padding: 0 var(--s3); font-size: .95rem; }
+:where(button, .button).small { min-height: 2rem; padding: 0 var(--space-3); font-size: .95rem; }
 
 /* The play area's own tabs under the site header (Games, and Watch and Tests for admins and developers). */
-.subnav { display: flex; gap: var(--s4); padding: 0 var(--s4); border-bottom: 1px solid var(--rule); background: var(--panel-solid); flex: none; }
-.subnav a { padding: var(--s2) 0; color: var(--dim); text-decoration: none; border-bottom: 2px solid transparent; }
+.subnav { display: flex; gap: var(--space-3); padding: 0 var(--space-3); border-bottom: 1px solid var(--rule); background: var(--panel-solid); flex: none; }
+.subnav a { padding: var(--space-2) 0; color: var(--dim); text-decoration: none; border-bottom: 2px solid transparent; }
 .subnav a:hover { color: var(--text); }
 .subnav a[aria-current='page'] { color: var(--accent); border-bottom-color: var(--accent); }

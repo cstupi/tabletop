@@ -70,31 +70,31 @@
 </section>
 
 <style>
-  .card { display: flex; flex-direction: column; gap: var(--s2); margin: 0; padding: var(--s3) var(--s4); border-left: 6px solid var(--team); overflow-y: auto; flex: 0 1 auto; max-height: 45%;
+  .card { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-2); border-left: 6px solid var(--team); overflow-y: auto; flex: 0 1 auto; max-height: 45%;
     min-height: 6rem; font-size: .95rem; }
-  :global([data-theme='fantasy']) .card { padding: calc(var(--s3) + 4px) calc(var(--s4) + 4px); border-left: 8px solid var(--team); }
+  :global([data-theme='fantasy']) .card { padding: calc(var(--space-2) + var(--frame-inset)); border-left: 8px solid var(--team); }
   p { margin: 0; }
   .head { margin: 0; font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); font-size: 1.15rem;
     line-height: 1.2; color: var(--team); overflow-wrap: anywhere; }
-  .count { display: flex; align-items: baseline; gap: var(--s3); }
+  .count { display: flex; align-items: baseline; gap: var(--space-2); }
   .pips { color: var(--team); letter-spacing: 1px; white-space: nowrap; }
   .gp { flex: none; min-width: 3.5rem; font-size: .85rem; }
-  .caption { font-size: .75rem; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; margin-top: var(--s1); }
-  .stat { display: inline-flex; align-items: center; gap: var(--s1); padding: 1px var(--s2); border: 1px solid var(--accent); line-height: 1.5; white-space: nowrap; }
+  .caption { font-size: .75rem; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; margin-top: var(--space-1); }
+  .stat { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); border: 1px solid var(--accent); line-height: 1.5; white-space: nowrap; }
   .stat :global(.hud-icon) { color: var(--accent); }
-  .flow, .group { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s2); align-items: center; }
+  .flow, .group { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); align-items: center; }
   .group { flex-wrap: nowrap; border: 1px solid transparent; }
   .group.marked { border-color: var(--accent); }
-  .badge, .chip { display: inline-flex; align-items: center; gap: 3px; padding: 0 var(--s1); border: 1px solid var(--rule); font-size: .8rem; line-height: 1.5; color: var(--text); white-space: nowrap; }
+  .badge, .chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1); border: 1px solid var(--rule); font-size: .8rem; line-height: 1.5; color: var(--text); white-space: nowrap; }
   .chip.warn { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); }
   .warn { color: var(--warning); }
   .dim { color: var(--dim); }
-  .flat { flex: 1; min-width: 0; min-height: 0; justify-content: flex-start; padding: 2px var(--s1); border: 0; border-radius: 0; clip-path: none; box-shadow: none;
+  .flat { flex: 1; min-width: 0; min-height: 0; justify-content: flex-start; padding: var(--space-1) var(--space-1); border: 0; border-radius: 0; clip-path: none; box-shadow: none;
     background: none; color: var(--text); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .flat:hover:not(:disabled) { background: var(--rule); color: var(--text); }
   .gone { opacity: 0.45; }
   .wounds { white-space: nowrap; font-size: .8rem; letter-spacing: 1px; color: var(--text); }
-  .weapons { display: grid; grid-template-columns: minmax(6rem, auto) auto auto auto 1fr; gap: 2px var(--s3); align-items: baseline; font-size: .9rem;
-    padding-top: var(--s2); border-top: 1px solid var(--rule); }
+  .weapons { display: grid; grid-template-columns: minmax(6rem, auto) auto auto auto 1fr; gap: var(--space-1) var(--space-2); align-items: baseline; font-size: .9rem;
+    padding-top: var(--space-2); border-top: 1px solid var(--rule); }
   .weapons > .dim { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; }
 </style>

@@ -26,13 +26,13 @@
 </div>
 
 <style>
-  .hover { position: absolute; z-index: 3; pointer-events: none; display: flex; flex-direction: column; gap: var(--s2); margin: 0;
-    padding: var(--s3); max-width: 22rem; background: var(--panel-solid); box-shadow: 0 4px 14px #00000059; }
-  .head { display: flex; align-items: baseline; gap: var(--s3); }
+  .hover { position: absolute; z-index: 3; pointer-events: none; display: flex; flex-direction: column; gap: var(--space-2); margin: 0;
+    padding: var(--space-2); max-width: 22rem; background: var(--panel-solid); box-shadow: 0 4px 14px #00000059; }
+  .head { display: flex; align-items: baseline; gap: var(--space-2); }
   .head strong { font-family: var(--font-display, inherit); font-size: 1.1rem; }
   .dim { color: var(--dim); font-size: .9rem; }
-  .chips { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s2); }
-  .effect { display: inline-flex; align-items: center; gap: .35rem; padding: .15rem .6rem .15rem .4rem; border-radius: 6px; font-size: .95rem;
+  .chips { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
+  .effect { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2) var(--space-1) var(--space-2); border-radius: 6px; font-size: .95rem;
     border: 1px solid var(--effect); background: color-mix(in srgb, var(--effect) 20%, transparent); color: var(--text); }
   .effect :global(.icon) { color: var(--effect); }
 </style>

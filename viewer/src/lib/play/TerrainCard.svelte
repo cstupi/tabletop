@@ -36,18 +36,18 @@
 </section>
 
 <style>
-  .card { display: flex; flex-direction: column; gap: var(--s3); margin: 0; padding: var(--s3) var(--s4); overflow-y: auto;
+  .card { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-2) var(--space-3); overflow-y: auto;
     flex: 0 1 auto; max-height: 45%; min-height: 6rem; font-size: .95rem; }
   p { margin: 0; }
-  .band { display: flex; align-items: baseline; gap: var(--s3); padding: var(--s1) var(--s3); border-left: 6px solid var(--effect);
+  .band { display: flex; align-items: baseline; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-left: 6px solid var(--effect);
     background: color-mix(in srgb, var(--effect) 12%, transparent); }
   .head { margin: 0; flex: 1; min-width: 0; font-family: var(--font-display, var(--font-body)); font-weight: 700; text-transform: none; letter-spacing: 0;
     font-size: 1.15rem; line-height: 1.2; color: var(--text); overflow-wrap: anywhere; }
   .meta { color: var(--dim); font-size: .9rem; }
-  .effects { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s3); }
-  .effects li { display: flex; gap: var(--s3); align-items: flex-start; }
+  .effects { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+  .effects li { display: flex; gap: var(--space-2); align-items: flex-start; }
   .glyph { color: var(--effect); }
   .word { font-size: 1.1rem; font-weight: 600; color: color-mix(in srgb, var(--effect) 65%, var(--text)); }
-  .volume { display: flex; align-items: center; gap: var(--s2); }
+  .volume { display: flex; align-items: center; gap: var(--space-2); }
   .swatch { width: .8rem; height: .8rem; border-radius: 3px; border: 1px solid var(--effect); background: color-mix(in srgb, var(--effect) 35%, transparent); }
 </style>
