@@ -92,7 +92,18 @@ public sealed class MoveRegions(IReadOnlyDictionary<Guid, PlacedModel> starts, M
 
     /// <summary>The path a move of this model to `to` is measured along (MoveReach.Route: the server's order, round dangerous ground the Ask names when
     /// that fits), the shortest when the unit is `capped` (Allowance); null for a model the Ask does not move.</summary>
-    public MovePath? Route(Guid id, Point2 to, bool capped = false) => starts.ContainsKey(id) ? ReachOf(id).Route(to, capped) : null;
+    public MovePath? Route(Guid id, Point2 to, bool capped = false)
+    {
+        if (!starts.ContainsKey(id)) return null;
+        // A drag frame asks each model's route three times (the ruler, the readout, the move path), and a ghost not in hand the same route every
+        // frame: the last answer per model and cap stands while the point does.
+        if (_routes.TryGetValue((id, capped), out var last) && last.To == to) return last.Path;
+        var path = ReachOf(id).Route(to, capped);
+        _routes[(id, capped)] = (to, path);
+        return path;
+    }
+
+    readonly ConcurrentDictionary<(Guid Id, bool Capped), (Point2 To, MovePath Path)> _routes = new();
 
     /// <summary>
     /// The unit's allowance with its models going to these points (from where each stands; a model missing from the map, or not moved, is where it
@@ -104,7 +115,7 @@ public sealed class MoveRegions(IReadOnlyDictionary<Guid, PlacedModel> starts, M
         var allowance = Math.Max(0, legal.Allowance);
         if (legal.DifficultCap is not { } cap || cap >= allowance) return allowance;
         return starts.Any(kv => at.TryGetValue(kv.Key, out var to) && kv.Value.Placement.Position.Horizontal.DistanceTo(to) > 1e-6
-            && ReachOf(kv.Key).Route(to).EntersDifficult) ? cap : allowance;
+            && Route(kv.Key, to)!.EntersDifficult) ? cap : allowance;
     }
 
     /// <summary>The target held to this model's reach (MoveReach.Clamp), and to `cap` when the unit is held to one (Allowance); a model the Ask does not

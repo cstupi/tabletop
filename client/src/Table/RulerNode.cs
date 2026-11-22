@@ -20,8 +20,13 @@ public partial class RulerNode : Node3D
     /// <summary>A measurement: the line between its two points and its reading in its mode (`12.4" (2D)`, `13.0" (3D)  Δh 3.0"`).</summary>
     public void Show(Point3 from, Point3 to, MeasureReading reading, Color colour) => Draw([from, to], reading.Label, colour, Colors.White);
 
+    IReadOnlyList<Point3> _path = []; string _text = ""; Color _lineColour, _labelColour;
+
     void Draw(IReadOnlyList<Point3> path, string text, Color line, Color label)
     {
+        // A held ruler that has not moved is left as drawn: a drag frame redraws every ruler, most of them unchanged.
+        if (Visible && text == _text && line == _lineColour && label == _labelColour && path.SequenceEqual(_path)) return;
+        (_path, _text, _lineColour, _labelColour) = (path, text, line, label);
         var points = path.Select(p => WorldFrame.ToGodot(p) + Vector3.Up * 0.3f).ToList();
         // One mesh and one material per colour, refilled each drag frame: a ruler per held model is redrawn every frame.
         _mesh.ClearSurfaces(); _mesh.SurfaceBegin(Mesh.PrimitiveType.Lines);

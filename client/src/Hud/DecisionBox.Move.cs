@@ -78,6 +78,7 @@ public partial class DecisionBox
             minimum = regions.Minimum(lead.Id);
             Add(DecisionTiles.Bar(out setBar));
             _input.Allowance = remaining; _input.Region = legal; _input.Reach = regions;
+            _input.PrepareHold([.. legal.ModelIds.Where(id => p.Models.GetValueOrDefault(id)?.Location is OnTable).Select(id => p.Models[id].Slot.Base)]);   // rulers and rings before the first pickup
             // Drawn and committed agree: a rebuilt Ask (a refusal) or an Esc starts from the server's positions.
             void StartMove() { _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position); _input.Proposed = _proposed; _view.Snap(legal.ModelIds); }
             StartMove();
@@ -106,6 +107,7 @@ public partial class DecisionBox
             Foot(stop = Act(CardActions.Stop, Stop));
         }
         var starts = MovePaths.Starts(p, legal);
+        var pathCache = _regions is null ? null : new MovePathCache(_regions, starts, legal, _view.Volumes);   // a ghost's path swept again only when it moves
         _regate = () =>
         {
             if (_proposed is not { } proposed || !IsInstanceValid(commit)) return;
@@ -114,10 +116,10 @@ public partial class DecisionBox
             var readouts = unit is null ? [] : legal.ModelIds.Where(id => p.Models[id].Location is OnTable && proposed.ContainsKey(id))
                 .Select(id => MoveRuler.Read(Moved(p, id, proposed[id].Horizontal, unit < allowance), unit, _regions?.Minimum(id, proposed[id].Horizontal))).ToList();
             var placed = proposed.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
-            _input.Violations.Measure(legal.ModelIds, KeepAwayArea.With(ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit), legal.Separation, names.Unit),
+            _input.Violations.Measure(legal.ModelIds, KeepAwayArea.With(ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit, _regions), legal.Separation, names.Unit),
                 p, legal.KeepAway, placed, names.Unit));
             // Each moved model's path and footprints, and a warning where its swept base crosses dangerous ground: never holding the commit.
-            var paths = _regions is null ? [] : MovePaths.Proposed(_regions, starts, legal, _view.Volumes, proposed.ToDictionary(kv => kv.Key, kv => kv.Value.Horizontal), unit < allowance);
+            var paths = pathCache?.Proposed(proposed.ToDictionary(kv => kv.Key, kv => kv.Value.Horizontal), unit < allowance) ?? [];
             _input.Violations.Warn(legal.ModelIds, MovePaths.Marks(paths));
             _view.Paths.Show(paths, _regionColour);
             var warnings = MovePaths.Lines(paths, id => _input.Violations.Subject?.Invoke(id) ?? names.Model(id), v => MovePaths.VolumeName(p.Board.Table, v));

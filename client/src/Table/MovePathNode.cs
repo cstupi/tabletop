@@ -11,10 +11,15 @@ namespace Tabletop.Client.Table;
 /// </summary>
 public partial class MovePathNode : Node3D
 {
-    readonly Dictionary<Color, (ImmediateMesh Mesh, MeshInstance3D Node)> _layers = new();
+    readonly Dictionary<Color, (ArrayMesh Mesh, MeshInstance3D Node)> _layers = new();
 
+    IReadOnlyList<ModelPath> _shown = []; Color _team;
+
+    /// <summary>Refilled only when a path or the colour changed: a drag frame hands back the paths of ghosts that stayed put (MovePathCache).</summary>
     public void Show(IReadOnlyList<ModelPath> paths, Color team)
     {
+        if (team == _team && paths.Count == _shown.Count && paths.Select((path, i) => ReferenceEquals(path, _shown[i])).All(same => same)) { Visible = paths.Count > 0; return; }
+        _shown = paths; _team = team;
         var lines = new Dictionary<Color, List<(Vector3, Vector3)>>();
         void Add(Color c, Vector3 a, Vector3 b) { if (!lines.TryGetValue(c, out var l)) lines[c] = l = []; l.Add((a, b)); }
         var rgba = new Rgba(team.R, team.G, team.B, team.A);
@@ -38,13 +43,18 @@ public partial class MovePathNode : Node3D
         {
             if (!_layers.TryGetValue(colour, out var layer))
             {
-                var mesh = new ImmediateMesh();
+                var mesh = new ArrayMesh();
                 var node = new MeshInstance3D { Mesh = mesh, MaterialOverride = Material(colour), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
                 AddChild(node); _layers[colour] = layer = (mesh, node);
             }
-            layer.Mesh.ClearSurfaces(); layer.Mesh.SurfaceBegin(Mesh.PrimitiveType.Lines);
-            foreach (var (a, b) in segments) { layer.Mesh.SurfaceAddVertex(a); layer.Mesh.SurfaceAddVertex(b); }
-            layer.Mesh.SurfaceEnd();
+            // One array a colour handed to Godot at once: a vertex a call (ImmediateMesh) cost a drag frame up to 15 ms over a unit's footprints.
+            var vertices = new Vector3[segments.Count * 2];
+            for (var i = 0; i < segments.Count; i++) (vertices[2 * i], vertices[2 * i + 1]) = segments[i];
+            var arrays = new Godot.Collections.Array();
+            arrays.Resize((int)Mesh.ArrayType.Max);
+            arrays[(int)Mesh.ArrayType.Vertex] = vertices;
+            layer.Mesh.ClearSurfaces();
+            layer.Mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Lines, arrays);
             layer.Node.Visible = true;
         }
         Visible = paths.Count > 0;
