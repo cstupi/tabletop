@@ -86,8 +86,8 @@ public static class ThemeBuilder
             foreach (var (state, bg, edge) in new[] { ("normal", lit ? hover.Item1 : C(u.Background), lit ? hover.Item2 : C(u.PanelBorder)), ("hover", hover.Item1, hover.Item2),
                          ("pressed", C(u.Background).Lerp(C(u.Accent), 0.32f), C(u.Accent)), ("disabled", C(u.Background) with { A = 0.5f }, C(u.PanelBorder) with { A = 0.5f }) })
             {
-                var box = Pad(Flat(s, bg with { A = Math.Max(bg.A, round ? 0.85f : 0.5f) }, edge, 1, 0), Space.S, Space.S);
-                if (round) box.SetCornerRadiusAll(64);
+                var box = Pad(Flat(s, bg with { A = Math.Max(bg.A, round ? 0.85f : 0.5f) }, edge, round && edge == C(u.Accent) ? 2 : 1, 0), Space.S, Space.S);   // over the table a lit round button takes a heavier edge
+                if (round) { box.SetCornerRadiusAll(64); box.CornerDetail = 12; }   // a circle in every theme: a bevelled shape's corner detail would cut it to a diamond
                 t.SetStylebox(state, variation, box);
             }
             t.SetStylebox("focus", variation, new StyleBoxEmpty());
