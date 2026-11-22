@@ -19,18 +19,23 @@ public partial class MarkerNode : Node3D, IDrawn<(Marker Marker, Color? Team, do
         Place(m);
         var r = (float)m.Diameter / 2;
         var colour = team ?? new Color(0.95f, 0.8f, 0.2f);
-        _disc = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = r, BottomRadius = r, Height = 0.1f }, Position = new Vector3(0, 0.05f, 0),
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = colour } };
+        _disc = new MeshInstance3D { Mesh = Disc(r), Position = new Vector3(0, 0.05f, 0), MaterialOverride = Solid(colour) };
         AddChild(_disc);
         if (range is { } reach and > 0)
             AddChild(new MeshInstance3D
             {
-                Mesh = new TorusMesh { InnerRadius = (float)reach - 0.06f, OuterRadius = (float)reach + 0.06f, Rings = 96, RingSegments = 6 },
-                Position = new Vector3(0, 0.06f, 0), Scale = new Vector3(1, 0.4f, 1), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-                MaterialOverride = new StandardMaterial3D { AlbedoColor = colour with { A = 0.85f }, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded },
+                Mesh = Ring(reach), Position = new Vector3(0, 0.06f, 0), Scale = new Vector3(1, 0.4f, 1), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+                MaterialOverride = Palette.Unshaded(colour with { A = 0.85f }),
             });
         if (m.Label is { } text) AddChild(new Label3D { Text = text, Position = new Vector3(0, 0.6f, 0), Billboard = BaseMaterial3D.BillboardModeEnum.Enabled });
     }
+
+    // Shared by every marker of a size, range and colour: a layout's markers arrive together, and each new mesh is an upload.
+    static readonly Dictionary<float, Mesh> Discs = new(); static readonly Dictionary<double, Mesh> Rings = new(); static readonly Dictionary<Color, StandardMaterial3D> Solids = new();
+    static Mesh Disc(float r) => Discs.TryGetValue(r, out var m) ? m : Discs[r] = new CylinderMesh { TopRadius = r, BottomRadius = r, Height = 0.1f };
+    static Mesh Ring(double reach) => Rings.TryGetValue(reach, out var m) ? m
+        : Rings[reach] = new TorusMesh { InnerRadius = (float)reach - 0.06f, OuterRadius = (float)reach + 0.06f, Rings = 96, RingSegments = 6 };
+    static StandardMaterial3D Solid(Color c) => Solids.TryGetValue(c, out var m) ? m : Solids[c] = new StandardMaterial3D { AlbedoColor = c };
 
     public void Place(Marker m) { Position = WorldFrame.ToGodot(m.Position); Rotation = new Vector3(0, WorldFrame.Radians(m.Yaw), 0); }
 
