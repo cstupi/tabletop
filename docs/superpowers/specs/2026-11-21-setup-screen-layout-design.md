@@ -44,7 +44,7 @@ approved) and their behaviour; changes where things sit. Spacing follows `2026-1
   One is open; clicking the open one closes its panel and gives the table the width. The last open tool is remembered per session.
 - **Tool panel** (beside the rail, 360 px): the open tool's heading and its controls only, as today's fold bodies (same controls, same
   wire). Terrain's list takes the full panel height. A small badge on a rail icon carries a count where it helps (objectives placed).
-- **Teams tool:** the compact team columns, Watching, + Team (unchanged behaviour). The head lines and columns no longer sit above every
+- **Teams tool:** the compact team columns, one a row at the panel's full width, Watching, + Team (unchanged behaviour). The head lines and columns no longer sit above every
   tool.
 - **Game tool:** the game settings (same controls as the lobby's Game settings; creator-only enabled). One place in setup.
 - **Top bar** (across the top, right of the corner's Home): game name, status chip, one chip per team (team colour, state icon: ready /

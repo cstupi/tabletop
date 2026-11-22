@@ -2,7 +2,7 @@ using Tabletop.Client.Screens;
 
 namespace Tabletop.Client.Panels;
 
-/// <summary>The Teams tool (spec 2026-11-21-setup-screen-layout-design.md → Teams tool): the compact team columns with their ▸ moves, drag, army
+/// <summary>The Teams tool (spec 2026-11-21-setup-screen-layout-design.md → Teams tool): the compact team columns, one a row at the panel's width, with their ▸ moves, drag, army
 /// pickers and the band's + (Join's add-a-seat), Watching while someone watches, and the creator's + Team; behaviour as
 /// spec 2026-11-07-lobby-and-setup-redesign-design.md.</summary>
 public partial class SetupTeamsTool : SetupToolBody

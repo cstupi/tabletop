@@ -6,14 +6,15 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Panels;
 
 /// <summary>
-/// The team columns (spec 2026-11-07-lobby-and-setup-redesign-design.md, TeamColumns): one column per team, then Watching, side by side and
-/// wrapping. The lobby's are wide with room to spare; setup's head holds them compact, two to a row. A column's Join (setup: its band's +) adds
+/// The team columns (spec 2026-11-07-lobby-and-setup-redesign-design.md, TeamColumns): one column per team, then Watching. The lobby's are
+/// wide, side by side and wrapping; setup's Teams tool stacks them compact, one a row at the tool panel's full width. A column's Join (setup: its band's +) adds
 /// a seat for my account; a row's ▸ menu and a row dragged onto another column move it (or leave a team I hold among several); each of my rows
 /// holds its army picker.
 /// </summary>
-public partial class TeamColumnsPanel : HFlowContainer
+public partial class TeamColumnsPanel : MarginContainer
 {
     readonly bool _compact;
+    readonly Container _flow;
     Session _s = null!;
     readonly Dictionary<Guid, Control> _editing = new();
     Action<Guid>? _onPresence; Action? _onTheme;
@@ -23,8 +24,9 @@ public partial class TeamColumnsPanel : HFlowContainer
     public TeamColumnsPanel(bool compact)
     {
         _compact = compact;
-        AddThemeConstantOverride("h_separation", compact ? Space.S : Space.L);
-        AddThemeConstantOverride("v_separation", compact ? Space.S : Space.L);
+        if (compact) { _flow = new VBoxContainer(); _flow.AddThemeConstantOverride("separation", Space.S); }
+        else { _flow = new HFlowContainer(); _flow.AddThemeConstantOverride("h_separation", Space.L); _flow.AddThemeConstantOverride("v_separation", Space.L); }
+        AddChild(_flow);
     }
 
     /// <summary>A watcher of an inline report: a failed army list goes to the panel that owns the columns.</summary>
@@ -53,17 +55,17 @@ public partial class TeamColumnsPanel : HFlowContainer
 
     void Build()
     {
-        foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); }
+        foreach (var c in _flow.GetChildren()) { _flow.RemoveChild(c); c.QueueFree(); }
         _editing.Clear(); _pickers.Clear();
         if (_s.Game is not { } game) return;
-        foreach (var column in TeamColumns.Of(game, _s.ParticipantId, _s.IsCreator, _compact)) AddChild(Column(column));
+        foreach (var column in TeamColumns.Of(game, _s.ParticipantId, _s.IsCreator, _compact)) _flow.AddChild(Column(column));
         if (_s.IsCreator)
         {
             var add = new Button { Text = _compact ? TeamColumns.AddTeamCompact : TeamColumns.AddTeam,
                 TooltipText = "Add a team", CustomMinimumSize = _compact ? new Vector2(0, 0) : new Vector2(220, 160),
-                SizeFlagsVertical = _compact ? SizeFlags.ShrinkBegin : SizeFlags.Fill };
+                SizeFlagsVertical = _compact ? SizeFlags.ShrinkBegin : SizeFlags.Fill, SizeFlagsHorizontal = _compact ? SizeFlags.ShrinkBegin : SizeFlags.Fill };
             add.Pressed += () => Guarded.Send(_s, LobbyEdits.CreateTeam());
-            AddChild(add);
+            _flow.AddChild(add);
         }
         FillPickers();
         ShowEditing();
@@ -71,7 +73,7 @@ public partial class TeamColumnsPanel : HFlowContainer
 
     Control Column(TeamColumn column)
     {
-        var box = new ColumnBox(this, column) { CustomMinimumSize = new Vector2(_compact ? 150 : 250, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        var box = new ColumnBox(this, column) { CustomMinimumSize = new Vector2(_compact ? 0 : 250, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill };
         box.AddThemeStyleboxOverride("panel", Ui.TeamColumn(column.Ordinal));
         var stack = new VBoxContainer(); stack.AddThemeConstantOverride("separation", 0); box.AddChild(stack);
         stack.AddChild(Band(column));
