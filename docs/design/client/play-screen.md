@@ -67,42 +67,43 @@ rule.
 
 ## The Hud frame
 
-`HudLayout.Of(width, height, HudVisible)` (Core) returns a `HudRect` per `HudPart`, and nothing else in the client
-decides where a Hud part goes. Every part keeps an 8 px margin (`HudLayout.M`) to the window and to its neighbours,
-anchored to an edge, and no two parts overlap from 1280 x 720 up (`HudRect.Overlaps` is what the tests assert).
+`HudFrame` (Core, spec `2026-11-21-one-hud-frame-design.md`) is the one answer to where every Hud part stands, in the Godot client and,
+through its port `viewer/src/lib/play/hudFrame.ts`, in the browser's play page. `HudFrame.Play` (and `HudFrame.Setup` for the lobby and
+setup) is a table with one `HudRow` per `HudPart`: its anchor (`HudX` Left, Right, Centre, Stretch; `HudY` Top, Bottom, Middle, Third),
+its size rule (`HudSize` Fixed, AtLeast: the part's measured size never under n, Fill: the room left up to a max) and its neighbours
+(`On`: the stacking neighbour, whose room a Fill part splits evenly and a fixed part is carved from; `Beside`: stands beside that part and
+takes its anchor; `In`: placed inside another part; `HiddenWhile`; `Keeps`: the edge a part that measures short keeps). A Top part stands
+8 px (`HudFrame.M`) below every earlier non-overlay Top part spanning its columns, a Bottom part above every earlier Bottom part; a Centre
+part is centred on the window within the band earlier parts on its rows leave. No two parts overlap from 1280 x 720 up (the tests assert
+`HudRect.Overlaps`).
 
-| Slot | Where | Size |
-| --- | --- | --- |
-| `Corner` | top left | 420 x 40: the `home` icon button, the game's name clipped with an ellipsis to what the slot leaves, `CornerLine`'s status chip (Lobby, Setup, Deployment, Round N, Ended, Watching, Replay) and the reconnect, never clipped |
-| `Toasts` | top right | 360 x 120 |
-| `Header` | top, centred in the band between corner and toasts | up to 760 x 96 |
-| `Roster`, `UnitCard` | left column under the corner, 420 wide | the column's height, halved when both show; the card's slot then starts at the roster's actual bottom |
-| `Decision` | right column, from below the toasts and header down to 8 px above the log button | 480 wide; the column less the dice slot, or its lower half while the log is open |
-| `Dice` | right column, stacked above the decision box; no slot while the log is open (the log holds the same roll, and `DiceTray.Covered` hides the tray) | 480 x 96 |
-| `LogButton` | bottom right | 140 wide; as tall as the undo and log buttons' actual minimum (`HudLayout.Of`'s `buttonH`), never under 36 |
-| `UndoButton` | bottom right, left of the log button | as `LogButton` |
-| `LogPanel` | right, under the toasts and header, down to the decision/dice stack or the log button; with the decision box showing, the right column's upper half | 640 wide, up to 720 tall |
-| `Banner` | full-width band at the upper third | overlay; placed with `Fill` whether shown or not |
-| `EndMessage` | centre | overlay; computed but not placed: the message stays a full-screen backdrop centring its panel |
+| Part | Row |
+| --- | --- |
+| `Corner` | top left, 420 x 40: Home, the game's name clipped to what the slot leaves, `CornerLine`'s status chip and the reconnect |
+| `LogButton`, `UndoButton` | top right, square, as large as the larger face (never under 38); Undo beside Log |
+| `Toasts` | top right below the buttons, 360 x 120; overlay |
+| `Header` | top, centred between the corner and the toasts, up to 760 wide, as tall as it draws (never under 96) |
+| `Replay` | bottom left, 420 wide, as tall as it draws (never under 112) |
+| `Roster`, `UnitCard` | left column, 420 wide; the card `On` the roster (each half the column), the card hanging from its slot's foot |
+| `Loading` | bottom centre, 280 x 36 |
+| `Decision` | bottom right, 480 wide, the right column less the dice; its lower half while the log is open |
+| `Dice` | `On` the decision box, 480 x 96; hidden while the log is open (`Covered`: the log holds the latest roll) |
+| `LogPanel` | right, from below the buttons and header down to the decision box or dice, 640 wide, up to 720 |
+| `Banner`, `EndMessage` | the upper third's band and the centre; overlays |
 
-`HudLayout.Overlays` (`Banner`, `EndMessage`) are exempt from the no-overlap rule: they draw over the frame.
+`GameScreen.Layout` builds one frame per pass with `HudFrame.Of(width, height, shown, fit)`: `fit` fits each measured part (the header's
+fit, the replay bar, the roster, the unit or terrain card, the decision box or waiting panel, the dice tray) to its slot and returns its
+size, so a part placed later stands against it as it is (the card under a collapsed roster, the dice and the open log above a short
+decision box, the log below a three-line header). The frame is published on `Session.Hud` (`HudChanged` when a pass changed it).
+`Obstacles` are the shown panels as they measure; every overlay over the table keeps off them and computes no panel rects of its own:
+ring labels (`RangeRingNode`, `RingLabels`), mark labels (`ViolationMarks`, `MarkLabels`), the bar over the unit (`UnitActionsNode`,
+`UnitActionsPlace`) and the hovered terrain's panel (`HoverLabels`, `CursorPanel`); the dice tray hides on `Covered(Dice)`.
+`QueueLayout` defers `Layout`, at most four passes a frame; a fifth waits for the next frame and logs a warning. Every scroll area
+reserves its vertical bar's width (`ScrollMode.Reserve`), so its content's width never depends on whether the bar shows.
 
-`HudPlacement` puts a control in a slot, anchored top left. `Top` takes the slot's top edge and the control's minimum
-height capped by the slot, `Bottom` takes the slot's bottom edge by the control's actual height, so a part whose minimum
-outgrows its slot grows upward and not off the screen, and `Fill` takes the whole slot.
-
-`GameScreen.Layout` places every part. It is not called directly: `QueueLayout` defers it, at most four passes a frame; a fifth waits for the next frame and logs a warning, so a layout that does not settle cannot fill Godot's message queue. Every scroll area reserves its vertical bar's width (`ScrollMode.Reserve`), so its content's width, and with it the height of wrapping text and flow rows, never depends on whether the bar shows. Its triggers are
-the Hud or side panel resizing, the side panel's visibility, `MinimumSizeChanged` on the corner, toasts, header, roster, unit
-card, decision box and dice tray, `VisibilityChanged` on the last five, the log opening or closing, and building the play Hud. It
-subtracts the side panel's width outside play. Because the decision box is only as tall as its content, `Layout`
-moves the dice slot to end 8 px above the decision box's actual top, and ends the open log's panel 8 px above
-the actual decision box and dice tray when the panel's columns span theirs, so a short decision box leaves the log the room above it (up to 720 px). Likewise the panel starts 8 px below the
-header's actual bottom when their columns overlap, since the header's three lines can outgrow its 96 px slot; the
-panel's height never goes negative. The unit card's slot starts 8 px below the roster's actual bottom
-(`HudLayout.Below`), so a roster collapsed by R gives the card the column back; the terrain card takes the same slot, and outside play, with no roster, the whole column; the roster's half stays its ceiling. `UnitCard.Place` sizes the card to its
-content, capped by its slot, and anchors it to the slot's bottom; `Roster.Place` sizes its scroll list to its content,
-capped by its slot, against the slot's top, since a `ScrollContainer` reports no content height. `DecisionBox.Place` does the
-same for its controls against the slot's bottom: the title band, notes, refusal and foot stay in view and the body scrolls.
+`HudPlacement` puts a control in a rect, anchored top left: `Top` the slot's top edge and the control's minimum height capped by the slot,
+`Bottom` the slot's bottom edge by the control's actual height, `Fill` the whole slot. `UnitCard.Place`, `Roster.Place` and
+`DecisionBox.Place` size their content capped by the slot (the card and the decision box against its bottom, the roster against its top).
 
 `Toasts` stacks the newest three messages top right in every status, each removed after 4 s. `KeyOverlay` is centred on
 the window and sits outside the frame. `EndMessage` stays a full-screen backdrop.
