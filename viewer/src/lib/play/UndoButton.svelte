@@ -47,5 +47,4 @@
   dialog { max-width: 30rem; }
   h2 { margin-top: 0; }
   .rolls { white-space: pre-line; overflow-wrap: anywhere; }
-  .actions { justify-content: flex-end; margin-bottom: 0; }
 </style>

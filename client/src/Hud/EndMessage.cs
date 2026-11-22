@@ -36,7 +36,7 @@ public partial class EndMessage : Control
         var box = new VBoxContainer { CustomMinimumSize = new Vector2(420, 0) }; box.AddThemeConstantOverride("separation", Space.M); _panel.AddChild(box);
         _scores.AddThemeConstantOverride("separation", Space.M); _waiting.AddThemeConstantOverride("separation", Space.S);
         box.AddChild(_title); box.AddChild(_result); box.AddChild(_scores); box.AddChild(_reason); box.AddChild(_note); box.AddChild(_waiting);
-        _buttons.AddThemeConstantOverride("separation", Space.M); box.AddChild(_buttons);
+        _buttons.AddThemeConstantOverride("separation", Space.L); box.AddChild(_buttons);
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Game)) != 0) Render(); };
         session.Frame.Render += _onFrame;
         _onTheme = Render; Ui.Changed += _onTheme;
@@ -110,7 +110,7 @@ public partial class EndMessage : Control
 
     void AddButton(string text, Action pressed, string? icon = null)
     {
-        var b = new Button { Text = text, FocusMode = FocusModeEnum.None, CustomMinimumSize = new Vector2(120, 0), Icon = icon is null ? null : Ui.Icon(icon) };
+        var b = new Button { Text = text, FocusMode = FocusModeEnum.None, CustomMinimumSize = new Vector2(ThemeBuilder.DialogButtonWidth, 0), Icon = icon is null ? null : Ui.Icon(icon) };
         b.AddThemeConstantOverride("icon_max_width", 18); b.AddThemeColorOverride("icon_normal_color", Ui.Text);
         b.Pressed += pressed; _buttons.AddChild(b);
     }

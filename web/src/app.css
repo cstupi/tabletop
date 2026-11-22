@@ -189,6 +189,10 @@ thead th.num { font-family: var(--font-display); font-weight: var(--display-weig
 
 /* Dialogs. */
 dialog { color: var(--text); padding: var(--space-4); }
+/* A dialog's buttons: right-aligned, the primary last with Cancel left of it, 24px apart and 24px under the content, each at least
+   120px wide (the Godot client's dialog theme). */
+dialog .actions { justify-content: flex-end; gap: var(--space-4); margin: var(--space-4) 0 0; }
+dialog .actions > button { min-width: 7.5rem; }
 dialog::backdrop { background: #05080CB3; backdrop-filter: blur(2px); }
 :where([data-theme='fantasy']) dialog::backdrop { background: #2B21188C; }
 

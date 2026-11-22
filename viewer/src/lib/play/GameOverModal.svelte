@@ -126,5 +126,5 @@
   .waiting { display: flex; justify-content: center; align-items: center; gap: var(--space-2); color: var(--dim); }
   .band { width: 4px; height: 1.1rem; background: var(--team); }
   .leave { display: inline-flex; align-items: center; gap: var(--space-1); }
-  .actions { justify-content: space-between; margin-bottom: 0; }
+  .actions { justify-content: space-between; }
 </style>

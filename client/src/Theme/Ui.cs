@@ -13,6 +13,8 @@ public static class Variation
     /// an icon-over-word button, a panel with a 16 px inset, a one-line dim band, and the one lit button of a card.</summary>
     public const string KeyCap = nameof(KeyCap), Tile = nameof(Tile), Card = nameof(Card), Quiet = nameof(Quiet), Primary = nameof(Primary);
     /// <summary>A tile lit while its match elsewhere is under the pointer, and the round icon buttons over the selected unit, plain and lit.</summary>
+    /// <summary>A modal card drawn as a control (Options' Apply changes?): the dialogs' panel, L inside.</summary>
+    public const string DialogCard = nameof(DialogCard);
     public const string TileLit = nameof(TileLit), RoundTile = nameof(RoundTile), RoundTileLit = nameof(RoundTileLit);
 }
 

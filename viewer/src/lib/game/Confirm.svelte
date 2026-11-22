@@ -30,5 +30,4 @@
 
 <style>
   dialog { max-width: 28rem; }
-  .actions { justify-content: flex-end; margin-bottom: 0; }
 </style>

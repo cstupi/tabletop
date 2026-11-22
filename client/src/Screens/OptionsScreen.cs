@@ -40,7 +40,7 @@ public partial class OptionsScreen : CanvasLayer
     readonly Label _descText = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
     readonly VBoxContainer _descExtra = new();
     readonly Button _apply = new() { Text = "Apply", ThemeTypeVariation = Variation.Primary }, _revert = new() { Text = "Revert" }, _reset = new() { Text = "Reset tab" };
-    readonly PanelContainer _dialog = new() { Visible = false, ThemeTypeVariation = Variation.Card };
+    readonly PanelContainer _dialog = new() { Visible = false, ThemeTypeVariation = Variation.DialogCard };
     OptionCategory _category = OptionCategory.Gameplay;
     /// <summary>The rows of the open category in order, each with what moves its value by keys.</summary>
     readonly List<(Control Row, Control Focus, Action<int>? Step)> _rowList = [];
@@ -211,7 +211,7 @@ public partial class OptionsScreen : CanvasLayer
     void AskKeep(ClientSettings before)
     {
         _confirmBefore = before; _confirmLeft = ConfirmSeconds;
-        Dialog("Keep these settings?", _confirmLabel = new Label { Text = Reverting() }, ("Keep", () => { _confirmBefore = null; }, true), ("Revert", RevertDisplay, false));
+        Dialog("Keep these settings?", _confirmLabel = new Label { Text = Reverting() }, ("Revert", RevertDisplay, false), ("Keep", () => { _confirmBefore = null; }, true));
     }
 
     string Reverting() => $"Reverting in {Math.Ceiling(_confirmLeft)} s.";
@@ -240,22 +240,25 @@ public partial class OptionsScreen : CanvasLayer
     {
         if (!_model.Dirty) { Close(); return; }
         Dialog("Apply changes?", new Label { Text = "Some options have changed." },
-            ("Apply", () => { Apply(); Close(); }, true), ("Discard", Close, false), ("Cancel", () => { }, false));
+            ("Cancel", () => { }, false), ("Discard", Close, false), ("Apply", () => { Apply(); Close(); }, true));
     }
 
     void Close() { _open = null; QueueFree(); }
 
-    /// <summary>A small modal card in the middle of the page: a title, a body and buttons, the first primary.</summary>
+    /// <summary>A small modal card in the middle of the page, laid out as the theme lays out a dialog: a title, a body, then the buttons
+    /// L below it and L apart, right-aligned with the primary last (Cancel left of it), each at least DialogButtonWidth wide.</summary>
     void Dialog(string title, Control body, params (string Text, Action Pressed, bool Primary)[] buttons)
     {
         HudBits.Clear(_dialog);
-        var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", Space.M);
-        box.AddChild(new Label { Text = title, ThemeTypeVariation = Variation.Accent });
-        box.AddChild(body);
-        var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End }; row.AddThemeConstantOverride("separation", Space.S);
-        foreach (var (text, pressed, primary) in buttons)
+        var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", Space.L);
+        var text = new VBoxContainer(); text.AddThemeConstantOverride("separation", Space.S); box.AddChild(text);
+        text.AddChild(new Label { Text = title, ThemeTypeVariation = Variation.Accent });
+        text.AddChild(body);
+        var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End }; row.AddThemeConstantOverride("separation", Space.L);
+        foreach (var (label, pressed, primary) in buttons)
         {
-            var b = new Button { Text = text, ThemeTypeVariation = primary ? Variation.Primary : "", FocusMode = Control.FocusModeEnum.None };
+            var b = new Button { Text = label, ThemeTypeVariation = primary ? Variation.Primary : "", FocusMode = Control.FocusModeEnum.None,
+                CustomMinimumSize = new Vector2(ThemeBuilder.DialogButtonWidth, 0) };
             b.Pressed += () => { CloseDialog(); pressed(); };
             row.AddChild(b);
         }

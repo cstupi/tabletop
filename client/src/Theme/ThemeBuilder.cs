@@ -11,7 +11,13 @@ public static class ThemeBuilder
         var t = new Godot.Theme { DefaultFont = FontOf(u.Body), DefaultFontSize = u.Body.Size };
         var s = u.Shape; Color C(Rgba c) => Ui.Of(c);
         StyleBox panel = Box(s.PanelNinePatch, s.PanelMargin, s, C(u.Panel), C(u.PanelBorder), s.BorderWidth);
-        foreach (var type in new[] { "PanelContainer", "Panel", "AcceptDialog", "TabContainer" }) t.SetStylebox("panel", type, panel);
+        foreach (var type in new[] { "PanelContainer", "Panel", "TabContainer" }) t.SetStylebox("panel", type, panel);
+        // Every dialog (AcceptDialog, ConfirmationDialog): even L padding, L between the buttons and between the content and the button
+        // row (Godot's buttons_separation is both), each button at least DialogButtonWidth wide. Cancel sits left of the primary
+        // (project.godot gui/common/swap_cancel_ok = Cancel First on every platform).
+        StyleBox dialogPanel = Box(s.PanelNinePatch, s.PanelMargin, s, C(u.Panel) with { A = 1 }, C(u.PanelBorder), s.BorderWidth); dialogPanel.SetContentMarginAll(Space.L);
+        t.SetStylebox("panel", "AcceptDialog", dialogPanel); Variant(t, Variation.DialogCard, "PanelContainer", "panel", dialogPanel);
+        t.SetConstant("buttons_separation", "AcceptDialog", Space.L); t.SetConstant("buttons_min_width", "AcceptDialog", DialogButtonWidth);
         // A popup floats over other controls: its panel is opaque, or the text under it reads through a translucent panel colour.
         StyleBox popup = Box(s.PanelNinePatch, s.PanelMargin, s, C(u.Panel) with { A = 1 }, C(u.PanelBorder), s.BorderWidth);
         foreach (var type in new[] { "TooltipPanel", "PopupPanel", "PopupMenu" }) t.SetStylebox("panel", type, popup);
@@ -116,6 +122,9 @@ public static class ThemeBuilder
             }
         return ImageTexture.CreateFromImage(image);
     }
+
+    /// <summary>A dialog button's least width (a size, not spacing): Cancel and a one-word primary both read as buttons.</summary>
+    public const int DialogButtonWidth = 120;
 
     // A nine-patch button modulated from grey, so lightening for hover and pressed shows.
     static readonly Color Grey = new(0.85f, 0.85f, 0.85f);
