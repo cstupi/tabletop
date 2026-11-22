@@ -106,6 +106,22 @@ public static class HudBits
         b.CustomMinimumSize = pad.GetCombinedMinimumSize();
     }
 
+    /// <summary>The icon size of the header's ☰ and the corner's Undo and Log buttons.</summary>
+    public const int CornerIcon = 22;
+
+    /// <summary>A button face of the theme's icon alone, CornerIcon square inside Space.S on every side (spacing rules → A border needs
+    /// room): the top right corner's Undo and Log. The tooltip carries the word and the key cap.</summary>
+    public static void IconFace(Button b, string icon)
+    {
+        foreach (var c in b.GetChildren()) { b.RemoveChild(c); c.QueueFree(); }
+        var pad = new MarginContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        foreach (var edge in new[] { "margin_left", "margin_right", "margin_top", "margin_bottom" }) pad.AddThemeConstantOverride(edge, Space.S);
+        pad.AddChild(Icon(icon, Ui.Of(Ui.Current.ButtonText), CornerIcon));
+        b.AddChild(pad);
+        pad.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        b.CustomMinimumSize = pad.GetCombinedMinimumSize();
+    }
+
     /// <summary>A flat button of the theme's icon alone in the text colour (the accent on hover), its words in the tooltip.</summary>
     public static Button IconButton(string icon, string tooltip, int size = 16)
     {

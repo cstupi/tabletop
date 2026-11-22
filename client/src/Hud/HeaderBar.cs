@@ -72,7 +72,7 @@ public partial class HeaderBar : PanelContainer
     {
         var at = _menu is not null && IsInstanceValid(_menu) ? _menu.GetIndex() : _top.GetChildCount();
         if (_menu is not null && IsInstanceValid(_menu)) { _top.RemoveChild(_menu); _menu.QueueFree(); }
-        _menu = HudBits.IconButton("game-menu", "Menu (Esc)", 22);
+        _menu = HudBits.IconButton("game-menu", "Menu (Esc)", HudBits.CornerIcon);
         _menu.SizeFlagsVertical = SizeFlags.ShrinkCenter;
         _menu.Pressed += () => MenuRequested?.Invoke();
         _top.AddChild(_menu); _top.MoveChild(_menu, at);
