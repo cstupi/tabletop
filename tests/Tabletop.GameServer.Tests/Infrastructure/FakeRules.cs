@@ -40,6 +40,8 @@ public sealed class FakeRules : IGameRules
     public Func<GameState, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>>? DeployInsideHook { get; set; }
     /// <summary>Replaces Grimdark Future's MaySetAside, likewise.</summary>
     public Func<GameState, IReadOnlyList<Guid>>? MaySetAsideHook { get; set; }
+    /// <summary>Replaces Grimdark Future's SetAsideRules, likewise.</summary>
+    public Func<GameState, IReadOnlyDictionary<Guid, SetAsideRule>>? SetAsideRulesHook { get; set; }
     /// <summary>Replaces Grimdark Future's InCover, likewise.</summary>
     public Func<GameState, IReadOnlyList<Guid>>? InCoverHook { get; set; }
 
@@ -58,6 +60,7 @@ public sealed class FakeRules : IGameRules
     public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId, IReadOnlySet<Guid> deploying) => _inner.MayDeployInside(state, unitId, containerModelId, deploying);
     public IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside(GameState state) => DeployInsideHook?.Invoke(state) ?? _inner.DeployInside(state);
     public IReadOnlyList<Guid> MaySetAside(GameState state, PropertySet properties) => MaySetAsideHook?.Invoke(state) ?? _inner.MaySetAside(state, properties);
+    public IReadOnlyDictionary<Guid, SetAsideRule> SetAsideRules(GameState state, PropertySet properties) => SetAsideRulesHook?.Invoke(state) ?? _inner.SetAsideRules(state, properties);
     public IReadOnlyDictionary<Guid, UnitThreat> Threats(GameState state, PropertySet properties) => _inner.Threats(state, properties);
     public IReadOnlyList<Guid> InCover(GameState state) => InCoverHook?.Invoke(state) ?? _inner.InCover(state);
 

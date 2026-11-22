@@ -14,8 +14,9 @@ import type { AskView } from './askView';
 import { allWords, move as contactsOfMove, placement as contactsOfPlacement } from './contactCheck';
 import { withKeepAway } from './keepAwayArea';
 import { CommitHold } from './commitHold';
-import { button, type Control, type DecisionBox, type MoveHooks } from './decisionBox';
-import { barOf, ENTER, inches, STOP } from './decisionCard';
+import { button, dim, type Control, type DecisionBox, type MoveHooks } from './decisionBox';
+import { barOf, inches } from './decisionCard';
+import { PLACING } from './cardActions';
 import { stopLabel } from './decisionView';
 import { around, layout, type MidDeploy } from './deployView';
 import { stationary } from './modelDrag';
@@ -136,7 +137,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
 
   /** The commit's disabled state and the reason line, read again after every gate. */
   const show = (box: DecisionBox, gate: MoveGate, ids: readonly string[]): void => {
-    for (const id of ids) box.replace(id, (c) => (c.kind === 'button' ? { ...c, disabled: !gate.allowed } : c));
+    for (const id of ids) box.replace(id, (c) => { if (c.kind !== 'button') return c; const { tooltip: _t, ...rest } = c; return { ...rest, ...dim(!gate.allowed, gate.reason ?? null) }; });
     box.replace('reason', reasonOf(gate.reason));
   };
 
@@ -221,12 +222,12 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
     };
     box.handlers.onEnter = () => relocate(false);
     box.add(reasonOf(null));
-    box.add(button('commit', 'Commit', ENTER, true, 'ready'), () => relocate(false));
+    box.add(button('commit', 'Commit', undefined, true, 'ready'), () => relocate(false));
     const ids = ['commit'];
     const stop = legal.stoppable && !isDisembark(legal) ? stopLabel(p, legal) : null;
     if (stop !== null) {
       box.handlers.onStop = () => relocate(true);
-      box.add(button('stop', stop, STOP, false, stop.startsWith('Cast') ? 'cast' : 'hold'), () => relocate(true));
+      box.add(button('stop', stop, undefined, false, stop.startsWith('Cast') ? 'cast' : 'hold'), () => relocate(true));
       ids.push('stop');
     }
     // Any ghost out of range is counted and each contact named; under strict the commit and the stop wait until none is.
@@ -340,7 +341,8 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
     box.handlers.onEnter = place;
     box.handlers.onCancel = () => { box.rebuild(); return true; };          // the rebuild drops the deploy unit, so the render arms a fresh click
     box.add(reasonOf(null));
-    box.add(button('place', 'Place', ENTER, true, 'ready'), place);
+    box.cardActions = PLACING;
+    box.add(button('place', 'Place', undefined, true, 'ready'), place);
     // A ghost on another model's base is named; under strict Place waits until none is.
     regate = () => {
       const st = box.host.state();

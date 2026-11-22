@@ -79,6 +79,38 @@ public class GfBatch3DeploymentTests
         Assert.Empty(GrimdarkFutureRules.Instance.MaySetAside(h.State, TestProperties.Core));                        // "before deployment" only
     }
 
+    public static TheoryData<string> BothEditions => new() { RuleSets.Gf351, RuleSets.Gf360 };
+
+    [Theory]
+    [MemberData(nameof(BothEditions))]
+    public void SetAsideRules_name_the_rule_each_unit_carries_as_the_book_prints_it_with_its_text(string edition)
+    {
+        var props = edition == RuleSets.Gf360 ? TestProperties.Core36 : TestProperties.Core;
+        var a = TestArmies.Build("A", 6, 1, unitRules: [(1, Ambush, null), (2, Scout, null)],
+            modelRules: [(3, GfAmbush.Infiltrate, null), (4, GfAmbush.Infiltrate + " Aura", null), (5, GfAmbush.SurpriseAttack, 2)]);
+        var h = new SchedulerHarness([a, TestArmies.Build("B", 1, 1)], enforcement: Enforcement.Strict, rules: GrimdarkFutureRules.Instance);
+        var au = h.Units(0);
+        var named = GrimdarkFutureRules.Instance.SetAsideRules(h.State, props);
+        Assert.Equal(au.Take(5).Order(), named.Keys.Order());                                                   // the units MaySetAside names, no others
+        Assert.Equal([Ambush, Scout, GfAmbush.Infiltrate, GfAmbush.Infiltrate + " Aura", GfAmbush.SurpriseAttack], au.Take(5).Select(u => named[u].Name));
+        Assert.Equal(props.Entry(Ambush)!.RuleText, named[au[0]].Text);
+        Assert.Equal(props.Entry(Scout)!.RuleText, named[au[1]].Text);
+        Assert.Equal(props.Entry(GfAmbush.Infiltrate)!.RuleText, named[au[2]].Text);
+        Assert.StartsWith("May be set aside before deployment.", named[au[0]].Text);
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1);
+        h.Run();
+        h.Dispatch(new SetRound(1), team: 0);
+        Assert.Empty(GrimdarkFutureRules.Instance.SetAsideRules(h.State, props));                                   // before deployment only
+    }
+
+    [Fact]
+    public void A_wrapping_ruleset_forwards_SetAsideRules()
+    {
+        var a = TestArmies.Build("A", 2, 1, modelRules: [(1, GfAmbush.Infiltrate, null)]);
+        var h = new SchedulerHarness([a, TestArmies.Build("B", 1, 1)], rules: GrimdarkFutureRules.Instance);
+        Assert.Equal(GfAmbush.Infiltrate, new WithSequences(GrimdarkFutureRules.Instance).SetAsideRules(h.State, TestProperties.Core)[h.Units(0)[0]].Name);
+    }
+
     [Fact]
     public void A_wrapping_ruleset_forwards_MaySetAside()
     {

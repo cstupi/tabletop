@@ -117,6 +117,29 @@ public class ThreatRingsTests
     }
 
     [Fact]
+    public void From_round_one_selecting_a_unit_of_mine_clears_the_pinned_enemy()
+    {
+        var game = TableUx.Game;
+        var p = TableUx.After(TableUx.Deploy, new RoundStarted(1, [], []));
+        Assert.Equal(1, p.Scheduler.Round);
+        var pinned = ThreatRings.Pinned(game, p, TableUx.T1, TableUx.Orcs.Id, null);
+        Assert.Equal(TableUx.Orcs.Id, pinned);
+        Assert.Null(ThreatRings.Pinned(game, p, TableUx.T1, TableUx.Squad.Id, pinned));
+    }
+
+    [Fact]
+    public void Threats_draw_except_while_I_pick_shooting_targets_or_allocate_wounds()
+    {
+        static AskView View(AskMode mode) => new(new Ask(Guid.CreateVersion7(), "q", "p", [TableUx.T1], new Confirmation(), false, false, null, null), mode, [], []);
+        Assert.True(ThreatRings.Wanted(null));
+        Assert.True(ThreatRings.Wanted(View(AskMode.Choose)));
+        Assert.True(ThreatRings.Wanted(View(AskMode.Move)));
+        Assert.True(ThreatRings.Wanted(View(AskMode.PickPieces)));
+        Assert.False(ThreatRings.Wanted(View(AskMode.Assign)));
+        Assert.False(ThreatRings.Wanted(View(AskMode.Allocate)));
+    }
+
+    [Fact]
     public void While_one_account_places_a_unit_in_a_deploy_ask_the_other_teams_threat_draws()
     {
         var ask = new Ask(Guid.CreateVersion7(), AskQuestions.Deploy, "Deploy one unit", [TableUx.T1], new PieceSelection([TableUx.Reserve.Id], 1, 1), false, false, null, null);

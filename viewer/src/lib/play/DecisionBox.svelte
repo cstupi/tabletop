@@ -8,6 +8,7 @@
   import type { Control, DecisionBox, DecisionPanel } from './decisionBox';
   import { keyCap } from './decisionCard';
   import DecisionIcon from './DecisionIcon.svelte';
+  import HudIcon from './HudIcon.svelte';
 
   let { box, panel }: { box: DecisionBox; panel: DecisionPanel } = $props();
 
@@ -63,13 +64,22 @@
               {#if g.note !== null}<p class="warn">{g.note}</p>{/if}
             </div>
           {:else if control.kind === 'row'}
-            <button type="button" class="tile row" tabindex="-1" disabled={control.disabled} onmousedown={noFocus} style:--team={colour(control.ordinal)}
-              onclick={() => box.press(control.id)} onpointerenter={() => box.hover(control.id)} onpointerleave={() => box.hover(null)}>
-              <span class="team-icon"><DecisionIcon name="army" size={20} /></span>
-              <span class="word">{control.label}</span>
-              {#if control.pips !== null}<span class="pips">{control.pips}</span>{/if}
-              {#if control.key !== ''}<kbd>{control.key}</kbd>{/if}
-            </button>
+            <div class="pick-line">
+              <button type="button" class="tile row" tabindex="-1" disabled={control.disabled} onmousedown={noFocus} style:--team={colour(control.ordinal)}
+                onclick={() => box.press(control.id)} onpointerenter={() => box.hover(control.id)} onpointerleave={() => box.hover(null)}>
+                <span class="team-icon"><DecisionIcon name="army" size={20} /></span>
+                <span class="word">{control.label}
+                  {#if control.chip}<span class="aside-chip" title={control.chip.tip}><HudIcon name="wait" size={12} />{control.chip.name}</span>{/if}
+                </span>
+                {#if control.pips !== null}<span class="pips">{control.pips}</span>{/if}
+                {#if control.key !== ''}<kbd>{control.key}</kbd>{/if}
+              </button>
+              {#if control.aside}
+                <button type="button" class="aside-btn flat" tabindex="-1" title={control.aside.tip} onmousedown={noFocus} onclick={() => box.press(control.aside!.id)}>
+                  <HudIcon name="wait" size={14} />Set aside
+                </button>
+              {/if}
+            </div>
           {:else if control.kind === 'bar'}
             {#if control.bar !== null}
               <div class="bar" class:over={control.bar.over}>
@@ -145,8 +155,13 @@
     min-height: 0; white-space: normal; text-align: center; }
   .tile kbd { position: absolute; top: 4px; right: 4px; }
   .tile.lit:not(:disabled) { border-image: var(--mat-button-hover); }
+  .pick-line { display: flex; gap: var(--space-2); align-items: stretch; }
+  .pick-line .tile.row { flex: 1; min-width: 0; }
+  .aside-chip { display: inline-flex; align-items: center; gap: var(--space-1); font-size: .75rem; padding: 0 var(--space-1); color: inherit;
+    border: 1px solid color-mix(in srgb, currentColor 45%, transparent); line-height: 1.4; white-space: nowrap; flex: none; }
+  .aside-btn { flex: none; display: inline-flex; align-items: center; gap: var(--space-1); white-space: nowrap; min-width: 0; width: auto; padding: var(--space-1) var(--space-2); font-size: .8rem; }
   .tile.row { flex-direction: row; justify-content: flex-start; text-align: left; gap: var(--space-2); }
-  .tile.row .word { flex: 1; min-width: 0; }
+  .tile.row .word { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); }
   .tile.row kbd { position: static; }
   .team-icon { color: var(--team); display: inline-flex; }
   .tile.chip { flex-direction: row; display: inline-flex; width: auto; align-self: flex-start; padding: var(--space-2) var(--space-2); }

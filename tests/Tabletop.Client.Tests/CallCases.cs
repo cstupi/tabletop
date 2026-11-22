@@ -176,8 +176,8 @@ public static partial class CallCases
 
     public static readonly string[] Required =
     [
-        "choose/option", "choose/key", "choose/unitKey", "choose/click", "choose/clickNone", "pass", "confirm", "confirm/endRound",
-        "spend", "pick", "pick/deploy", "pick/ambusher", "pickKey", "assign", "casualties", "move", "move/stop", "move/disembark", "embark",
+        "choose/option", "choose/key", "choose/unitKey", "choose/clickMine", "choose/clickNone", "pass", "confirm", "confirm/key", "confirm/endRound",
+        "spend", "pick", "pick/deploy", "pick/ambusher", "pick/setAside", "pickKey", "assign", "casualties", "move", "move/stop", "move/disembark", "embark",
         "deploy/click", "deploy/ghosts", "deploy/ambusher", "gameOver", "selfplay/answer", "selfplay/deploy",
         "menu/model", "menu/unit", "menu/marker", "menu/team", "menu/setAside", "menu/return", "menu/putIn", "menu/takeOut", "menu/abandon",
         "menu/boarding", "menu/lock", "menu/invalidInput", "menu/grant",

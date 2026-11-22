@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Geometry, PlacedModel, Segment } from '../src/lib/geometry';
 import { acting, teamsOf } from '../src/lib/lobby/seats';
-import { AllThreatCache, ThreatRingCache, allThreatsOf, ofAnotherTeam, pinnedThreat, shownThreats, threatRingsOf } from '../src/lib/play/threatRings';
+import { AllThreatCache, ThreatRingCache, allThreatsOf, ofAnotherTeam, pinnedThreat, shownThreats, threatRingsOf, threatsWanted } from '../src/lib/play/threatRings';
 import type { EventPayload, UnitThreat, Weapon } from '../src/lib/protocol/wire.generated';
 import { P1, P2, askOf, at, boardOf, gameOf, projectionOf, slotOf, unitOf, weaponOf } from './play';
 
@@ -127,5 +127,15 @@ describe('ThreatRings', () => {
     const now = cache.of(g, game, a.projection, team2, both);
     a.apply({ seq: 99, actor: P1, payload: { kind: 'models_moved', moves: [{ modelId: squad.models[2]!.id, from: { kind: 'table', placement: at(14, 10) }, to: { kind: 'table', placement: at(20, 10) } }] } } as never);
     expect(cache.of(g, game, a.projection, team2, both)).not.toBe(now);
+  });
+});
+
+describe('threatsWanted', () => {
+  it('draws threats except while picking shooting targets or allocating wounds', () => {
+    expect(threatsWanted(null)).toBe(true);
+    expect(threatsWanted('choose')).toBe(true);
+    expect(threatsWanted('move')).toBe(true);
+    expect(threatsWanted('assign')).toBe(false);
+    expect(threatsWanted('allocate')).toBe(false);
   });
 });

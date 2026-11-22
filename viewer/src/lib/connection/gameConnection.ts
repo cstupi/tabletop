@@ -4,7 +4,7 @@
 // reauthenticates every minute and rebuilds from the server on every connect. It judges nothing: the server refuses.
 
 import type {
-  Board, Command, Connect, Edit, GameEvent, GameInfo, Refused, RulesOptionCatalog, SightAnswer, SocketMessage, TableState, UnitThreat, ZoneLegs,
+  Board, Command, Connect, Edit, GameEvent, GameInfo, Refused, RulesOptionCatalog, SetAsideRule, SightAnswer, SocketMessage, TableState, UnitThreat, ZoneLegs,
 } from '../protocol/wire.generated';
 import { PROTOCOL_VERSION } from '../protocol/wire.generated';
 import { Applier, ProjectionDesyncError, type Projection } from '../live/apply';
@@ -39,6 +39,8 @@ export interface ConnectionState {
   readonly deployInside: ReadonlyMap<string, readonly string[]>;
   /** The units that may be set aside before deployment now, or returned to it (ModelFacts.maySetAside). */
   readonly maySetAside: ReadonlySet<string>;
+  /** Per unit that may be set aside, the rule that lets it and its text (ModelFacts.setAsideRules): the deployment chip. */
+  readonly setAsideRules: ReadonlyMap<string, SetAsideRule>;
   /** Each unit's reach in its next activation (ModelFacts.threats); an absent unit has none. */
   readonly threats: ReadonlyMap<string, UnitThreat>;
   /** The units in cover where they stand (ModelFacts.inCover): the unit card's shield. */
@@ -111,7 +113,7 @@ type Send = {
 
 const INITIAL: ConnectionState = {
   phase: 'connecting', game: null, participantId: null, options: NO_OPTIONS, zones: null, terrainWords: null, terrainRules: null, markerRange: null, draft: null, board: null, log: [], projection: null,
-  maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), threats: new Map(), inCover: new Set(), catchingUp: true, closeReason: null,
+  maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), setAsideRules: new Map(), threats: new Map(), inCover: new Set(), catchingUp: true, closeReason: null,
 };
 
 export function connectGame(options: ConnectionOptions): GameConnection {
@@ -158,7 +160,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
     settled.clear();
     publish({
       game: null, participantId: null, draft: null, board: null, log: [], projection: null,
-      maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), threats: new Map(), inCover: new Set(), catchingUp: true,
+      maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), setAsideRules: new Map(), threats: new Map(), inCover: new Set(), catchingUp: true,
     });
   }
 
@@ -310,6 +312,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
           maxWounds: new Map(Object.entries(frame.maxWounds)),
           deployInside: new Map(Object.entries(frame.deployInside ?? {})),
           maySetAside: new Set(frame.maySetAside ?? []),
+          setAsideRules: new Map(Object.entries(frame.setAsideRules ?? {})),
           threats: new Map(Object.entries(frame.threats ?? {})),
           inCover: new Set(frame.inCover ?? []),
           catchingUp: false,

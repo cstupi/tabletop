@@ -139,7 +139,8 @@ public partial class TableInput : Node
         _drag is not { Armed: true } ? [] : _drag.Current.Select(kv => new PresencePlacement(kv.Key, kv.Value, _drag.Yaws[kv.Key], Proposing.Contains(kv.Key) ? PlacementKind.Proposed : PlacementKind.Held)).ToList(), _tape.Line);
 
     /// <summary>The piece under the pointer (TablePick): a model the ray enters, else a model within TablePick.SlopPixels of the pointer on
-    /// screen, else the nearest terrain piece or marker the ray enters; the point is where the ray enters it, else the table plane.</summary>
+    /// screen, else a marker that may be dragged now whose disc the ray meets, else the nearest terrain piece (by its volumes' prisms) or
+    /// locked marker the ray enters; the point is where the ray enters it, else the table plane. Each piece's box is the broad phase.</summary>
     (Point3 Point, Node3D? Piece) Pick(Vector2 screen)
     {
         var cam = _view.Camera; var from = cam.ProjectRayOrigin(screen); var dir = cam.ProjectRayNormal(screen);
@@ -149,7 +150,27 @@ public partial class TableInput : Node
             if (piece.IsQueuedForDeletion()) continue;
             var bounds = piece switch { PieceNode p => p.Bounds, TerrainNode t => t.Bounds, MarkerNode m => m.Bounds, _ => new Aabb() };
             var isModel = piece is PieceNode;
-            if (RayHit(bounds, from, dir) is { } h) { pieces.Add((piece, h)); hits.Add(new(isModel ? HitKind.Model : HitKind.Other, from.DistanceTo(h), 0)); continue; }
+            if (RayHit(bounds, from, dir) is { } h)
+            {
+                switch (piece)
+                {
+                    case TerrainNode t:
+                        if (EnterTerrain(t, from, dir) is { } along) { pieces.Add((piece, from + dir * (float)along)); hits.Add(new(HitKind.Other, along, 0)); }
+                        break;
+                    case MarkerNode m:
+                        var centre = WorldFrame.FromGodot(m.GlobalPosition) with { Z = bounds.End.Y };
+                        if (TablePick.OnDisc(WorldFrame.FromGodot(from), WorldFrame.FromGodot(dir), centre, (m.Drawn.Marker?.Diameter ?? bounds.Size.X) / 2) is { } onDisc)
+                        {
+                            pieces.Add((piece, from + dir * (float)onDisc));
+                            hits.Add(new(MayDrag(m, []) ? HitKind.Marker : HitKind.Other, onDisc, 0));
+                        }
+                        break;
+                    default:
+                        pieces.Add((piece, h)); hits.Add(new(isModel ? HitKind.Model : HitKind.Other, from.DistanceTo(h), 0));
+                        break;
+                }
+                continue;
+            }
             if (!isModel || ScreenMiss(cam, bounds, screen) is not { } miss || miss > TablePick.SlopPixels) continue;
             pieces.Add((piece, null)); hits.Add(new(HitKind.Model, from.DistanceTo(bounds.GetCenter()), miss));
         }
@@ -157,6 +178,17 @@ public partial class TableInput : Node
         if (TablePick.Best(hits) is not { } best) return (WorldFrame.FromGodot(ground ?? Vector3.Zero), null);
         var (chosen, at) = pieces[best];
         return (WorldFrame.FromGodot(at ?? (chosen is PieceNode n ? n.Bounds.GetCenter() with { Y = n.Bounds.End.Y } : ground ?? Vector3.Zero)), chosen);
+    }
+
+    /// <summary>The nearest entry of the ray into one of the piece's volume prisms, at the node's transform (a held piece where it is drawn).</summary>
+    static double? EnterTerrain(TerrainNode t, Vector3 from, Vector3 dir)
+    {
+        var transform = new TerrainTransform(WorldFrame.FromGodot(t.GlobalPosition), WorldFrame.YawFrom(t.GlobalRotation.Y), t.Drawn.Scale);
+        var (origin, direction) = (WorldFrame.FromGodot(from), WorldFrame.FromGodot(dir));
+        double? best = null;
+        foreach (var v in t.Drawn.Volumes)
+            if (TablePick.EnterPrism(origin, direction, new WorldVolume(v.Id, v.Volume, transform)) is { } along && (best is not { } b || along < b)) best = along;
+        return best;
     }
 
     /// <summary>How far the pointer is from a box's outline on screen, in pixels; null when the box is behind the camera.</summary>

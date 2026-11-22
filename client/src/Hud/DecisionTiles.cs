@@ -57,6 +57,20 @@ public static partial class DecisionTiles
         return b;
     }
 
+    /// <summary>An action's key cap (CardActions.Numbered), added at the row's end the first time it has one; hidden with none.</summary>
+    public static void SetCap(Button action, string key)
+    {
+        if (action.FindChildren("*", "Label", true, false).OfType<Label>().FirstOrDefault(l => l.ThemeTypeVariation == Variation.KeyCap) is not { } cap)
+        {
+            if (key == "" || action.FindChildren("*", "HBoxContainer", true, false).OfType<HBoxContainer>().FirstOrDefault() is not { } row) return;
+            cap = Cap(key);
+            if (action.ThemeTypeVariation == Variation.Primary) cap.AddThemeColorOverride("font_color", Ui.Background with { A = 1 });
+            row.AddChild(cap);
+            action.CustomMinimumSize = new Vector2(row.GetCombinedMinimumSize().X + (action.ThemeTypeVariation == Variation.Primary ? 28 : 12), action.CustomMinimumSize.Y);
+        }
+        cap.Text = key; cap.Visible = key != "";
+    }
+
     /// <summary>An option tile: its icon over its word, its key cap in the top corner. Made once and set by Fill, so the decision box keeps its
     /// tiles from one Ask to the next.</summary>
     public sealed partial class ChoiceTile : Button

@@ -44,15 +44,20 @@ public static class DecisionView
     /// <summary>Choices numbered from 1 in their order: the box narrowed to a clicked unit's options.</summary>
     public static IReadOnlyList<(int Key, string Label, string OptionId)> Number(IEnumerable<AskOption> choices) => Keys(choices.Select(c => (c.Label, c.Id)));
 
-    /// <summary>The pieces a table click answers with: those exactly one choice names. A piece several choices name (activate: one
-    /// option per unit and action) cannot answer; a click on it selects the unit and narrows the box (<see cref="ChoicesOf"/>).</summary>
-    public static IReadOnlySet<Guid> ClickAnswers(Options options) =>
-        options.Choices.SelectMany(c => c.Pieces.Distinct()).GroupBy(id => id).Where(g => g.Count() == 1).Select(g => g.Key).ToHashSet();
+    /// <summary>The pieces a table click answers with: the other team's pieces (a target pick) that exactly one choice names. A piece several
+    /// choices name cannot answer; a click on it selects the unit and narrows the box (<see cref="ChoicesOf"/>). A unit of a team the Ask
+    /// addresses (my own unit, the acting unit, a Shaken unit's Idle) never answers by a click: the click selects it, and the action is the
+    /// bar over the unit, the decision box or a key.</summary>
+    public static IReadOnlySet<Guid> ClickAnswers(Options options, Ask ask, Projection p, GameInfo game) =>
+        options.Choices.SelectMany(c => c.Pieces.Distinct()).GroupBy(id => id).Where(g => g.Count() == 1).Select(g => g.Key)
+            .Where(id => OthersPiece(ask, p, game, id)).ToHashSet();
 
-    /// <summary><see cref="ClickAnswers(Options)"/> for an Ask: none when it picks a unit to activate (activate, act_or_end_phase). A unit
-    /// with one action there (a Shaken unit's Idle) is selected by the click like any other, and the action is its button.</summary>
-    public static IReadOnlySet<Guid> ClickAnswers(Options options, string question) =>
-        question is AskQuestions.Activate or AskQuestions.ActOrEndPhase ? new HashSet<Guid>() : ClickAnswers(options);
+    /// <summary>A unit or model whose team the Ask does not address; false for anything else.</summary>
+    public static bool OthersPiece(Ask ask, Projection p, GameInfo game, Guid id)
+    {
+        var unit = p.Units.ContainsKey(id) ? id : p.Models.GetValueOrDefault(id)?.UnitId;
+        return unit is { } u && SheetFocus.TeamOf(p, game, u) is { } team && !ask.Teams.Contains(team.Id);
+    }
 
     /// <summary>The choices that name a unit, by its id or one of its models' ids, in their order.</summary>
     public static IReadOnlyList<AskOption> ChoicesOf(Options options, Projection p, Guid unitId) =>

@@ -30,18 +30,30 @@ public class AskAnswersTests
         Assert.Null(AskAnswers.Resolve(p, TableUx.ModelOf(TableUx.Orcs), [M0]));
     }
 
+    static Ask Picking(Options o) => new(AskId, "charge_target", "x", [TableUx.T1], o, false, false, null, null);
+
     [Fact]
-    public void Click_on_a_piece_one_option_names_chooses_it()
+    public void Click_on_an_enemy_one_option_names_chooses_it()
     {
         var options = new Options([new AskOption("a", "A", [TableUx.Squad.Id]), new AskOption("b", "B", [TableUx.Orcs.Id])]);
-        Assert.Equal(new Chosen("b"), AskAnswers.ChosenByClick(options, P, TableUx.ModelOf(TableUx.Orcs)));
+        Assert.Equal(new Chosen("b"), AskAnswers.ChosenByClick(Picking(options), P, TableUx.Game, TableUx.ModelOf(TableUx.Orcs)));
+    }
+
+    /// <summary>The owner, 2026-11-21: "Its automatically moving to the shooting phase when i reclick the unit." A click on my own unit (the
+    /// acting unit after its move, which the shoot option names) only selects it; only a pick between the other team's units answers.</summary>
+    [Fact]
+    public void Reclicking_my_acting_unit_after_its_move_answers_nothing()
+    {
+        var options = new Options([new AskOption("shoot", "Shoot", [TableUx.Squad.Id]), new AskOption("charge", "Charge", [TableUx.Orcs.Id])]);
+        Assert.Null(AskAnswers.ChosenByClick(Picking(options), P, TableUx.Game, M0));
+        Assert.Null(AskAnswers.ChosenByClick(Picking(options), P, TableUx.Game, TableUx.Squad.Id));
     }
 
     [Fact]
     public void Click_on_a_piece_two_options_name_chooses_nothing()
     {
-        var both = new Options([new AskOption("a", "A", [TableUx.Squad.Id]), new AskOption("b", "B", [M0])]);
-        Assert.Null(AskAnswers.ChosenByClick(both, P, M0));
+        var both = new Options([new AskOption("a", "A", [TableUx.Orcs.Id]), new AskOption("b", "B", [TableUx.ModelOf(TableUx.Orcs)])]);
+        Assert.Null(AskAnswers.ChosenByClick(Picking(both), P, TableUx.Game, TableUx.ModelOf(TableUx.Orcs)));
     }
 
     [Fact]

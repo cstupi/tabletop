@@ -6,6 +6,8 @@ import type { GameInfo } from '../protocol/wire.generated';
 import { actionFrame } from './headerView';
 import type { Names } from './names';
 import { reserveOf, shownCondition } from './rosterReserve';
+import type { SetAsideRule } from '../protocol/wire.generated';
+import { setAsideChipOf, type SetAsideChip } from './setAsideView';
 
 export { words } from './rosterReserve';
 
@@ -16,6 +18,8 @@ export interface RosterRow {
   readonly offTable: boolean; readonly conditions: readonly string[]; readonly inside: string | null; readonly reserve: string | null;
   /** The active unit (the action frame's actor): its row carries the turn mark. */
   readonly acting: boolean;
+  /** During deployment, the rule that lets the unit be held off the table (setAsideView), else null. */
+  readonly setAside: SetAsideChip | null;
 }
 /** mine: a team the account holds (★ you). */
 export interface RosterTeam { readonly teamId: string; readonly name: string; readonly ordinal: number; readonly rows: readonly RosterRow[]; readonly mine: boolean }
@@ -34,15 +38,16 @@ export function sorted(rows: readonly RosterRow[]): RosterRow[] {
 /** My team first, the rest by ordinal, rows sorted (`sorted`); `mine` every team the account holds (absent: the acted-for team); conditions without the bookkeeping ones. `left` is wounds left over models not removed (on the shelf with every wound
  * taken); off table is no model on the table, nor inside a container on it. */
 export function rosterOf(p: Projection, game: GameInfo, n: Names, myTeam: string | null, maxWounds: ReadonlyMap<string, number>,
-  mine?: readonly string[]): RosterTeam[] {
+  mine?: readonly string[], setAsideRules: ReadonlyMap<string, SetAsideRule> = new Map()): RosterTeam[] {
   const acting = actionFrame(p)?.context.actorUnitId;
   return [...game.teams].sort((a, b) => (a.id === myTeam ? 0 : 1) - (b.id === myTeam ? 0 : 1) || a.ordinal - b.ordinal).map((t) => ({
     teamId: t.id, name: n.team(t.id), ordinal: t.ordinal, mine: mine !== undefined ? mine.includes(t.id) : t.id === myTeam,
-    rows: sorted([...p.units.values()].filter((u) => game.participants.some((x) => x.id === u.participantId && x.teamId === t.id)).map((u) => rowOf(p, u, maxWounds, acting))),
+    rows: sorted([...p.units.values()].filter((u) => game.participants.some((x) => x.id === u.participantId && x.teamId === t.id)).map((u) => rowOf(p, u, maxWounds, acting, setAsideRules))),
   }));
 }
 
-function rowOf(p: Projection, u: UnitInPlay, maxWounds: ReadonlyMap<string, number>, acting: string | undefined): RosterRow {
+function rowOf(p: Projection, u: UnitInPlay, maxWounds: ReadonlyMap<string, number>, acting: string | undefined,
+  setAsideRules: ReadonlyMap<string, SetAsideRule>): RosterRow {
   const models = [...p.models.values()].filter((m) => m.unitId === u.id).map((m) => ({ m, max: maxWounds.get(m.id) ?? 1 }));
   const left = models.filter((x) => !(x.m.location.kind === 'shelf' && x.m.wounds >= x.max)).reduce((sum, x) => sum + Math.max(0, x.max - x.m.wounds), 0);
   let holder: ModelInPlay | undefined;
@@ -59,7 +64,7 @@ function rowOf(p: Projection, u: UnitInPlay, maxWounds: ReadonlyMap<string, numb
   return {
     unitId: u.id, name: u.definition.name, activated: u.actions.size > 0, left, max: models.reduce((sum, x) => sum + x.max, 0),
     offTable: !models.some((x) => onTable(x.m)), conditions: [...conditions].filter(shownCondition).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
-    inside: transport?.definition.name ?? null, reserve: reserveOf(p, u), acting: u.id === acting,
+    inside: transport?.definition.name ?? null, reserve: reserveOf(p, u), acting: u.id === acting, setAside: setAsideChipOf(p, u.id, setAsideRules),
   };
 }
 

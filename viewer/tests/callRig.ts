@@ -71,7 +71,7 @@ export function stateOf(c: CallCase, log: CallLogFiles): ConnectionState {
   const { welcome, board, events } = parsed(log);
   const common = {
     participantId: c.participantId ?? null, options: welcome.options ?? { options: [], presets: [] }, zones: null, terrainWords: null, terrainRules: null, markerRange: null, catchingUp: false, closeReason: null,
-    maxWounds: new Map(Object.entries(c.maxWounds)), deployInside: new Map(Object.entries(c.deployInside)), maySetAside: new Set(c.maySetAside), threats: new Map(), inCover: new Set(), phase: 'connected' as const,
+    maxWounds: new Map(Object.entries(c.maxWounds)), deployInside: new Map(Object.entries(c.deployInside)), maySetAside: new Set(c.maySetAside), setAsideRules: new Map(), threats: new Map(), inCover: new Set(), phase: 'connected' as const,
   };
   if (c.status !== 'playing')
     return { ...common, game: { ...welcome.game, status: c.status }, draft: board.table, board: null, log: [], projection: null } as ConnectionState;
@@ -219,6 +219,7 @@ export async function replay(c: CallCase, st: ConnectionState, g: Geometry, log:
       if (choice.done) box.enter();
       break;
     case 'pickKey': box.number(choice.key); break;
+    case 'asideButton': box.press(`aside:${choice.unitId}`); break;   // the deploy pick's Set aside beside the unit
     case 'assign':
       for (const step of choice.steps as any[]) {
         if (step.pick !== undefined) box.press(`chip:${step.pick}`);

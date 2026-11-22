@@ -34,10 +34,15 @@ public static class ThreatRings
         return acting is not { } mine || TeamOf(game, u) != mine;
     }
 
-    /// <summary>The enemy unit whose threat stays drawn: the selected unit when it is of another team; selecting a unit of my own (picking a unit
-    /// to deploy or move, or its ghost) or a terrain piece keeps the one before, so the reach stays up while I place; an empty selection clears it.</summary>
+    /// <summary>Whether the selected and hovered enemies' threats draw for my open Ask: not while I pick shooting targets (Assign) or allocate
+    /// wounds, where the unit has already moved and an enemy's reach answers nothing; T's every-team areas are the player's own toggle.</summary>
+    public static bool Wanted(AskView? mine) => mine?.Mode is not (AskMode.Assign or AskMode.Allocate);
+
+    /// <summary>The enemy unit whose threat stays drawn: the selected unit when it is of another team. In deployment (before round 1) selecting a
+    /// unit of my own (picking a unit to deploy, or its ghost) or a terrain piece keeps the one before, so the reach stays up while I place; from
+    /// round 1 on selecting anything else clears it, and an empty selection clears it always.</summary>
     public static Guid? Pinned(GameInfo game, Projection p, Guid? acting, Guid? selected, Guid? before) =>
-        selected is not { } s ? null : OfAnotherTeam(game, p, acting, s) ? s : before;
+        selected is not { } s ? null : OfAnotherTeam(game, p, acting, s) ? s : p.Scheduler.Round == 0 ? before : null;
 
     /// <summary>The units whose threat draws: the pinned unit (<see cref="Pinned"/>), then the hovered one; each of another team, with a threat, once.</summary>
     public static IReadOnlyList<Guid> Shown(GameInfo game, Projection p, Guid? acting, Guid? pinned, Guid? hovered, IReadOnlyDictionary<Guid, UnitThreat> threats)

@@ -87,22 +87,24 @@ public class DecisionViewTests
     [Fact]
     public void Only_a_piece_one_choice_names_answers_a_click()
     {
-        var other = Guid.CreateVersion7();
-        var options = new Options([new AskOption("a", "Advance", [Samples.Unit]), new AskOption("h", "Hold", [Samples.Unit]), new AskOption("s", "Strike", [other])]);
-        Assert.Equal([other], DecisionView.ClickAnswers(options));
+        var orc = TableUx.ModelOf(TableUx.Orcs);
+        var options = new Options([new AskOption("a", "Advance", [orc]), new AskOption("h", "Hold", [orc]), new AskOption("s", "Strike", [TableUx.Orcs.Id])]);
+        Assert.Equal([TableUx.Orcs.Id], DecisionView.ClickAnswers(options, Picking(options, TableUx.T1), TableUx.After(TableUx.Deploy), TableUx.Game));
     }
 
-    /// <summary>The owner, 2026-11-14: "Selecting a unit shouldnt automatically execute idle (unshake them) it needs to be explicit like every
-    /// other action". Picking a unit to activate never answers by a click on it, even when it has one action (a Shaken unit's Idle): the
-    /// click selects it and narrows the box, and the action is its button.</summary>
+    static Ask Picking(Options o, Guid team) => new(Guid.CreateVersion7(), "charge_target", "x", [team], o, false, false, null, null);
+
+    /// <summary>The owner, 2026-11-14 ("Selecting a unit shouldnt automatically execute idle") and 2026-11-21 ("Its automatically moving to
+    /// the shooting phase when i reclick the unit"): a click on a unit of the team answering the Ask never answers it, even when one option
+    /// names it (a Shaken unit's Idle, the acting unit's Shoot); the click selects it. Only a pick between the other team's units answers.</summary>
     [Fact]
-    public void A_click_never_answers_which_unit_to_activate()
+    public void A_click_answers_only_with_the_other_teams_units()
     {
-        var other = Guid.CreateVersion7();
-        var options = new Options([new AskOption("a", "Advance", [Samples.Unit]), new AskOption("h", "Hold", [Samples.Unit]), new AskOption("i", "Idle", [other])]);
-        Assert.Empty(DecisionView.ClickAnswers(options, AskQuestions.Activate));
-        Assert.Empty(DecisionView.ClickAnswers(options, AskQuestions.ActOrEndPhase));
-        Assert.Equal([other], DecisionView.ClickAnswers(options, "charge_target"));
+        var orc = TableUx.ModelOf(TableUx.Orcs);
+        var options = new Options([new AskOption("s", "Shoot", [TableUx.Squad.Id]), new AskOption("i", "Idle", [TableUx.Reserve.Id]), new AskOption("c", "Charge", [orc])]);
+        var p = TableUx.After(TableUx.Deploy);
+        Assert.Equal([orc], DecisionView.ClickAnswers(options, Picking(options, TableUx.T1), p, TableUx.Game));
+        Assert.True(DecisionView.ClickAnswers(options, Picking(options, TableUx.T2), p, TableUx.Game).SetEquals([TableUx.Squad.Id, TableUx.Reserve.Id]));
     }
 
     [Fact]

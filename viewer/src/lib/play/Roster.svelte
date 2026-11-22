@@ -22,7 +22,7 @@
   } = $props();
 
   let collapsed = $state(false);
-  const teams = $derived(snap.game === null ? [] : rosterOf(shown, snap.game, new Names(snap.game, shown), myTeam, snap.maxWounds, myTeams));
+  const teams = $derived(snap.game === null ? [] : rosterOf(shown, snap.game, new Names(snap.game, shown), myTeam, snap.maxWounds, myTeams, snap.setAsideRules));
 
   function onKeydown(e: KeyboardEvent): void {
     if (e.defaultPrevented || textFocused(e.target)) return;
@@ -65,11 +65,12 @@
                     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
                     <span class="menu" title="Unit menu" onclick={(e) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); onMenu(row.unitId, { x: r.right, y: r.top }); }}>▸</span>
                   </span>
-                  {#if row.conditions.length > 0 || row.inside !== null || row.reserve !== null}
+                  {#if row.conditions.length > 0 || row.inside !== null || row.reserve !== null || row.setAside !== null}
                     <span class="tags">
                       {#each row.conditions as c (c)}<span class="tag warn">{words(c)}</span>{/each}
                       {#if row.inside !== null}<span class="tag">In {row.inside}</span>{/if}
                       {#if row.reserve !== null}<span class="tag">{row.reserve}</span>{/if}
+                      {#if row.setAside !== null}<span class="tag aside" title={row.setAside.tip}><HudIcon name="wait" size={12} />{row.setAside.name}</span>{/if}
                     </span>
                   {/if}
                 </button>
@@ -119,5 +120,6 @@
   .wounds { font-size: .7rem; letter-spacing: 1px; color: var(--dim); white-space: nowrap; }
   .tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
   .tag { font-size: .75rem; padding: 0 var(--space-1); border: 1px solid var(--rule); color: var(--dim); line-height: 1.4; }
+  .tag.aside { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
   .tag.warn { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); }
 </style>

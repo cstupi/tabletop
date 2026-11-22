@@ -93,7 +93,8 @@ export function offTable(p: Projection, teamId: string, n: Names): MenuItem[] {
 }
 
 /** The condition the server reads as a unit kept off the deployment (setup phase → Ambush and Scout). */
-export const SET_ASIDE = 'set-aside';
+import { SET_ASIDE, toggle } from './setAsideView';
+export { SET_ASIDE };
 
 /**
  * The roster's right-click on a unit of my team while playing. Every model on the shelf unwounded (never deployed): Set aside / Return to
@@ -110,10 +111,9 @@ export function forRosterUnit(game: GameInfo, p: Projection, unitId: string, myT
     return [item('Take out of transport', 'none', () => ({ kind: 'move_models', moves: models.map((m) => move(m, { kind: 'shelf' })) }))];
   if (models.some((m) => m.location.kind !== 'shelf' || m.wounds > 0)) return [];   // wounded on the shelf: removed, not waiting
   const items: MenuItem[] = [];
-  const subject = { kind: 'unit', id: unitId } as const;
   if (maySetAside?.has(unitId) === true) {
     const aside = u.conditions.has(SET_ASIDE);
-    items.push(item(aside ? 'Return to deployment' : 'Set aside', 'none', () => ({ kind: 'set_condition', subject, condition: SET_ASIDE, present: !aside })));
+    items.push(item(aside ? 'Return to deployment' : 'Set aside', 'none', () => toggle(unitId, !aside)));
   }
   for (const c of deployInside?.get(unitId) ?? []) {
     const hull = p.models.get(c);
