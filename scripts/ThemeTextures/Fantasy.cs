@@ -14,7 +14,7 @@ public static class Fantasy
     // The panel: 3 planks of 40 a repeat down, a 240 repeat along; frame 8 wide, brackets inside the 24 corner.
     const int PW = 288, PH = 168, PM = 24, PInset = 8;
     // A button plaque and an input groove.
-    const int BW = 84, BH = 40, BM = 12, BInset = 4;
+    const int BW = 84, BH = 64, BM = 12, BInset = 4;
     const int IW = 48, IH = 36, IM = 8, IInset = 4;
 
     public static IReadOnlyList<Sheet> All { get; } =

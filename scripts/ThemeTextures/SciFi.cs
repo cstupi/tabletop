@@ -11,7 +11,7 @@ public static class SciFi
 {
     const string Id = "scifi";
 
-    const int PW = 192, PH = 128, PM = 16, PInset = 6, PCut = 10;
+    const int PW = 304, PH = 208, PM = 16, PInset = 6, PCut = 10;
     const int BW = 48, BH = 40, BM = 10, BInset = 4, BCut = 6;
     const int IW = 40, IH = 36, IM = 8, IInset = 4, ICut = 4;
 
@@ -34,17 +34,23 @@ public static class SciFi
     /// <summary>The etched schematic on each plate: traces with 45° bends and round pads, in plate coordinates.</summary>
     static readonly Vector2[][] Traces =
     [
-        [new(18, 28), new(52, 28), new(64, 40), new(112, 40)],
-        [new(30, 72), new(70, 72), new(80, 62), new(138, 62), new(138, 82)],
-        [new(96, 14), new(96, 22), new(104, 30), new(146, 30)],
+        [new(26, 40), new(84, 40), new(100, 56), new(180, 56)],
+        [new(40, 120), new(110, 120), new(126, 104), new(220, 104), new(220, 150)],
+        [new(150, 18), new(150, 30), new(162, 42), new(240, 42)],
     ];
 
     static (float Seam, float Bolt, float Ring) Plate(float x, float y)
     {
+        // A seam just inside the rail all round (the plate's own edge) and, faint, between plates; bolts in a row along that seam
+        // (the edges' strips, so they repeat with them) and one in each corner, none in the middle of the plate where text sits.
         float lx = Mod(x - PM, Px), ly = Mod(y - PM, Py);
-        var seam = MathF.Max(Smooth(1.6f, 0.3f, MathF.Min(lx, Px - lx)), Smooth(1.6f, 0.3f, MathF.Min(ly, Py - ly)));
-        var bolt = 99f;
-        foreach (var b in new Vector2[] { new(7, 7), new(Px - 7, 7), new(7, Py - 7), new(Px - 7, Py - 7) }) bolt = MathF.Min(bolt, (new Vector2(lx, ly) - b).Length());
+        var between = 0.35f * MathF.Max(Smooth(1.2f, 0.3f, MathF.Min(lx, Px - lx)), Smooth(1.2f, 0.3f, MathF.Min(ly, Py - ly)));
+        var edge = MathF.Min(MathF.Min(x, PW - x), MathF.Min(y, PH - y));
+        var seam = MathF.Max(between, Smooth(1.4f, 0.3f, MathF.Abs(edge - 14.5f)));
+        float ex = MathF.Min(x, PW - x), ey = MathF.Min(y, PH - y), bolt = 99f;
+        if (ex < PM && ey < PM) bolt = new Vector2(ex - 10, ey - 10).Length();
+        else if (ey < PM) bolt = new Vector2(Mod(x - PM, Px / 4f) - Px / 8f, ey - 10).Length();
+        else if (ex < PM) bolt = new Vector2(ex - 10, Mod(y - PM, Py / 2f) - Py / 4f).Length();
         return (seam, bolt, bolt);
     }
 
@@ -91,7 +97,7 @@ public static class SciFi
         }
         c += Rgb(0.01f, 0.013f, 0.016f) * grid + Chrome * 0.03f * trace;
         var (seam, bolt, _) = Plate(x, y);
-        c *= 1 - 0.65f * seam;
+        c *= 1 - 0.45f * seam;
         if (bolt < 3.4f) c = bolt < 2.2f ? Rgb(0.2f, 0.225f, 0.25f) : Rgb(0.03f, 0.035f, 0.04f);
         var glow = top ? Cyan * 0.07f * MathF.Exp(-(y - 6) / 3f) * Smooth(PCut, PCut + 14, MathF.Min(x, PW - x)) : Vector3.Zero;
         c *= 0.75f + 0.25f * Smooth(6, 11, d);                                                                // the rail's shadow

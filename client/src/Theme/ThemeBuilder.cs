@@ -25,10 +25,10 @@ public static class ThemeBuilder
         StyleBox popup = Nine(m.Panel, Space.S, Space.S);
         foreach (var type in new[] { "TooltipPanel", "PopupPanel", "PopupMenu" }) t.SetStylebox("panel", type, popup);
         foreach (var (state, face) in new[] { ("normal", m.Button), ("hover", m.ButtonHover), ("pressed", m.ButtonPressed), ("hover_pressed", m.ButtonPressed), ("disabled", m.ButtonDisabled) })
-            t.SetStylebox(state, "Button", Nine(face, Space.M, Space.S, stretchDown: true));
+            t.SetStylebox(state, "Button", Nine(face, Space.M, Space.S, stretchDown: m.ButtonStretch));
         t.SetStylebox("focus", "Button", new StyleBoxEmpty());
-        t.SetStylebox("tab_selected", "TabContainer", Nine(m.ButtonPressed, Space.M, Space.S, true)); t.SetStylebox("tab_unselected", "TabContainer", Nine(m.Button, Space.M, Space.S, true));
-        t.SetStylebox("tab_hovered", "TabContainer", Nine(m.ButtonHover, Space.M, Space.S, true));
+        t.SetStylebox("tab_selected", "TabContainer", Nine(m.ButtonPressed, Space.M, Space.S, m.ButtonStretch)); t.SetStylebox("tab_unselected", "TabContainer", Nine(m.Button, Space.M, Space.S, m.ButtonStretch));
+        t.SetStylebox("tab_hovered", "TabContainer", Nine(m.ButtonHover, Space.M, Space.S, m.ButtonStretch));
         // Inputs and dropdowns: the field cut into the material (fantasy's parchment groove, sci-fi's scanline screen), in its own ink.
         var field = Nine(m.Input, Space.S, Space.S); var focus = Flat(s, C(u.Accent) with { A = 0 }, C(u.Accent), 2); focus.DrawCenter = false;
         foreach (var type in new[] { "LineEdit", "TextEdit" })
@@ -110,7 +110,7 @@ public static class ThemeBuilder
         {
             t.SetTypeVariation(variation, "Button");
             foreach (var (state, face) in new[] { ("normal", lit ? m.ButtonHover : m.Button), ("hover", m.ButtonHover), ("pressed", m.ButtonPressed), ("hover_pressed", m.ButtonPressed), ("disabled", m.ButtonDisabled) })
-                t.SetStylebox(state, variation, Nine(face, Space.S, Space.S, stretchDown: true));
+                t.SetStylebox(state, variation, Nine(face, Space.S, Space.S, stretchDown: m.ButtonStretch));
             t.SetStylebox("focus", variation, new StyleBoxEmpty());
             foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color" }) t.SetColor(name, variation, C(u.ButtonText));
             t.SetColor("font_disabled_color", variation, C(u.ButtonText) with { A = 0.5f });
@@ -136,8 +136,8 @@ public static class ThemeBuilder
         t.SetTypeVariation(Variation.Primary, "Button");
         // The one lit action: the primary face (fantasy's red lacquer, sci-fi's lit key), brighter under the pointer, darker pressed.
         foreach (var (state, light) in new[] { ("normal", 1f), ("hover", 1.15f), ("pressed", 0.85f), ("hover_pressed", 0.85f) })
-        { var b = Nine(m.Primary, Space.M, Space.S, stretchDown: true); b.ModulateColor = new Color(light, light, light); t.SetStylebox(state, Variation.Primary, b); }
-        t.SetStylebox("disabled", Variation.Primary, Nine(m.ButtonDisabled, Space.M, Space.S, stretchDown: true));
+        { var b = Nine(m.Primary, Space.M, Space.S, stretchDown: m.ButtonStretch); b.ModulateColor = new Color(light, light, light); t.SetStylebox(state, Variation.Primary, b); }
+        t.SetStylebox("disabled", Variation.Primary, Nine(m.ButtonDisabled, Space.M, Space.S, stretchDown: m.ButtonStretch));
         t.SetStylebox("focus", Variation.Primary, new StyleBoxEmpty());
         foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "font_hover_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color" }) t.SetColor(name, Variation.Primary, C(u.ButtonText));
         t.SetColor("font_disabled_color", Variation.Primary, C(u.ButtonText) with { A = 0.5f });
@@ -148,7 +148,7 @@ public static class ThemeBuilder
     public static StyleBoxTexture Nine(ThemeImage m, int padX, int padY, bool stretchDown = false)
     {
         var b = new StyleBoxTexture { Texture = Ui.Image(m.Path), AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.TileFit,
-            AxisStretchVertical = stretchDown ? StyleBoxTexture.AxisStretchMode.Stretch : StyleBoxTexture.AxisStretchMode.TileFit };
+            AxisStretchVertical = stretchDown ? StyleBoxTexture.AxisStretchMode.Stretch : StyleBoxTexture.AxisStretchMode.Tile };
         b.SetTextureMarginAll(m.Margin);
         b.ContentMarginLeft = b.ContentMarginRight = m.Inset + padX; b.ContentMarginTop = b.ContentMarginBottom = m.Inset + padY;
         return b;

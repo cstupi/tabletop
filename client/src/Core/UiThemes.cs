@@ -8,9 +8,9 @@ public static class UiThemes
     static Dictionary<string, string> IconsIn(string dir) => new[] { "activated", "objective", "shaken", "fatigued", "settings", "team", "player", "army", "watch", "warning", "ready", "editing", "charge", "shoot", "activation", "hold", "advance", "rush", "melee", "cast", "wound", "key", "terrain", "table", "zone", "layout", "remove", "dice", "add", "blocks-sight", "impassable", "dangerous", "cover", "difficult", "open-ground", "round", "turn", "wait", "quality", "defense", "log", "undo", "copy", "home", "skip-back", "step-back", "step", "skip", "play", "pause", "camera", "measure", "unstable", "steep", "see-in-out", "lock", "unlock", "replay", "menu", "search", "sign-out", "refresh", "display", "sound", "accessibility", "game-menu" }.ToDictionary(n => n, n => $"{dir}/icons/{n}.svg", StringComparer.OrdinalIgnoreCase);
     static ThemeImage M(string dir, string name, (int Margin, int Inset) m) => new($"{dir}/{name}.png", m.Margin, m.Inset);
     /// <summary>The images scripts/ThemeTextures draws; the margins and insets are its sheets' (ThemeTextureTests checks them).</summary>
-    static ThemeMaterials Materials(string d, (int, int) panel, (int, int) button, (int, int) input, int tile, bool tileOver, Rgba fieldText, Rgba fieldDim) =>
+    static ThemeMaterials Materials(string d, (int, int) panel, (int, int) button, (int, int) input, int tile, bool tileOver, bool stretch, Rgba fieldText, Rgba fieldDim) =>
         new(M(d, "panel", panel), M(d, "button", button), M(d, "button-hover", button), M(d, "button-pressed", button), M(d, "button-disabled", button),
-            M(d, "button-primary", button), M(d, "input", input), $"{d}/backdrop.png", $"{d}/backdrop-tile.png", tile, tileOver, fieldText, fieldDim);
+            M(d, "button-primary", button), M(d, "input", input), $"{d}/backdrop.png", $"{d}/backdrop-tile.png", tile, tileOver, stretch, fieldText, fieldDim);
     /// <summary>A war table: dark walnut panels framed in iron with brass brackets, brass-rimmed wooden plaques (the primary red lacquer),
     /// parchment fields, a green leather table top under a lamp.</summary>
     public static UiTheme Fantasy { get; } = new("fantasy", "Fantasy",
@@ -20,7 +20,7 @@ public static class UiThemes
         new($"{F}/fonts/Cinzel-Variable.ttf", 20, 700), new($"{F}/fonts/EBGaramond-Variable.ttf", 18, 500), new($"{F}/fonts/Cinzel-Variable.ttf", 18, 700),
         new(4, 2, 12, false),
         new(DieFaceStyle.Pips, H("#E8DCC0"), H("#2B2118"), $"{F}/dice"), IconsIn(F),
-        Materials(F, (24, 8), (12, 4), (8, 4), 256, false, H("#2B2118"), H("#6E5E48")), H("#9C7A3C"));
+        Materials(F, (24, 8), (12, 4), (8, 4), 256, false, false, H("#2B2118"), H("#6E5E48")), H("#9C7A3C"));
     /// <summary>A starship console: gunmetal hull plates with a cyan light strip, backlit keys, scanline screens, deep space; violet chrome
     /// beside the cyan accent, amber warnings.</summary>
     public static UiTheme SciFi { get; } = new("scifi", "Sci-fi",
@@ -30,7 +30,7 @@ public static class UiThemes
         new($"{S}/fonts/Orbitron-Variable.ttf", 18, 600), new($"{S}/fonts/Rajdhani-SemiBold.ttf", 20), new($"{S}/fonts/JetBrainsMono-Variable.ttf", 16, 500),
         new(8, 1, 10, true),
         new(DieFaceStyle.Numerals, H("#101A24"), H("#3FD0E0")), IconsIn(S),
-        Materials(S, (16, 6), (10, 4), (8, 4), 512, true, H("#DCEBF2"), H("#8A9CA6")), H("#8C9CFF"));
+        Materials(S, (16, 6), (10, 4), (8, 4), 512, true, true, H("#DCEBF2"), H("#8A9CA6")), H("#8C9CFF"));
     public static IReadOnlyList<UiTheme> All { get; } = [Fantasy, SciFi];
     /// <summary>The detailed log's monospace face, the same in every theme: its columns line up.</summary>
     public static ThemeFont Mono { get; } = new($"{S}/fonts/JetBrainsMono-Variable.ttf", 14, 400);

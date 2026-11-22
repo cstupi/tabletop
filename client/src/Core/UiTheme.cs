@@ -19,9 +19,9 @@ public sealed record ThemeImage(string Path, int Margin, int Inset)
 }
 /// <summary>A theme's materials: the panel, the button's five faces, the input field, and the full-screen backdrop (a picture stretched
 /// over the page and a tile repeated at TileSize 1× pixels, the tile over the picture when TileOver: stars over the nebula, the lamp's
-/// vignette under it over the leather otherwise). FieldText and FieldDim are the text and placeholder colours on the input field.</summary>
+/// vignette under it over the leather otherwise). ButtonStretch: a button face stretches top to bottom (sci-fi's glass) rather than repeating (fantasy's grain). FieldText and FieldDim are the text and placeholder colours on the input field.</summary>
 public sealed record ThemeMaterials(ThemeImage Panel, ThemeImage Button, ThemeImage ButtonHover, ThemeImage ButtonPressed, ThemeImage ButtonDisabled,
-    ThemeImage Primary, ThemeImage Input, string Backdrop, string BackdropTile, int TileSize, bool TileOver, Rgba FieldText, Rgba FieldDim)
+    ThemeImage Primary, ThemeImage Input, string Backdrop, string BackdropTile, int TileSize, bool TileOver, bool ButtonStretch, Rgba FieldText, Rgba FieldDim)
 {
     public IEnumerable<ThemeImage> NinePatches => [Panel, Button, ButtonHover, ButtonPressed, ButtonDisabled, Primary, Input];
     /// <summary>Every file, 1× and 2×.</summary>
