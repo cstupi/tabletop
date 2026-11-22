@@ -2,16 +2,18 @@ using System.IO.Compression;
 
 namespace Tabletop.TableTextures;
 
-/// <summary>8-bit RGBA PNG: written with a per-row filter (the one with the smallest absolute sum) and zlib at its smallest
+/// <summary>8-bit RGBA (or RGB, when every pixel is opaque and the caller asks) PNG: written with a per-row filter (the one with the smallest absolute sum) and zlib at its smallest
 /// setting; read back for the tests (non-interlaced 8-bit RGBA or RGB only).</summary>
 public static class Png
 {
     static readonly byte[] Signature = [137, 80, 78, 71, 13, 10, 26, 10];
 
-    public static byte[] Write(int width, int height, byte[] rgba)
+    public static byte[] Write(int width, int height, byte[] rgba, bool opaque = false)
     {
         if (rgba.Length != width * height * 4) throw new ArgumentException("rgba is not width × height × 4 bytes");
-        var stride = width * 4;
+        var bpp = opaque ? 3 : 4;
+        if (opaque) rgba = Enumerable.Range(0, width * height * 3).Select(i => rgba[i / 3 * 4 + i % 3]).ToArray();
+        var stride = width * bpp;
         var raw = new byte[(stride + 1) * height];
         var candidate = new byte[stride];
         for (var y = 0; y < height; y++)
@@ -22,7 +24,7 @@ public static class Png
                 long sum = 0;
                 for (var x = 0; x < stride; x++)
                 {
-                    var v = (byte)(rgba[y * stride + x] - Predict(f, rgba, y, x, stride));
+                    var v = (byte)(rgba[y * stride + x] - Predict(f, rgba, y, x, stride, bpp));
                     candidate[x] = v; sum += v < 128 ? v : 256 - v;
                 }
                 if (sum >= best) continue;
@@ -36,7 +38,7 @@ public static class Png
         s.Write(Signature);
         var header = new byte[13];
         BigEndian(header, 0, (uint)width); BigEndian(header, 4, (uint)height);
-        header[8] = 8; header[9] = 6;                                   // 8-bit RGBA
+        header[8] = 8; header[9] = (byte)(opaque ? 2 : 6);               // 8-bit RGB or RGBA
         Chunk(s, "IHDR", header); Chunk(s, "IDAT", compressed.ToArray()); Chunk(s, "IEND", []);
         return s.ToArray();
     }
