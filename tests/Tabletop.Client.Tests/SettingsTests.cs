@@ -34,6 +34,47 @@ public class SettingsTests : IDisposable
     }
 
     [Fact]
+    public void An_old_file_loads_every_new_field_at_its_default()
+    {
+        var path = Path.Combine(_dir, "settings.json");
+        File.WriteAllText(path, """
+            { "animate": true, "rememberMe": false, "logFilter": "All", "logOpen": false, "theme": "fantasy", "cameraFollow": true, "turnBanner": true,
+            "measureMode": "Horizontal", "showHitboxes": true, "showTerrainHitboxes": true, "sound": true, "volume": 55, "display": "Fullscreen", "quality": "High",
+            "vSync": true, "logDetailed": false, "weaponRanges": true, "fpsCap": 0 }
+            """);
+        var s = ClientSettings.Load(path);
+        Assert.Equal((55, DisplayMode.Fullscreen, "fantasy"), (s.Volume, s.Display, s.Theme));
+        Assert.Equal((true, 100, 100, 100, false, false, false), (s.WoundNumbers, s.PanSpeed, s.OrbitSpeed, s.ZoomSpeed, s.EdgeScroll, s.InvertOrbit, s.InvertZoom));
+        Assert.Empty(s.KeyOverrides);
+        Assert.Equal((false, 100, 100, false), (s.ShowFps, s.EffectsVolume, s.InterfaceVolume, s.MuteInBackground));
+        Assert.Equal((100, 150, 4), (s.UiScale, s.TooltipMs, s.ToastSeconds));
+        Assert.Equal((false, 100, false), (s.ColourBlind, s.TextSize, s.ReduceMotion));
+    }
+
+    [Fact]
+    public void New_fields_round_trip_and_out_of_range_values_clamp()
+    {
+        var path = Path.Combine(_dir, "settings.json");
+        var keys = new Dictionary<Intent, IReadOnlyList<KeyBinding>> { [Intent.NextUnit] = [new KeyBinding(HotKey.N, true, false)], [Intent.MeasureMode] = [new KeyBinding(HotKey.J, null, null)] };
+        var s = ClientSettings.Default with { WoundNumbers = false, PanSpeed = 150, OrbitSpeed = 50, ZoomSpeed = 200, EdgeScroll = true, InvertOrbit = true, InvertZoom = true,
+            KeyOverrides = keys, ShowFps = true, EffectsVolume = 40, InterfaceVolume = 0, MuteInBackground = true, UiScale = 125, TooltipMs = 500, ToastSeconds = 8,
+            ColourBlind = true, TextSize = 130, ReduceMotion = true, Display = DisplayMode.Exclusive };
+        s.Save(path);
+        var back = ClientSettings.Load(path);
+        Assert.Equal(s, back);
+        Assert.Equal(new KeyBinding(HotKey.N, true, false), back.KeyOverrides[Intent.NextUnit][0]);
+        Assert.Equal(new KeyBinding(HotKey.J, null, null), back.KeyOverrides[Intent.MeasureMode][0]);
+
+        File.WriteAllText(path, """
+            { "panSpeed": 900, "uiScale": 10, "textSize": 117, "tooltipMs": -5, "toastSeconds": 99, "effectsVolume": 300,
+            "keys": { "Confirm": [{ "key": "J" }], "Nonsense": [{ "key": "J" }], "Ping": [{ "key": "NotAKey" }] } }
+            """);
+        back = ClientSettings.Load(path);
+        Assert.Equal((200, 75, 100, 0, 10, 100), (back.PanSpeed, back.UiScale, back.TextSize, back.TooltipMs, back.ToastSeconds, back.EffectsVolume));
+        Assert.Empty(back.KeyOverrides);   // Confirm is not rebindable; unknown names drop
+    }
+
+    [Fact]
     public void The_web_url_round_trips_and_names_the_download_page()
     {
         var path = Path.Combine(_dir, "settings.json");

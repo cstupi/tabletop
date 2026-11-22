@@ -43,3 +43,15 @@
 - [ ] Test `Default_equals_the_old_switch_for_every_key_and_modifier`: the old switch copied into the test as `Legacy`, compared over every `HotKey` × Shift × Ctrl.
 - [ ] Test the default overlay rows equal today's literal rows; a rebind of `ToggleRangeRings` to `J` shows `J` in `Table(keys)`.
 - [ ] Implement; run `dotnet test tests/Tabletop.Client.Tests`; commit.
+
+### Task 2: ClientSettings fields
+
+**Files:** modify `client/src/Core/ClientSettings.cs`, `client/src/Core/GraphicsSettings.cs` (`DisplayMode.Exclusive`); test `tests/Tabletop.Client.Tests/SettingsTests.cs`.
+
+**Produces (name, default, range):** `WoundNumbers` true; `PanSpeed`, `OrbitSpeed`, `ZoomSpeed` 100 (50–200); `EdgeScroll` false; `InvertOrbit`, `InvertZoom` false;
+`KeyOverrides` empty (`IReadOnlyDictionary<Intent, IReadOnlyList<KeyBinding>>`, saved as `keys`); `ShowFps` false; `EffectsVolume`, `InterfaceVolume` 100 (0–100);
+`MuteInBackground` false; `UiScale` 100 (75–150); `TooltipMs` 150 (0–1000); `ToastSeconds` 4 (2–10); `ColourBlind` false; `TextSize` 100 (100, 115, 130); `ReduceMotion` false.
+`Volume` stays the master volume.
+
+- [ ] Test `An_old_file_loads_every_new_field_at_its_default` (today's JSON, no new keys) and `New_fields_round_trip` (including a `Shift+Tab`-style override and an out-of-range value clamped).
+- [ ] Implement; run tests; commit.
