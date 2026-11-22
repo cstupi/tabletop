@@ -246,7 +246,11 @@ public partial class DecisionBox : PanelContainer
         }
         Quiet([]);
         var aside = SetAsideView.DrawnKey(_s.MaySetAside, _s.SetAsideRules);
-        if (_renderedAsk == mine.Ask.Id && aside == _asideDrawn) return;
+        if (_renderedAsk == mine.Ask.Id && aside == _asideDrawn)
+        {
+            if (_noteUnder != _s.PendingUndoTo) AnsweredNote(mine.Ask);    // drawn under an undo's prediction: the log now holds its marker
+            return;
+        }
         _asideDrawn = aside;
         var model = DecisionView.Of(p, game, names, _s.MyTeamId);   // only for an Ask not yet drawn: most renders keep the box as it is
         Reset(); _renderedAsk = mine.Ask.Id; _answering = _s.MyTeamId; _note.Text = "";
@@ -268,7 +272,21 @@ public partial class DecisionBox : PanelContainer
         }
         if (mine.Ask.AllowPass) Foot(Act(CardActions.Pass, () => Send(mine.Ask, new Passed())));
         Rekey();
-        if (AskViewModel.AnsweredBy(_s.Log, mine.Ask.Id, _s.MyTeamId, _s.ParticipantId, names) is { } who) _note.Text = $"{who} answered for your team";
+        AnsweredNote(mine.Ask);
+    }
+
+    /// <summary>"Ann answered for your team", read from the log the projection shows: under an undo's prediction the log up to its target,
+    /// not the answer it undoes; read again once the marker lands.</summary>
+    long? _noteUnder; string? _answeredNote;
+    void AnsweredNote(Ask ask)
+    {
+        _noteUnder = _s.PendingUndoTo;
+        var names = new Names(_s.Game!, _s.Projection!);
+        IReadOnlyList<GameEvent> log = _s.PendingUndoTo is { } to ? _s.Log.Where(e => e.Seq <= to).ToList() : _s.Log;   // the prediction's log
+        var note = AskViewModel.AnsweredBy(log, ask.Id, _s.MyTeamId, _s.ParticipantId, names) is { } who ? $"{who} answered for your team" : null;
+        if (note is not null) _note.Text = note;
+        else if (_answeredNote is not null && _note.Text == _answeredNote) _note.Text = "";
+        _answeredNote = note;
     }
 
     /// <summary>
@@ -306,7 +324,8 @@ public partial class DecisionBox : PanelContainer
             groups.End();
             Rekey();                                                        // Pass follows the tiles shown, narrowed or not
         }
-        Show(all, full);
+        if (DecisionView.Narrowed(options, p0, _input.Selected?.PieceId) is { } kept) { narrowed = true; Show(kept, DecisionView.Number(kept)); }   // drawn again with a unit selected: its keys stay
+        else Show(all, full);
         _onNumber = option => Send(mine.Ask, new Chosen(option));
         _input.Eligible = DecisionView.ClickAnswers(options, mine.Ask, p0, game);
         _onTarget = clicked =>
@@ -448,7 +467,7 @@ public partial class DecisionBox : PanelContainer
         if (_input is not null && IsInstanceValid(_input)) _input.DropProposed();   // before Proposing clears: a held ghost would otherwise drop as a hand move
         if (_input is not null && IsInstanceValid(_input)) { _input.Proposing.Clear(); _input.Allowance = null; _input.Proposed = null; _input.Region = null; _input.Reach = null; _input.Eligible = new HashSet<Guid>(); }
         if (_region is not null && IsInstanceValid(_region)) _region.Hide();
-        if (_view is not null && IsInstanceValid(_view)) { _view.ClearExitGhosts(); _view.Paths.Hide(); }
+        if (_view is not null && IsInstanceValid(_view)) { _view.ClearExitGhosts(); _view.Paths.Hide(); _view.Coherency.Hide(); }
     }
 
     /// <summary>Unhook, and the card's controls and the table's highlights with it.</summary>

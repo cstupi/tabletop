@@ -28,6 +28,8 @@ public sealed record Nearest(double Distance, int From, int To);
 /// <summary>A range outline: every model at Range, or each at its own Ranges[i] when given.</summary>
 public sealed record RingRequest(IReadOnlyList<PlacedModel> Models, double Range, IReadOnlyList<double>? Ranges = null);
 public sealed record Segment(Point2 A, Point2 B);
+/// <summary>A unit's models and its coherency distances (Coherency.Gaps): Chain, Elevated at different elevation, Spread.</summary>
+public sealed record CoherencyRequest(IReadOnlyList<PlacedModel> Models, double Chain, double Elevated, double Spread);
 /// <summary>A keep-away (Clearance): each of From at Over[i], lifted within LiftedWithin of each of Lifted; Placed, the base ClearanceBreaks tests.</summary>
 public sealed record ClearanceRequest(IReadOnlyList<PlacedModel> From, IReadOnlyList<double> Over, IReadOnlyList<PlacedModel>? Lifted = null, double LiftedWithin = 0,
     PlacedModel? Placed = null);
@@ -50,5 +52,5 @@ public sealed record RouteModel(Guid Id, PlacedModel Start, Point2 To);
 public sealed record RoutesRequest(IReadOnlyList<RouteModel> Models, double Allowance, IReadOnlyList<Guid> Impassable, IReadOnlyList<Guid> Difficult,
     double? DifficultCap, IReadOnlyList<Piece> Terrain, TableSize Size, IReadOnlyList<PlacedModel> Stationary, IReadOnlyList<Guid>? Steep = null,
     IReadOnlyList<Guid>? Dangerous = null, IReadOnlyList<Guid>? Unstable = null, double? UnstableOver = null, bool Capped = false);
-/// <summary>Footprints and Dangerous: the base swept along the path (SweptPath.Of).</summary>
-public sealed record RouteFound(Guid Id, Point2[] Points, double Distance, bool EntersDifficult, PathFootprint[] Footprints, Guid[] Dangerous);
+/// <summary>Footprints, Dangerous and Stretches: the base swept along the path (SweptPath.Of).</summary>
+public sealed record RouteFound(Guid Id, Point2[] Points, double Distance, bool EntersDifficult, PathFootprint[] Footprints, Guid[] Dangerous, PathStretch[] Stretches);

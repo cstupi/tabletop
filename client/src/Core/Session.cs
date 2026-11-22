@@ -52,6 +52,8 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     public IReadOnlyDictionary<string, string> TerrainRules { get; private set; } = new Dictionary<string, string>();
     /// <summary>The seize range about each objective marker's centre, from Welcome.MarkerRange; null draws none.</summary>
     public double? MarkerRange { get; private set; }
+    /// <summary>The unit coherency the server judges moves by, from Welcome.Coherency; the decision box measures its ghosts with it. Null measures none.</summary>
+    public UnitCoherency? Coherency { get; private set; }
     public TableState? Draft { get; private set; }
     public EventApplier? Applier { get; private set; }
     /// <summary>What the table shows: an undo's prediction, else the replay's position (Session.Replay), else the live projection.</summary>
@@ -378,7 +380,9 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
         try { _predicted = Applier.ProjectTo(seq); }
         catch (ProjectionDesyncException desync) { OnDesync(desync); return; }
         PendingUndoTo = seq;
-        try { _pendingUndoCommand = await SendCommandAsync(new Undo(seq)); }
+        var id = Guid.CreateVersion7();
+        _pendingUndoCommand = id;                                       // before the send: a refusal can land before its continuation runs
+        try { await SendCommandAsync(new Undo(seq), id); }
         catch (Exception)
         {
             _predicted = null; PendingUndoTo = null;
@@ -412,14 +416,14 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
         {
             case Welcome w:
                 _welcomed = true; _attempt = 0;
-                ParticipantId = w.ParticipantId; Game = w.Game; Options = w.Options; Zones = w.Zones; TerrainWords = w.TerrainWords; TerrainRules = w.TerrainRules; MarkerRange = w.MarkerRange;
+                ParticipantId = w.ParticipantId; Game = w.Game; Options = w.Options; Zones = w.Zones; TerrainWords = w.TerrainWords; TerrainRules = w.TerrainRules; MarkerRange = w.MarkerRange; Coherency = w.Coherency;
                 SetPhase(SessionPhase.Connected);
                 RaiseGame();
                 EnsureRuleTexts();
                 if (_queued.Count > 0 && _socket is { } welcomed) _ = FlushQueued(welcomed);
                 break;
             case RulesOptionsMessage r:
-                Options = r.Options; Zones = r.Zones; TerrainWords = r.TerrainWords; TerrainRules = r.TerrainRules; MarkerRange = r.MarkerRange;   // sent before the GameInfo that follows, which raises the change
+                Options = r.Options; Zones = r.Zones; TerrainWords = r.TerrainWords; TerrainRules = r.TerrainRules; MarkerRange = r.MarkerRange; Coherency = r.Coherency;   // sent before the GameInfo that follows, which raises the change
                 break;
             case GameInfoMessage g:
                 Game = g.Game;

@@ -1,5 +1,6 @@
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Interpreter;
+using Tabletop.GameServer.Properties;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 
@@ -34,6 +35,23 @@ public static partial class GfMoves
     /// <summary>The unit's terrain rules, read from its live set (Flying, Strider and the banner can be granted) and its Aircraft.</summary>
     public static TerrainRules TerrainFor(StepContext ctx, Guid unit, LiveSet live) =>
         new(IsAircraft(ctx, unit), live.Has(Side.Attacker, GfNames.Flying), live.Has(Side.Attacker, GfNames.Strider), live.Has(Side.Attacker, GfNames.EternalFlame));
+
+    /// <summary>
+    /// The difficult ground a charge offer holds the unit to, as its charge move would (GfMelee.ChargeTargets): the Difficult volumes, the Steep ones,
+    /// and the cap, all empty or null for a unit that ignores difficult terrain (TerrainRules.IgnoresDifficult: Flying, Strider, the Banner of Eternal
+    /// Flame), and whether the unit counts as in difficult terrain where it stands (CountsAsIn, the move step's 6" allowance). `live` is the unit's
+    /// charge set; nothing is recorded or spent.
+    /// </summary>
+    public static (IReadOnlyList<WorldVolume> Difficult, IReadOnlyList<WorldVolume> Steep, double? Cap, bool InDifficult) ReachTerrain(GameState state,
+        PropertySet props, Guid unit, LiveSet live)
+    {
+        var rules = new TerrainRules(false, live.Has(Side.Attacker, GfNames.Flying), live.Has(Side.Attacker, GfNames.Strider), live.Has(Side.Attacker, GfNames.EternalFlame));
+        if (rules.IgnoresDifficult) return ([], [], null, false);
+        var terrain = Battlefield.Terrain(state);
+        var under = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, null, GfNames.Charge, null, Battlefield.TerrainUnder(state, unit)));
+        var inDifficult = under.Effects(Side.Attacker, EffectKind.CountAsTerrain).Any(x => x.Effect.TargetTerrain == TargetTerrain.Difficult);
+        return (Declared(terrain, TerrainDeclarations.Difficult), Declared(terrain, TerrainDeclarations.Steep), GfNames.DifficultCap, inDifficult);
+    }
 
     /// <summary>A terrain effect the unit skipped was skipped by its banner when it carries one (a relic is the game's, so reading it spends nothing),
     /// else by its Flying, which a move spends (ConsumeKeepingFlying keeps a granted one to the activation's end).</summary>

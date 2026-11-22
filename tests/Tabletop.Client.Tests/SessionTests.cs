@@ -68,8 +68,9 @@ public class SessionTests : IDisposable
         var legs = new Tabletop.Geometry.ZoneLegs(2.0 / 3, 0.75);
         var words = new Dictionary<string, string> { ["see_in_and_out"] = "Dense" };
         var texts = new Dictionary<string, string> { ["cover"] = "+1 to Defense" };
-        sock.Deliver(new RulesOptionsMessage(next) { Zones = legs, TerrainWords = words, TerrainRules = texts, MarkerRange = 4 });
+        sock.Deliver(new RulesOptionsMessage(next) { Zones = legs, TerrainWords = words, TerrainRules = texts, MarkerRange = 4, Coherency = new UnitCoherency(2, 4, 10) });
         Assert.Equal(4, _s.MarkerRange);
+        Assert.Equal(new UnitCoherency(2, 4, 10), _s.Coherency);
         Assert.Same(next, _s.Options);
         Assert.Equal(legs, _s.Zones);
         Assert.Same(words, _s.TerrainWords);
@@ -155,6 +156,18 @@ public class SessionTests : IDisposable
         sock.Deliver(new Refused(id, RefusalReason.Unknown, "no"));
         Assert.Null(_s.PendingUndoTo);
         Assert.Equal(1, _s.Projection!.Scores[Samples.Team1]);           // back to the truth
+    }
+
+    /// <summary>The owner, 2026-11-22: "I undid the choice of Rush and now my game is stuck." A refusal of the undo that lands before the
+    /// send's continuation still ends the prediction: the undo names its command before it sends.</summary>
+    [Fact]
+    public async Task An_undo_refused_before_its_send_returns_ends_the_prediction()
+    {
+        var sock = await ConnectedAtPlaying();
+        sock.Answering = frame => { if (frame is CommandMessage { Command: Undo } c) sock.Deliver(new Refused(c.CommandId, RefusalReason.Unknown, "no")); };
+        await _s.UndoToAsync(1);
+        Assert.Null(_s.PendingUndoTo);
+        Assert.Same(_s.Applier!.Projection, _s.Projection);
     }
 
     [Fact]

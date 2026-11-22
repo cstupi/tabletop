@@ -9,11 +9,15 @@ dangerous terrain."*
 
 ## Behaviour (client and browser)
 
-- **Path:** for each held or proposed model in a move Ask, a faint line along the server's route (`MoveRegions.Route`, the path
-  `Movement.Measured` gives) from its origin to its ghost, with the base's outline drawn as faint footprints along it (one every base
-  length, at the model's facing along the path, plus the start and end), so the swept width is visible. Drawn while the Ask is open,
-  under the ghosts, in the team colour at low opacity; a footprint that overlaps a dangerous volume is drawn in the dangerous colour.
-- **After the move:** the same faint path and footprints stay for the unit's last move until the next activation starts, so a player
+- **Path:** for each held or proposed model in a move Ask, small marks along the server's route (`MoveRegions.Route`, the path
+  `Movement.Measured` gives) from its origin to its ghost. Owner, 2026-11-22: *"it should be little footprints instead of traces of the
+  base and lines. That way it shows movement. Vehicles should show treads for their path."* A model leaves boot prints alternating left
+  and right, a few per inch, facing along the route, from walkers spread across the base's swept width so the width still reads; a
+  vehicle (the army list published no base for it: Army Forge's `bases` "none" or empty, `ModelSlot.Vehicle`) leaves two tread tracks
+  of repeating links at the base's width. Drawn while the Ask is open, under the ghosts, in the team colour in the theme's look (Fantasy
+  an ink stamp, Sci-fi a faint light trace); a mark on the stretch of the walk where any part of the base touches a dangerous volume
+  (`SweptBase.Stretches`, the same sweep the warning uses) is drawn in the dangerous colour.
+- **After the move:** the same marks, fainter, stay for the unit's last move until the next activation starts, so a player
   sees the path taken (both players see it; replay shows it for the step).
 - **Warning:** a model whose swept base enters or crosses a volume the Ask lists as dangerous (`DangerousVolumeIds`, `UnstableVolumeIds`
   with `UnstableOver`) is marked like a contact mark, label `Dangerous terrain test`, and the decision box's gate line names it
@@ -23,5 +27,6 @@ dangerous terrain."*
 
 ## Where it lives
 
-Core (Godot-free, tested): `MovePath` (route, footprints, dangerous hits per model) shared by the warning and the drawing; the viewer port
-with an agreement fixture. Nodes: a path layer beside `RulerNode`; the browser's 2D table the same.
+Core (Godot-free, tested): `MovePaths` (route, footprints, dangerous hits and stretches per model) shared by the warning and the drawing,
+`PathMarks` (the prints and treads); the viewer port with an agreement fixture. Nodes: `MovePathNode` (a MultiMesh per mark shape) beside
+`RulerNode`; the browser's 2D table fills the same shapes.

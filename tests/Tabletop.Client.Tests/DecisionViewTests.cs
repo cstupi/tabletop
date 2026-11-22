@@ -119,6 +119,18 @@ public class DecisionViewTests
         Assert.Empty(DecisionView.ChoicesOf(options, a.Projection, Guid.CreateVersion7()));
     }
 
+    /// <summary>The owner, 2026-11-22, after undoing a unit's Rush: the unit stays selected, so the activation drawn again keeps to its
+    /// choices with the keys it had (Charge 4), not every unit's (where 4 was its Hold).</summary>
+    [Fact]
+    public void An_activation_drawn_with_a_unit_selected_starts_narrowed_to_it()
+    {
+        var p = new EventApplier(Samples.Board, Game).Projection;
+        var options = new Options([new AskOption("x", "Other: Hold", [Guid.CreateVersion7()]), new AskOption("a", "Advance", [Samples.Unit]), new AskOption("m", "Charge", [Samples.Model])]);
+        Assert.Equal(["a", "m"], DecisionView.Narrowed(options, p, Samples.Unit)!.Select(c => c.Id));
+        Assert.Null(DecisionView.Narrowed(options, p, null));
+        Assert.Null(DecisionView.Narrowed(options, p, Guid.CreateVersion7()));   // a unit with no choice here: every unit's
+    }
+
     [Fact]
     public void An_option_names_one_unit_by_its_id_or_its_models_ids()
     {

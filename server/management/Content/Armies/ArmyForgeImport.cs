@@ -190,6 +190,7 @@ public static class ArmyForgeImport
         var slotProps = Enumerable.Range(0, size).Select(_ => new List<PropertyInstance>()).ToList();
         var slotWeapons = Enumerable.Range(0, size).Select(_ => new List<Weapon>()).ToList();
         var slotBodies = entries.SelectMany(e => Enumerable.Repeat(Body(e.Bases), e.Size)).ToList();
+        var slotVehicle = entries.SelectMany(e => Enumerable.Repeat(ParseBase(e.Bases) is null, e.Size)).ToList();   // no published base: on its hull
         var slotBooks = entries.SelectMany(e => Enumerable.Repeat(e.ArmyId, e.Size)).ToList();
         var slotGear = Enumerable.Range(0, size).Select(_ => new List<string>()).ToList();   // the upgrades only some models carry, by name
 
@@ -229,7 +230,7 @@ public static class ArmyForgeImport
                 {
                     // One upgrade's rules and weapons go to the same models.
                     foreach (var i in carriers) if (!slotGear[i].Contains(item.Name)) slotGear[i].Add(item.Name);
-                    if (ParseBase(item.Bases) is { } mount) foreach (var i in carriers) slotBodies[i] = new ModelBody(mount, HeightFromBase(mount));
+                    if (ParseBase(item.Bases) is { } mount) foreach (var i in carriers) (slotBodies[i], slotVehicle[i]) = (new ModelBody(mount, HeightFromBase(mount)), false);
                     foreach (var content in item.Content ?? [])
                         if (content.IsWeapon) Arm(carriers, content.Name, content.Attacks, content.Range, content.SpecialRules);
                         else Place(new PropertyInstance(content.Name, Rating(content.Rating)), carriers);
@@ -255,7 +256,7 @@ public static class ArmyForgeImport
             var named = slotGear[i].Count > 0 ? $"{u.Name} ({string.Join(", ", slotGear[i])}) {i + 1}" : null;
             var slotName = named is { Length: <= Limits.Name } ? named : $"{u.Name} {i + 1}";
             into.Add(new ModelSlot(Guid.CreateVersion7(), into.Count + 1, slotName, slotStats,
-                Stacked(slotProps[i]), slotBodies[i].Base, slotBodies[i].Height, null, slotWeapons[i], slotBooks[i]));
+                Stacked(slotProps[i]), slotBodies[i].Base, slotBodies[i].Height, null, slotWeapons[i], slotBooks[i]) { Vehicle = slotVehicle[i] });
         }
     }
 

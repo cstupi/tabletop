@@ -63,6 +63,11 @@ public static class DecisionView
     public static IReadOnlyList<AskOption> ChoicesOf(Options options, Projection p, Guid unitId) =>
         options.Choices.Where(c => c.Pieces.Any(id => id == unitId || p.Models.GetValueOrDefault(id)?.UnitId == unitId)).ToList();
 
+    /// <summary>What an activation's card first shows: the selected unit's choices when it has any (the card narrowed to it, as a click on it
+    /// narrows it), else null for every unit's. An Ask drawn again (an undo reopens it, a theme change, a refusal) keeps to the selection.</summary>
+    public static IReadOnlyList<AskOption>? Narrowed(Options options, Projection p, Guid? selected) =>
+        selected is { } unit && ChoicesOf(options, p, unit) is { Count: > 0 } hits ? hits : null;
+
     /// <summary>The one unit an option's pieces name, by its id or its models' ids: the unit whose hover label shows while the pointer is on
     /// the option's button. Null when the pieces name no unit, several, or anything that is not a unit or model.</summary>
     public static Guid? UnitNamed(IReadOnlyList<Guid> pieces, Projection p)

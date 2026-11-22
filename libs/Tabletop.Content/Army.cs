@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Tabletop.Geometry;
 
 namespace Tabletop.Content;
@@ -14,7 +15,13 @@ public sealed record ModelSlot(
     Guid Id, int Ordinal, string Name,
     IReadOnlyDictionary<string, string> Stats, IReadOnlyList<PropertyInstance> Properties,
     Base Base, double Height, Guid? AssetId,
-    IReadOnlyList<Weapon> Weapons, string? ArmyBook = null);
+    IReadOnlyList<Weapon> Weapons, string? ArmyBook = null)
+{
+    /// <summary>A vehicle: the army list published no base for the entry (Army Forge's `bases` "none" or empty, the model standing on its hull), so
+    /// the import gave it the vehicle hull. Both clients draw its move path as treads. Written only when true, so a slot without it reads as before.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Vehicle { get; init; }
+}
 
 /// <summary>Reserve is set on a unit the army holds off the table until a property places it (null for every other unit). Points is what the
 /// army list says the unit cost, upgrades and joined entries included; null when the list gave none. Nothing in the rules reads it.</summary>

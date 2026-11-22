@@ -220,11 +220,17 @@ public static class GfMelee
     public static double ChargeDistance(GameState state, PropertySet props, Guid unit, Guid target) =>
         GfMoves.SlowestDistance(state, unit, GfNames.Charge, p => new Interaction(state, props, p, Party.Whole(state, target), AttackKind.Melee, GfNames.Charge, null, []));
 
-    public static IReadOnlyList<Guid> ChargeTargets(GameState state, PropertySet props, Guid unit)
+    /// <remarks>`difficult` false leaves the difficult cap out (3.5.1 p.11, 3.6.0 p.12: "If any model in a unit moves in or through Difficult terrain at any
+    /// point of its move, then all models in the unit may not move more than 6” for that movement"), which ActivationChoices reads to say why no unit is
+    /// offered. With it, a charger that does not ignore difficult terrain (GfMoves.ReachTerrain: Strider, Flying, the Banner of Eternal Flame) reaches
+    /// a target past 6" only on a path round the difficult and steep ground, and a unit that counts as in difficult terrain, or has a model standing in it (GfMoves.StandsIn), reaches no farther than 6",
+    /// as the charge move holds it.</remarks>
+    public static IReadOnlyList<Guid> ChargeTargets(GameState state, PropertySet props, Guid unit, bool difficult = true)
     {
         var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, AttackKind.Melee, GfNames.Charge, null, []));
         // p.13 Flying "may move through units and terrain": a Flying charger's reach is not blocked by impassable terrain.
         var impassable = live.Has(Side.Attacker, "Flying") ? [] : Battlefield.Terrain(state).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
+        var slow = difficult ? GfMoves.ReachTerrain(state, props, unit, live) : ((IReadOnlyList<WorldVolume> Difficult, IReadOnlyList<WorldVolume> Steep, double? Cap, bool InDifficult)?)null;
         var team = Teams.Of(state, unit);
         // p.15: "Units may use Charge actions to disembark". An occupant has no position, so its reach is the exit radius from
         // the container it is inside — anything it could be placed fully within 6" of is a unit it could then be in contact with.
@@ -232,18 +238,21 @@ public static class GfMelee
         var own = Lookup.LivingModels(state, unit);
         var terrain = Battlefield.Terrain(state);
         var vertical = GfEdition.Of(state).MeleeVertical;
+        bool? standsIn = null;
         return state.Projection.Units.Values.Where(u => Teams.Of(state, u.Id) != team && !Lookup.UnitHas(state, props, u.Id, GfNames.Aircraft)).Select(u => u.Id).Where(t =>
         {
             var enemies = Lookup.LivingModels(state, t);
             var distance = ChargeDistance(state, props, unit, t);
+            // A unit counted as in difficult terrain, or with a model standing in it (which moves in it as soon as it moves, capping the whole unit; a charge
+            // whose other models leave it behind in coherency past the cap is the move's to find, not the offer's), reaches no farther than the cap.
+            if (slow is { InDifficult: true } || (slow is { Cap: not null } terms && (standsIn ??= GfMoves.StandsIn(state, unit, terms.Difficult)))) distance = Math.Min(distance, GfNames.DifficultCap);
             // p.9: "within charge distance of one model from the target unit, and has a clear path to reach it", and "charge moves don't have to be in a
             // straight line": a path to base contact round every impassable volume (Movement.ContactDistance). The straight distance is a floor on the
             // path, and cheap: search only the pairs already within it.
-            return inside is { } container
-                ? enemies.Any(e => Battlefield.Distance(state, container, e) <= GfNames.ExitWithin)
-                : own.Any(m => enemies.Any(e => Battlefield.Placed(state, m) is { } from && Battlefield.Placed(state, e) is { } to
-                    && Battlefield.Distance(state, m, e) <= distance
-                    && Movement.ContactInReach(from, to, distance, impassable, state.Board.Table.Size, terrain, vertical)));
+            if (inside is { } container) return enemies.Any(e => Battlefield.Distance(state, container, e) <= GfNames.ExitWithin);
+            return own.Any(m => enemies.Any(e => Battlefield.Placed(state, m) is { } from && Battlefield.Placed(state, e) is { } to
+                && Battlefield.Distance(state, m, e) <= distance
+                && Movement.ContactInReach(from, to, distance, impassable, state.Board.Table.Size, terrain, vertical, slow?.Difficult, slow?.Cap, slow?.Steep)));
         }).ToList();
     }
 

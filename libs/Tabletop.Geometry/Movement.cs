@@ -158,18 +158,24 @@ public static class Movement
     /// target's base: the landing on its open surface nearest the target's level (Collision.RestNear, as a move settles a landing sent at that
     /// level), on one of 16 bearings about the target (ContactPoints, UnitFormation.ContactGap clear), on a path round the impassable volumes and on
     /// the table. Where no volume near the target has a surface above `vertical` and the target stands within it of the table, every landing is in
-    /// reach and only the plan path is measured.
+    /// reach and only the plan path is measured. With `difficult` volumes and a `difficultCap` (and `steep` ones, difficult when the start is off them,
+    /// SteepEntering), each landing's path is judged as Check judges a move: round the difficult ground within the limit, else through it within the
+    /// cap. Only where the shortest plan path is over the cap and difficult ground lies within the limit of the start is the landing search needed.
     /// </summary>
     public static bool ContactInReach(PlacedModel start, PlacedModel target, double limit, IReadOnlyList<WorldVolume> impassable, TableSize? table,
-        IReadOnlyList<WorldVolume> volumes, double vertical)
+        IReadOnlyList<WorldVolume> volumes, double vertical, IReadOnlyList<WorldVolume>? difficult = null, double? difficultCap = null,
+        IReadOnlyList<WorldVolume>? steep = null)
     {
-        if (ContactDistance(start, target, limit, impassable, table) is null) return false;
+        if (ContactDistance(start, target, limit, impassable, table) is not { } shortest) return false;
+        var slowing = Slowing(start, limit, shortest, difficult, difficultCap, steep);
+        var cap = slowing.Count > 0 ? difficultCap + UnitFormation.ContactGap : null;
         var level = target.Bottom();
         var origin = start.Placement.Position.Horizontal;
         var (centre, bound) = start.BaseOutline().BoundingCircle();
         var across = 2 * (bound + centre.DistanceTo(origin));                // a landing touching the target lies within this of its base
         var near = volumes.Where(v => Distance.EdgeToEdge(target, v) <= across + UnitFormation.ContactGap + Tolerance.Distance).ToList();
-        if (level <= vertical + Tolerance.Distance && near.All(v => (v.Volume.Kind == VolumeKind.Solid ? v.WorldTop() : v.WorldBottom()) <= vertical + Tolerance.Distance))
+        if (slowing.Count == 0 && level <= vertical + Tolerance.Distance
+            && near.All(v => (v.Volume.Kind == VolumeKind.Solid ? v.WorldTop() : v.WorldBottom()) <= vertical + Tolerance.Distance))
             return true;
         var reach = limit + UnitFormation.ContactGap;
         foreach (var at in ContactPoints(start, target, UnitFormation.ContactGap, 16))
@@ -177,9 +183,19 @@ public static class Movement
             if (origin.DistanceTo(at) > reach + Tolerance.Distance) continue;
             var there = start with { Placement = start.Placement with { Position = new Point3(at.X, at.Y, level) } };
             if (Math.Abs(Collision.RestNear(there, near, level) - level) > vertical + Tolerance.Distance) continue;
-            if (Check(start, at, reach, impassable, [], null, table) is { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) return true;
+            if (Check(start, at, reach, impassable, slowing, cap, table) is { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) return true;
         }
         return false;
+    }
+
+    /// <summary>The difficult volumes (steep ones the start is off included) that could bind a reach: none without a cap, when the cap is not under the
+    /// limit, when the shortest path is within the cap, or when none lies within the limit of the start's base.</summary>
+    static IReadOnlyList<WorldVolume> Slowing(PlacedModel start, double limit, double shortest, IReadOnlyList<WorldVolume>? difficult, double? cap,
+        IReadOnlyList<WorldVolume>? steep)
+    {
+        if (cap is not { } c || c >= limit - Tolerance.Distance || shortest <= c + Tolerance.Distance) return [];
+        IReadOnlyList<WorldVolume> all = [.. difficult ?? [], .. steep is { Count: > 0 } ? SteepEntering(start, steep) : []];
+        return all.Where(v => Distance.EdgeToEdge(start, v) <= limit + Tolerance.Distance).ToList();
     }
 
     /// <summary>

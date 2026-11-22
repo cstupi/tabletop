@@ -1,27 +1,36 @@
 // The move path agreement: tests/fixtures/movePaths.json is written by tests/Tabletop.Client.Tests/MovePathsViewerFixtureTests.cs from Godot's
 // MovePaths over recorded logs (the kept last move after each move step and at the next activation) and the Flayer Cavalry rush whose first rider's
-// base edge clips a toxic smog. Each is computed again through the browser's port and the WebAssembly Geometry and must agree.
+// base edge clips a toxic smog, with the marks each path is drawn with (pathMarks: prints, treads), their shapes and colours. Each is computed again
+// through the browser's port and the WebAssembly Geometry and must agree.
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Geometry } from '../src/lib/geometry';
 import { Applier } from '../src/lib/live/apply';
 import {
-  footprintColour, lineColour, KeptPathCache, kept, last, LINE_ALPHA, lines, marks, measured, outline, volumeName, type ModelPath,
+  KeptPathCache, kept, last, lines, markColour, marks, measured, RIM_SCALE, rimColour, volumeName, type ModelPath,
 } from '../src/lib/play/movePaths';
+import { BOOT, marksOf, TREAD_LINK, type PathMark } from '../src/lib/play/pathMarks';
 import type { Base, Board, GameEvent, GameInfo, ModelRelocation, MoveRegion, TableSize, TerrainPlacement } from '../src/lib/protocol/wire.generated';
 import type { ModelBody } from '../src/lib/geometry';
 import { parseCatalog } from '../src/lib/setup/catalog';
 import packedCatalog from '@builtin-catalog';
 import { loadTestGeometry } from './geometry';
 
-interface PathCase { modelId: string; route: [number, number][]; footprints: { at: [number, number]; dangerous: boolean }[]; dangerous: string[] }
+interface PathCase {
+  modelId: string; route: [number, number][]; footprints: { at: [number, number]; dangerous: boolean }[]; dangerous: string[]; stretches: [number, number][];
+}
+/** [x, y, facing, left, dangerous, station] */
+type Mark = [number, number, number, boolean, boolean, number];
 interface LogCase { log: string; upTo: number; segments: string[][]; paths: PathCase[]; marks: Record<string, string>; lines: string[] }
 interface Fixture {
   cases: LogCase[];
   flayer: { terrain: TerrainPlacement[]; size: TableSize; legal: MoveRegion; moves: ModelRelocation[]; body: ModelBody; names: Record<string, string>;
-    paths: PathCase[]; marks: Record<string, string>; lines: string[] };
-  outlines: { base: Base; at: [number, number]; yaw: number; outline: [number, number][] }[];
-  colours: { team: number[]; footprint: number[]; dangerous: number[]; line: number[]; lineAlpha: number };
+    paths: PathCase[]; marks: Record<string, string>; lines: string[]; prints: Mark[][]; treads: Mark[][] };
+  routes: { base: Base; yaw: number; vehicle: boolean; route: [number, number][]; stretches: [number, number][]; marks: Mark[] }[];
+  shapes: { boot: [number, number][][]; tread: [number, number][] };
+  team: number[];
+  rims: number[][]; rimScale: number;
+  colours: { dangerous: boolean; ink: boolean; kept: boolean; colour: number[] }[];
 }
 
 const fixture = JSON.parse(readFileSync('tests/fixtures/movePaths.json', 'utf8')) as Fixture;
@@ -31,10 +40,14 @@ const round = (n: number): number => Math.round(n * 1e6) / 1e6;
 const shape = (paths: readonly ModelPath[]): PathCase[] => paths.map((p) => ({
   modelId: p.modelId, route: p.route.map((q) => [round(q.x), round(q.y)] as [number, number]),
   footprints: p.footprints.map((f) => ({ at: [round(f.at.x), round(f.at.y)] as [number, number], dangerous: f.dangerous })), dangerous: [...p.dangerous],
+  stretches: p.stretches.map((s) => [round(s.from), round(s.to)] as [number, number]),
 }));
+const markShape = (ms: readonly PathMark[]): Mark[] => ms.map((m) => [round(m.at.x), round(m.at.y), round(m.facing), m.left, m.dangerous, round(m.station)]);
+const roundedMarks = (ms: Mark[]): Mark[] => ms.map(([x, y, f, l, d, s]) => [round(x), round(y), round(f), l, d, round(s)]);
 const rounded = (paths: PathCase[]): PathCase[] => paths.map((p) => ({
   ...p, route: p.route.map(([x, y]) => [round(x), round(y)] as [number, number]),
   footprints: p.footprints.map((f) => ({ at: [round(f.at[0]), round(f.at[1])] as [number, number], dangerous: f.dangerous })),
+  stretches: p.stretches.map(([a, b]) => [round(a), round(b)] as [number, number]),
 }));
 
 let g: Geometry;
@@ -62,14 +75,26 @@ it('the Flayer Cavalry rush warns for rider 1 alone, as Godot does', () => {
   expect(Object.fromEntries(marks(paths))).toEqual(f.marks);
   expect(lines(paths, (id) => f.names[id]!, (v) => volumeName({ terrain: f.terrain }, v, catalog))).toEqual(f.lines);
   expect(f.lines).toEqual(['Flayer Cavalry 1 crosses Toxic Smog: Dangerous terrain test']);
+  const of = (p: ModelPath, vehicle: boolean) => markShape(marksOf(p.route, p.start.body.base, p.start.placement.yaw.degrees, p.stretches, vehicle));
+  expect(paths.map((p) => of(p, false))).toEqual(f.prints.map(roundedMarks));
+  expect(paths.map((p) => of(p, true))).toEqual(f.treads.map(roundedMarks));
+  expect(f.prints[0]!.some((m) => m[4])).toBe(true);
 });
 
-it('footprint outlines agree', () => {
-  for (const o of fixture.outlines)
-    expect(outline(o.base, { x: o.at[0], y: o.at[1] }, o.yaw).map((q) => [round(q.x), round(q.y)])).toEqual(o.outline.map(([x, y]) => [round(x), round(y)]));
+it('marks along a cornered route agree for every base shape, prints and treads', () => {
+  for (const r of fixture.routes) {
+    const ms = marksOf(r.route.map(([x, y]) => ({ x, y })), r.base, r.yaw, r.stretches.map(([from, to]) => ({ from, to })), r.vehicle);
+    expect(markShape(ms)).toEqual(roundedMarks(r.marks));
+  }
 });
 
-it('footprint colours agree', () => {
+it('mark shapes agree', () => {
+  const pts = (ps: readonly { x: number; y: number }[]) => ps.map((p) => [round(p.x), round(p.y)]);
+  expect(BOOT.map(pts)).toEqual(fixture.shapes.boot.map((o) => o.map(([x, y]) => [round(x), round(y)])));
+  expect(pts(TREAD_LINK)).toEqual(fixture.shapes.tread.map(([x, y]) => [round(x), round(y)]));
+});
+
+it('mark colours agree', () => {
   const hex = (c: number[]): string => '#' + c.slice(0, 3).map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
   // Godot's colours are floats, the browser's bytes from a #rrggbb team colour: each channel within one step of 255.
   const parts = (s: string): number[] => s.slice(5, -1).split(',').map(Number);
@@ -78,11 +103,11 @@ it('footprint colours agree', () => {
     [r, g, b].forEach((v, i) => expect(Math.abs(v! - c[i]! * 255)).toBeLessThanOrEqual(1));
     expect(a).toBeCloseTo(c[3]!, 6);
   };
-  const team = hex(fixture.colours.team);
-  near(footprintColour({ at: { x: 0, y: 0 }, dangerous: false }, team), fixture.colours.footprint);
-  near(footprintColour({ at: { x: 0, y: 0 }, dangerous: true }, team), fixture.colours.dangerous);
-  near(lineColour(team), fixture.colours.line);
-  expect(LINE_ALPHA).toBe(fixture.colours.lineAlpha);
+  const team = hex(fixture.team);
+  for (const c of fixture.colours) near(markColour({ dangerous: c.dangerous }, team, c.ink, c.kept), c.colour);
+  near(rimColour(false), fixture.rims[0]!);
+  near(rimColour(true), fixture.rims[1]!);
+  expect(RIM_SCALE).toBeCloseTo(fixture.rimScale, 6);
 });
 
 it('the kept path is measured once per move and dropped at the next activation', () => {

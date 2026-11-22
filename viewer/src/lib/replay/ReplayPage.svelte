@@ -28,7 +28,7 @@
   import { ReplayTimeline } from './replayTimeline';
   import { replayCardOf, replayHeaderOf, terrainNamer, unitSelection } from './replayView';
   import { parseCatalog } from '../setup/catalog';
-  import { KeptPathCache } from '../play/movePaths';
+  import { isVehicle, KeptPathCache } from '../play/movePaths';
   import { pathsOverlay } from '../play/moveOverlays';
   import { teamOf } from '../play/sheetFocus';
   import type { Auth } from '../shell/auth';
@@ -125,7 +125,8 @@
     const paths = keptPaths.of(geometry, player.timeline.shown, projection);
     if (paths.length === 0) return [];
     const unit = projection.models.get(paths[0]!.modelId)?.unitId;
-    return [pathsOverlay(paths, teamColour(unit === undefined ? 1 : teamOf(projection, game, unit)?.ordinal ?? 1))];
+    const shownAt = projection;
+    return [pathsOverlay(paths, teamColour(unit === undefined ? 1 : teamOf(projection, game, unit)?.ordinal ?? 1), (id) => isVehicle(shownAt, id), true)];
   });
   const header = $derived.by(() => { void version; return projection === null || game === null ? null : replayHeaderOf(projection, game); });
   const card = $derived.by(() => {

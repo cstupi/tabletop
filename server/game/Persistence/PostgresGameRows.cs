@@ -145,11 +145,11 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
         await using (var r = await cmd.ExecuteReaderAsync(ct))
             while (await r.ReadAsync(ct)) (weapons.TryGetValue(r.GetGuid(1), out var l) ? l : weapons[r.GetGuid(1)] = new()).Add(new Weapon(r.GetGuid(0), r.GetString(2), S(r.GetGuid(0)), P(r.GetGuid(0))));
         var slots = new Dictionary<Guid, List<ModelSlot>>();
-        await using (var cmd = new NpgsqlCommand("select m.id, m.unit_id, m.ordinal, m.name, m.base_shape, m.base_a, m.base_b, m.height, m.asset_id, m.army_book from management.model_slot m join management.unit u on u.id = m.unit_id where u.army_id = $1 order by m.ordinal", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
+        await using (var cmd = new NpgsqlCommand("select m.id, m.unit_id, m.ordinal, m.name, m.base_shape, m.base_a, m.base_b, m.height, m.asset_id, m.army_book, m.vehicle from management.model_slot m join management.unit u on u.id = m.unit_id where u.army_id = $1 order by m.ordinal", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))
             while (await r.ReadAsync(ct))
                 (slots.TryGetValue(r.GetGuid(1), out var l) ? l : slots[r.GetGuid(1)] = new()).Add(new ModelSlot(r.GetGuid(0), r.GetInt32(2), r.GetString(3), S(r.GetGuid(0)), P(r.GetGuid(0)),
-                    new Base(EnumFrom<BaseShape>(r.GetString(4)), r.GetDouble(5), r.GetDouble(6)), r.GetDouble(7), NullableGuid(r, 8), weapons.TryGetValue(r.GetGuid(0), out var ws) ? ws : [], NullableString(r, 9)));
+                    new Base(EnumFrom<BaseShape>(r.GetString(4)), r.GetDouble(5), r.GetDouble(6)), r.GetDouble(7), NullableGuid(r, 8), weapons.TryGetValue(r.GetGuid(0), out var ws) ? ws : [], NullableString(r, 9)) { Vehicle = r.GetBoolean(10) });
         var units = new List<Unit>();
         await using (var cmd = new NpgsqlCommand("select id, ordinal, name, reserve_property, reserve_of, points from management.unit where army_id = $1 order by ordinal", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))

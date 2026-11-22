@@ -273,6 +273,24 @@ public class ArmyForgeImportTests
         Assert.Equal(ArmyForgeImport.DefaultBody, new ModelBody(M("Neither").Base, M("Neither").Height));
     }
 
+    /// <summary>Army Forge publishes no base for a vehicle ("bases": {"round": "none", "square": "none"}: it stands on its hull); a monster on a
+    /// published square base is not one, nor is a model riding a mount that publishes a base.</summary>
+    [Fact]
+    public void An_entry_with_no_published_base_is_a_vehicle()
+    {
+        var army = ArmyForgeImport.ToArmy(ListOf(
+            Entry("a", "Battle Tank", 1, bases: """{"round":"none","square":"none"}"""),
+            Entry("b", "Great Beast", 1, bases: """{"round":"none","square":"175x125"}"""),
+            Entry("c", "Squad", 5)), "x", Catalog);
+        bool Vehicle(string n) => army.Units.Single(u => u.Name == n).Models.All(m => m.Vehicle);
+        Assert.True(Vehicle("Battle Tank"));
+        Assert.False(army.Units.Single(u => u.Name == "Great Beast").Models.Any(m => m.Vehicle));
+        Assert.False(army.Units.Single(u => u.Name == "Squad").Models.Any(m => m.Vehicle));
+        var json = System.Text.Json.JsonSerializer.Serialize(army.Units.Single(u => u.Name == "Squad").Models[0]);
+        Assert.DoesNotContain("ehicle", json);
+        Assert.Contains("\"Vehicle\":true", System.Text.Json.JsonSerializer.Serialize(army.Units.Single(u => u.Name == "Battle Tank").Models[0]));
+    }
+
     [Fact]
     public void ParseBase_prefers_round_and_falls_back_to_square()
     {

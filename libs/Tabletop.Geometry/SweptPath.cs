@@ -4,8 +4,12 @@ namespace Tabletop.Geometry;
 /// there touches a dangerous volume.</summary>
 public sealed record PathFootprint(Point2 At, bool Dangerous);
 
-/// <summary>A move's base swept along its path: the footprints drawn along it and the dangerous volumes any part of the base enters or crosses.</summary>
-public sealed record SweptBase(IReadOnlyList<PathFootprint> Footprints, IReadOnlyList<Guid> Dangerous);
+/// <summary>A stretch of a path's walked length, From to To inches from its start, along which any part of the base touches a dangerous volume.</summary>
+public sealed record PathStretch(double From, double To);
+
+/// <summary>A move's base swept along its path: the footprints along it, the dangerous volumes any part of the base enters or crosses and, one per
+/// such volume, the stretch of the walk along which the base touches it (the marks both clients draw there take the dangerous colour).</summary>
+public sealed record SweptBase(IReadOnlyList<PathFootprint> Footprints, IReadOnlyList<Guid> Dangerous, IReadOnlyList<PathStretch> Stretches);
 
 /// <summary>
 /// The base swept along the path a move is measured along (Movement.Measured), as both clients draw it and warn of it before a commit: the dangerous
@@ -30,14 +34,16 @@ public static class SweptPath
         for (var s = 0.0; s < total - Tolerance.Distance; s += spacing) stations.Add(s);
         stations.Add(total);
         var hitVolumes = dangerous.Where(v => hits.Contains(v.Id)).DistinctBy(v => v.Id).ToList();
-        foreach (var v in hitVolumes) stations.Add(Deepest(start, path, total, v));
+        var stretches = hitVolumes.Select(v => Touching(start, path, total, v)).ToList();
+        foreach (var t in stretches) stations.Add((t.From + t.To) / 2);
         stations.Sort();
         var footprints = stations.Select(s => At(path, s)).Select(p => new PathFootprint(p, hitVolumes.Count > 0 && Touches(start, p, hitVolumes))).ToList();
-        return new SweptBase(footprints, hits);
+        return new SweptBase(footprints, hits, stretches);
     }
 
-    /// <summary>The middle of the stretch along which the base touches the volume: the first touch found on prefixes of the path, the last on suffixes.</summary>
-    static double Deepest(PlacedModel start, IReadOnlyList<Point2> path, double total, WorldVolume v)
+    /// <summary>The stretch along which the base touches the volume, from the first touch found on prefixes of the path to the last on suffixes; its
+    /// middle is where the base is deepest in it.</summary>
+    static PathStretch Touching(PlacedModel start, IReadOnlyList<Point2> path, double total, WorldVolume v)
     {
         bool Before(double s) => Movement.VolumesOnPath(start, Prefix(path, s), [v]).Count > 0;
         bool After(double s) { var from = At(path, s); return Movement.VolumesOnPath(Moved(start, from), Suffix(path, s), [v]).Count > 0; }
@@ -46,7 +52,7 @@ public static class SweptPath
         var first = hi;
         lo = first; hi = total;
         for (var i = 0; i < 30 && hi - lo > 1e-4; i++) { var mid = (lo + hi) / 2; if (After(mid)) lo = mid; else hi = mid; }
-        return (first + lo) / 2;
+        return new PathStretch(first, lo);
     }
 
     static bool Touches(PlacedModel start, Point2 at, IReadOnlyList<WorldVolume> volumes) => Movement.VolumesOnPath(Moved(start, at), [at], volumes).Count > 0;

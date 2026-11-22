@@ -8,10 +8,12 @@ namespace Tabletop.Client.Table;
 /// <summary>
 /// The last activation's move path kept on the table until the next activation starts (MovePaths.Last), for every player and in a replay at its
 /// position: each segment measured as the server measured it (MovePaths.Measured) on the thread pool, drawn by a MovePathNode in the moving
-/// team's colour. A newer log state drops an older answer.
+/// team's colour, fainter than an open move's. A newer log state drops an older answer.
 /// </summary>
 public partial class LastMovePath : MovePathNode
 {
+    protected override bool Kept => true;
+
     Session _session = null!; TableView _view = null!; Action<RenderCause>? _onFrame;
     IReadOnlyList<MoveSegment> _shown = []; int _request;
 
@@ -22,7 +24,7 @@ public partial class LastMovePath : MovePathNode
         Refresh();
     }
 
-    public override void _ExitTree() { if (_session is not null && _onFrame is not null) _session.Frame.Render -= _onFrame; }
+    public override void _ExitTree() { base._ExitTree(); if (_session is not null && _onFrame is not null) _session.Frame.Render -= _onFrame; }
 
     async void Refresh()
     {
@@ -35,8 +37,9 @@ public partial class LastMovePath : MovePathNode
         var unit = p.Models.GetValueOrDefault(segments[0].Moves.FirstOrDefault()?.ModelId ?? Guid.Empty)?.UnitId;
         var ordinal = unit is { } u && _session.Game is { } g ? SheetFocus.TeamOf(p, g, u)?.Ordinal : null;
         var measure = MovePaths.KeptLater(segments, p, _view.Volumes, _view.Size);
+        var vehicles = segments.SelectMany(s => s.Moves).Select(m => m.ModelId).Where(id => MovePaths.Vehicle(p, id)).ToHashSet();
         var paths = await Task.Run(measure);
         if (request != _request || !IsInstanceValid(this)) return;
-        Show(paths, ordinal is { } o ? Palette.Team(o) : Palette.Unassigned);
+        Show(paths, ordinal is { } o ? Palette.Team(o) : Palette.Unassigned, vehicles.Contains);
     }
 }
