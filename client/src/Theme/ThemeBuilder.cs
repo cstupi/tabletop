@@ -43,7 +43,7 @@ public static class ThemeBuilder
         t.SetColor("font_disabled_color", "CheckBox", C(u.DimText));
         t.SetTypeVariation(Variation.FlatButton, "Button");
         foreach (var state in new[] { "normal", "hover", "pressed", "disabled", "hover_pressed", "focus" })
-        { var empty = new StyleBoxEmpty(); empty.SetContentMarginAll(2); empty.ContentMarginLeft = empty.ContentMarginRight = 4; t.SetStylebox(state, Variation.FlatButton, empty); }
+        { var empty = new StyleBoxEmpty(); empty.SetContentMarginAll(0); empty.ContentMarginLeft = empty.ContentMarginRight = Space.XS; t.SetStylebox(state, Variation.FlatButton, empty); }
         foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color" }) t.SetColor(name, Variation.FlatButton, C(u.Text));
         foreach (var name in new[] { "font_pressed_color", "font_hover_pressed_color" }) t.SetColor(name, Variation.FlatButton, C(u.Accent));
         t.SetColor("font_disabled_color", Variation.FlatButton, C(u.DimText));
@@ -56,9 +56,9 @@ public static class ThemeBuilder
         var fill = Flat(s, C(u.Accent), C(u.Accent), 0, 0); fill.SetCornerRadiusAll(Math.Min(s.CornerRadius, 3));
         t.SetStylebox("background", "ProgressBar", track); t.SetStylebox("fill", "ProgressBar", fill);
         Variant(t, Variation.Badge, "PanelContainer", "panel", Flat(s, C(u.Panel), C(u.Accent), 2));
-        Variant(t, Variation.Chip, "PanelContainer", "panel", Flat(s, C(u.Panel) with { A = 0 }, C(u.Accent), 1, 4));
-        Variant(t, Variation.DieFace, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Dice.Mark), 1, 2));
-        Variant(t, Variation.DieMiss, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Failure), 2, 2));
+        Variant(t, Variation.Chip, "PanelContainer", "panel", Flat(s, C(u.Panel) with { A = 0 }, C(u.Accent), 1, Space.XS));
+        Variant(t, Variation.DieFace, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Dice.Mark), 1, Space.XS));
+        Variant(t, Variation.DieMiss, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Failure), 2, Space.XS));
         foreach (var (v, c) in new[] { (Variation.Dim, u.DimText), (Variation.Accent, u.Accent), (Variation.Success, u.Success), (Variation.Failure, u.Failure), (Variation.Warning, u.Warning) }) LabelVariant(t, v, c: C(c));
         LabelVariant(t, Variation.Display, u.Display); LabelVariant(t, Variation.Mono, UiThemes.Mono, C(u.Text)); LabelVariant(t, Variation.Numerals, u.Numerals, C(u.Dice.Mark)); LabelVariant(t, Variation.Banner, u.Display with { Size = 48 }, C(u.Accent));
         t.SetColor("font_outline_color", Variation.Banner, C(u.Background)); t.SetConstant("outline_size", Variation.Banner, 6);
@@ -73,21 +73,21 @@ public static class ThemeBuilder
     {
         var s = u.Shape; Color C(Rgba c) => Ui.Of(c);
         StyleBoxFlat Pad(StyleBoxFlat b, int x, int y) { b.ContentMarginLeft = b.ContentMarginRight = x; b.ContentMarginTop = b.ContentMarginBottom = y; return b; }
-        var cap = Pad(Flat(s, C(u.Background) with { A = 0.35f }, C(u.DimText), 1, 0), 5, 1); cap.SetCornerRadiusAll(3);
+        var cap = Pad(Flat(s, C(u.Background) with { A = 0.35f }, C(u.DimText), 1, 0), Space.XS, 0); cap.SetCornerRadiusAll(3);
         LabelVariant(t, Variation.KeyCap, u.Numerals with { Size = Math.Max(11, u.Body.Size - 4) }, C(u.DimText)); t.SetStylebox("normal", Variation.KeyCap, cap);
-        Variant(t, Variation.Card, "PanelContainer", "panel", Flat(s, C(u.Panel) with { A = 1 }, C(u.PanelBorder), Math.Max(1, s.BorderWidth), 16));
-        Variant(t, Variation.Quiet, "PanelContainer", "panel", Pad(Flat(s, C(u.Panel) with { A = 0.8f }, C(u.PanelBorder) with { A = 0.5f }, 1, 0), 12, 8));
+        Variant(t, Variation.Card, "PanelContainer", "panel", Flat(s, C(u.Panel) with { A = 1 }, C(u.PanelBorder), Math.Max(1, s.BorderWidth), Space.S));
+        Variant(t, Variation.Quiet, "PanelContainer", "panel", Pad(Flat(s, C(u.Panel) with { A = 0.8f }, C(u.PanelBorder) with { A = 0.5f }, 1, 0), Space.S, Space.S));
         t.SetTypeVariation(Variation.Tile, "Button");
         foreach (var (state, bg, edge) in new[] { ("normal", C(u.Background), C(u.PanelBorder)), ("hover", C(u.Background).Lerp(C(u.Accent), 0.18f), C(u.Accent)),
                      ("pressed", C(u.Background).Lerp(C(u.Accent), 0.32f), C(u.Accent)), ("disabled", C(u.Background) with { A = 0.5f }, C(u.PanelBorder) with { A = 0.5f }) })
-            t.SetStylebox(state, Variation.Tile, Pad(Flat(s, bg with { A = Math.Max(bg.A, 0.5f) }, edge, 1, 0), 10, 8));
+            t.SetStylebox(state, Variation.Tile, Pad(Flat(s, bg with { A = Math.Max(bg.A, 0.5f) }, edge, 1, 0), Space.S, Space.S));
         t.SetStylebox("focus", Variation.Tile, new StyleBoxEmpty());
         foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color" }) t.SetColor(name, Variation.Tile, C(u.Text));
         t.SetColor("font_disabled_color", Variation.Tile, C(u.DimText));
         t.SetTypeVariation(Variation.Primary, "Button");
         foreach (var (state, shade) in new[] { ("normal", 0f), ("hover", 0.15f), ("pressed", 0.3f) })
-            t.SetStylebox(state, Variation.Primary, Pad(Flat(s, C(u.Accent).Lightened(shade), C(u.Accent).Lightened(shade), 1, 0), 14, 7));
-        t.SetStylebox("disabled", Variation.Primary, Pad(Flat(s, C(u.Accent) with { A = 0.22f }, C(u.Accent) with { A = 0.4f }, 1, 0), 14, 7));
+            t.SetStylebox(state, Variation.Primary, Pad(Flat(s, C(u.Accent).Lightened(shade), C(u.Accent).Lightened(shade), 1, 0), Space.M, Space.S));
+        t.SetStylebox("disabled", Variation.Primary, Pad(Flat(s, C(u.Accent) with { A = 0.22f }, C(u.Accent) with { A = 0.4f }, 1, 0), Space.M, Space.S));
         t.SetStylebox("focus", Variation.Primary, new StyleBoxEmpty());
         foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color" }) t.SetColor(name, Variation.Primary, C(u.Background) with { A = 1 });
         t.SetColor("font_disabled_color", Variation.Primary, C(u.Text) with { A = 0.5f });
@@ -123,13 +123,13 @@ public static class ThemeBuilder
     static StyleBox Box(string? ninePatch, int margin, PanelShape s, Color bg, Color border, int width)
     {
         if (ninePatch is null) return Flat(s, bg, border, width);
-        var b = new StyleBoxTexture { Texture = GD.Load<Texture2D>(ninePatch) }; b.SetTextureMarginAll(margin); b.SetContentMarginAll(s.Padding); return b;
+        var b = new StyleBoxTexture { Texture = GD.Load<Texture2D>(ninePatch) }; b.SetTextureMarginAll(margin); b.SetContentMarginAll(Space.S); return b;
     }
 
     static StyleBoxFlat Flat(PanelShape s, Color bg, Color border, int width, int? padding = null)
     {
         var b = new StyleBoxFlat { BgColor = bg, BorderColor = border, CornerDetail = s.Clipped ? 1 : 8 };
-        b.SetBorderWidthAll(width); b.SetCornerRadiusAll(s.CornerRadius); b.SetContentMarginAll(padding ?? s.Padding); return b;
+        b.SetBorderWidthAll(width); b.SetCornerRadiusAll(s.CornerRadius); b.SetContentMarginAll(padding ?? Space.S); return b;
     }
 
     // Variable fonts at the theme's weight; a static font ignores the axis.
