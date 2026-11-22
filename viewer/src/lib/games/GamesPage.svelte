@@ -236,8 +236,8 @@
   .status.ended .mark { border: 0; border-radius: 0; width: .8rem; height: .45rem; border-left: 2px solid var(--band); border-bottom: 2px solid var(--band); transform: rotate(-45deg) translate(1px, -1px); }
 
   .cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--space-4); }
-  .card { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: var(--space-3);
-    background: var(--panel-solid); border: 1px solid color-mix(in srgb, var(--band) 55%, transparent); border-left: 6px solid var(--band); }
+  .card { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: calc(var(--space-3) + var(--frame-inset));
+    border: 0; border-image: var(--mat-panel); }   /* the theme's panel material, as the client's Home; the status in the card's status line */
   .title { font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .players { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
   .players .names { overflow: hidden; text-overflow: ellipsis; white-space: pre; min-width: 0; }
@@ -247,7 +247,7 @@
 
   .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
   .row { display: grid; grid-template-columns: 9.5rem minmax(8rem, 2fr) minmax(6rem, 2fr) 7.5rem auto 2.75rem; align-items: center; gap: var(--space-3);
-    padding: var(--space-2) var(--space-3); background: var(--panel-solid); border-left: 4px solid var(--band); }
+    padding: calc(var(--space-2) + var(--frame-inset)) calc(var(--space-3) + var(--frame-inset)); border: 0; border-image: var(--mat-panel); }
   .row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row .when { text-align: right; white-space: nowrap; }
   .menu { width: 2.75rem; min-height: 2rem; padding: 0 var(--space-2); }

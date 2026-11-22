@@ -44,7 +44,7 @@
 
 <style>
   .actions { position: absolute; z-index: 1; display: flex; gap: var(--space-1); }
-  .act { width: 42px; height: 42px; min-height: 0; padding: var(--space-2); border-radius: 50%; clip-path: none; box-shadow: 0 2px 8px #0000004d; }
-  .act.lit:not(:disabled) { background-color: var(--btn-hover); }
+  .act { width: 42px; height: 42px; min-height: 0; padding: var(--space-2); border-radius: 50%; clip-path: none; border-image: none; background-color: var(--panel-solid); border: 1px solid var(--panel-border); box-shadow: 0 2px 8px #0000004d; }
+  .act.lit:not(:disabled) { background-color: color-mix(in srgb, var(--accent) 25%, var(--panel-solid)); }
   :global([data-theme='fantasy']) .act { border-radius: 50%; }
 </style>

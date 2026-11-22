@@ -240,7 +240,7 @@
   .log-slot :global(.log .rows) { flex: 1; max-height: none; min-height: 0; }
   /* The card's and the log's text buttons read as text, not as the theme's button face. */
   .side :global(button.flat) {
-    justify-content: flex-start; min-height: 0; padding: var(--space-1) var(--space-1); background: none; box-shadow: none; border: 0; clip-path: none;
+    justify-content: flex-start; min-height: 0; padding: var(--space-1) var(--space-1); background: none; box-shadow: none; border: 0; clip-path: none; border-image: none;
     color: inherit; transform: none; display: block; text-align: left; overflow: hidden; text-overflow: ellipsis;
   }
   .side :global(button.flat:hover:not(:disabled)) { background: none; color: var(--accent); }

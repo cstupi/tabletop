@@ -89,7 +89,7 @@
   .chip.warn { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); }
   .warn { color: var(--warning); }
   .dim { color: var(--dim); }
-  .flat { flex: 1; min-width: 0; min-height: 0; justify-content: flex-start; padding: var(--space-1) var(--space-1); border: 0; border-radius: 0; clip-path: none; box-shadow: none;
+  .flat { flex: 1; min-width: 0; min-height: 0; justify-content: flex-start; padding: var(--space-1) var(--space-1); border: 0; border-radius: 0; clip-path: none; border-image: none; box-shadow: none;
     background: none; color: var(--text); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .flat:hover:not(:disabled) { background: var(--rule); color: var(--text); }
   .gone { opacity: 0.45; }

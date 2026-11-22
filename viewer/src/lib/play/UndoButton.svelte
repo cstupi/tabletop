@@ -42,7 +42,7 @@
 
 <style>
   .cap { display: inline-flex; align-items: center; gap: var(--space-1); }
-  .flat { border: 0; background: none; box-shadow: none; clip-path: none; color: var(--text); }
+  .flat { border: 0; background: none; box-shadow: none; clip-path: none; border-image: none; color: var(--text); }
   kbd { font-family: var(--font-num); font-size: .7rem; line-height: 1; padding: var(--space-1) var(--space-1); border: 1px solid currentColor; border-radius: 3px; opacity: .7; }
   dialog { max-width: 30rem; }
   h2 { margin-top: 0; }

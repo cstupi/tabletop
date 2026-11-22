@@ -233,7 +233,7 @@
   .log.open { flex: 1 1 10rem; min-height: 10rem; }
   :global([data-theme='fantasy']) .log { padding: calc(var(--space-2) + var(--frame-inset)); }
   .head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
-  .toggle { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 2rem; padding: 0; border: 0; border-radius: 0; clip-path: none; box-shadow: none;
+  .toggle { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 2rem; padding: 0; border: 0; border-radius: 0; clip-path: none; border-image: none; box-shadow: none;
     background: none; color: var(--text); }
   .toggle:hover:not(:disabled) { background: none; color: var(--accent); }
   .toggle h2 { margin: 0; font-size: .9rem; }

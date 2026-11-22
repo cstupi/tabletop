@@ -174,7 +174,7 @@
   .sub { text-transform: none; letter-spacing: 0; font-weight: normal; margin-left: var(--space-1); }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
   label { display: flex; flex-direction: column; gap: var(--space-1); color: var(--dim); font-size: .85rem; min-width: 0; }
-  label input:not([type='checkbox']), label select { width: 100%; color: var(--text); font-size: 1rem; }
+  label input:not([type='checkbox']), label select { width: 100%; color: var(--field-text); font-size: 1rem; }
   .full { grid-column: 1 / -1; }
   input[type='number'] { width: 100%; }
   .pair { display: flex; gap: var(--space-2); }

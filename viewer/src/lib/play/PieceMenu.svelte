@@ -78,7 +78,7 @@
   .piece-menu { list-style: none; }
   /* Menu items are rows, not themed buttons. */
   .piece-menu button, .choices button { display: block; width: 100%; min-height: 2rem; padding: var(--space-1) var(--space-2); text-align: left; border: 0; border-radius: 0;
-    clip-path: none; box-shadow: none; background: none; color: var(--text); }
+    clip-path: none; border-image: none; box-shadow: none; background: none; color: var(--text); }
   .piece-menu button:hover:not(:disabled), .choices button:hover:not(:disabled) { background: var(--rule); color: var(--text); }
   .menu-dialog { padding: var(--space-2); display: grid; gap: var(--space-2); min-width: 16rem; }
   .menu-dialog label { display: grid; gap: var(--space-1); }

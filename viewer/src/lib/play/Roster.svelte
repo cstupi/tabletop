@@ -108,7 +108,7 @@
   ul { list-style: none; margin: 0; padding: 0; }
   /* A row is a plain list entry, not a themed button. */
   .row { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-1); width: 100%; min-height: 0; padding: var(--space-1) var(--space-2);
-    border: 0; border-radius: 0; clip-path: none; box-shadow: none; background: none; color: var(--text);
+    border: 0; border-radius: 0; clip-path: none; border-image: none; box-shadow: none; background: none; color: var(--text);
     text-align: left; white-space: normal; font-size: .95rem; cursor: pointer; }
   .row:hover:not(:disabled) { background: var(--rule); color: var(--text); }
   .row.on, .row.on:hover:not(:disabled) { box-shadow: inset 3px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }

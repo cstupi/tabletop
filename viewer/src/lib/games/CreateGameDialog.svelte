@@ -96,7 +96,7 @@
   form { display: flex; flex-direction: column; gap: var(--space-3); }
   h2 { margin: 0; }
   label { display: flex; flex-direction: column; gap: var(--space-1); color: var(--dim); font-size: .95rem; }
-  label input, label select { width: 100%; color: var(--text); font-size: 1rem; }
+  label input, label select { width: 100%; color: var(--field-text); font-size: 1rem; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
   small { font-size: .85rem; margin-top: calc(-1 * var(--space-2)); }   /* 8px under its field: a field's note belongs to it */
   .warn { color: var(--warning); }

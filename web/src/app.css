@@ -51,106 +51,58 @@ main:focus { outline: none; }
 .panel > :first-child { margin-top: 0; } .panel > :last-child { margin-bottom: 0; }
 @media (max-width: 40rem) { .panel { padding: var(--space-3); } }
 
-/* Sci-fi: clipped corners, a 1px line, the line drawn across each cut corner, and accent bars on the top and bottom edges. */
-:where([data-theme='scifi']) :where(.panel, dialog, button, .button, input:not([type='checkbox'], [type='radio'], [type='file'], [type='range']), select, textarea) {
-  --c: 6px; --line: var(--panel-border); --lw: 1px;
-  border: 1px solid var(--line); border-radius: 0;
-  clip-path: polygon(var(--c) 0, calc(100% - var(--c)) 0, 100% var(--c), 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, var(--c) 100%, 0 calc(100% - var(--c)), 0 var(--c));
-  background-image:
-    linear-gradient(135deg, var(--line) calc(var(--c) * .7071 + var(--lw)), transparent 0),
-    linear-gradient(225deg, var(--line) calc(var(--c) * .7071 + var(--lw)), transparent 0),
-    linear-gradient(315deg, var(--line) calc(var(--c) * .7071 + var(--lw)), transparent 0),
-    linear-gradient(45deg, var(--line) calc(var(--c) * .7071 + var(--lw)), transparent 0);
-  background-origin: border-box; background-repeat: no-repeat;
-}
-:where([data-theme='scifi']) :where(.panel, dialog) {
-  --c: 12px; background-color: var(--panel);
-  background-image:
-    linear-gradient(135deg, var(--line) calc(var(--c) * .7071 + var(--lw)), transparent 0),
-    linear-gradient(225deg, var(--line) calc(var(--c) * .7071 + var(--lw)), transparent 0),
-    linear-gradient(315deg, var(--line) calc(var(--c) * .7071 + var(--lw)), transparent 0),
-    linear-gradient(45deg, var(--line) calc(var(--c) * .7071 + var(--lw)), transparent 0),
-    linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent));
-  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, min(5rem, 30%) 3px, 1.5rem 3px;
-  background-position: 0 0, 0 0, 0 0, 0 0, calc(var(--c) + 6px) 0, right calc(var(--c) + 6px) bottom 0;
-  box-shadow: inset 0 0 2.5rem #3FD0E00F;
-}
-
-/* Fantasy: parchment in a wood frame with a brass line, after the client's panel.svg. */
-:where([data-theme='fantasy']) :where(.panel, dialog) {
-  background: url('/themes/fantasy/paper.svg') 0 0 / 240px 240px, var(--panel);
-  border: 2px solid var(--wood); border-radius: 6px;
-  box-shadow: inset 0 0 0 4px var(--wood-band), inset 0 0 0 5.5px var(--brass), inset 0 0 2rem #4A2F1B1F, 0 2px 8px #2B211840;
+/* Materials (spec 2026-11-21-theme-materials-design.md): panels and dialogs are the theme's panel image as a nine-patch, the frame
+   (--frame-inset) outside the padding; the edges and centre repeat (fantasy's walnut and iron, sci-fi's hull plate). */
+:where(.panel, dialog) {
+  border: 0; border-radius: 0; background: transparent; border-image: var(--mat-panel);
   padding: calc(var(--space-4) + var(--frame-inset));
 }
-@media (max-width: 40rem) { :where([data-theme='fantasy']) :where(.panel) { padding: calc(var(--space-3) + var(--frame-inset)); } }
+@media (max-width: 40rem) { :where(.panel) { padding: calc(var(--space-3) + var(--frame-inset)); } }
 
-/* Buttons: the theme's button face; .primary for the main action, .danger for deletes, .quiet for a text-only button. */
+/* Buttons: the theme's button face (fantasy's brass-rimmed plaque, sci-fi's backlit key); .primary the one lit action (red lacquer,
+   a lit key), .danger the face with the failure ink, .quiet a text-only button. A text button pads 16 across and 8 down inside the
+   face's frame (--control-inset), so every text button is as tall. */
 button, .button {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
-  min-height: 2.5rem; padding: var(--space-1) var(--space-3); cursor: pointer; text-decoration: none; white-space: nowrap;
-  background-color: var(--btn-bg); color: var(--button-text); line-height: 1.2;
-  transition: background-color .12s, color .12s;
+  padding: calc(var(--space-2) + var(--control-inset)) calc(var(--space-3) + var(--control-inset)); cursor: pointer; text-decoration: none; white-space: nowrap;
+  border: 0; border-radius: 0; background: transparent; border-image: var(--mat-button); color: var(--button-text); line-height: 1.2;
 }
-:where(button, .button):hover:not(:disabled) { background-color: var(--btn-hover); color: var(--button-text); }
-:where(button, .button)[aria-pressed='true'], :where(button, .button)[aria-pressed='true']:hover:not(:disabled) { background-color: var(--btn-pressed-bg); color: var(--btn-pressed-text); }
-:where(button, .button):disabled { cursor: not-allowed; opacity: .5; }
-:where(button, .button).primary { background-color: var(--primary-bg); color: var(--primary-text); }
-:where(button, .button).primary:hover:not(:disabled) { background-color: var(--primary-hover); color: var(--primary-text); }
-:where(button, .button).danger { background-color: var(--danger-bg); color: var(--danger-text); --line: var(--danger-line); }
-:where(button, .button).danger:hover:not(:disabled) { background-color: var(--danger-hover); color: var(--danger-text); }
-:where(button).quiet { background: none; border: 0; clip-path: none; box-shadow: none; color: var(--link); text-decoration: underline; text-underline-offset: .2em; padding-inline: var(--space-1); min-height: 0; }
-:where(button).quiet:hover:not(:disabled) { background: none; color: var(--link-hover); }
-:where(button).icon-btn { min-height: 2rem; min-width: 2rem; padding: 0 var(--space-1); }
-:where([data-theme='scifi']) :where(button).icon-btn { --c: 4px; }
-:where([data-theme='fantasy']) :where(button, .button):not(.quiet) {
-  border: 2px solid var(--btn-edge); border-radius: 4px;
-  box-shadow: inset 0 0 0 1px var(--btn-bg), inset 0 0 0 2.5px var(--btn-line);
-}
-:where([data-theme='fantasy']) :where(button, .button).primary { --btn-line: #6B4426; box-shadow: inset 0 0 0 1px var(--primary-bg), inset 0 0 0 2.5px var(--btn-line); }
-:where([data-theme='fantasy']) :where(button, .button).danger { box-shadow: inset 0 0 0 1px var(--danger-bg), inset 0 0 0 2.5px var(--danger-line); }
-:where([data-theme='fantasy']) :where(button, .button):active:not(:disabled) { transform: translateY(1px); }
+:where(button, .button):hover:not(:disabled) { border-image: var(--mat-button-hover); color: var(--button-text); }
+:where(button, .button):active:not(:disabled), :where(button, .button)[aria-pressed='true'], :where(button, .button)[aria-pressed='true']:hover:not(:disabled) { border-image: var(--mat-button-pressed); color: var(--button-text); }
+:where(button, .button)[aria-pressed='true'] { color: var(--accent); }
+:where(button, .button):disabled { cursor: not-allowed; border-image: var(--mat-button-disabled); color: color-mix(in srgb, var(--button-text) 55%, transparent); }
+:where(button, .button).primary:not(:disabled) { border-image: var(--mat-primary); color: var(--button-text); }
+:where(button, .button).primary:hover:not(:disabled) { border-image: var(--mat-primary); filter: brightness(1.15); }
+:where(button, .button).primary:active:not(:disabled) { filter: brightness(.85); }
+:where(button, .button).danger:not(:disabled) { color: var(--danger-text); }
+:where(button).quiet { border-image: none; background: none; border: 0; box-shadow: none; color: var(--link); text-decoration: underline; text-underline-offset: .2em; padding-inline: var(--space-1); padding-block: 0; min-height: 0; }
+:where(button).quiet:hover:not(:disabled) { border-image: none; background: none; color: var(--link-hover); }
+/* An icon alone: 8 all round inside the face's frame. */
+:where(button).icon-btn { padding: calc(var(--space-2) + var(--control-inset)); }
 
 /* A segmented choice: buttons side by side with aria-pressed. */
 .seg { display: inline-flex; flex-wrap: wrap; gap: 0; }
-.seg > button { min-height: 2.25rem; }
-:where([data-theme='scifi']) .seg > button + button { margin-left: -1px; }
-:where([data-theme='fantasy']) .seg > button { border-radius: 0; }
-:where([data-theme='fantasy']) .seg > button:first-child { border-radius: 4px 0 0 4px; }
-:where([data-theme='fantasy']) .seg > button:last-child { border-radius: 0 4px 4px 0; }
-:where([data-theme='fantasy']) .seg > button + button { border-left-width: 0; }
 
-/* Inputs. */
+/* Inputs: a field cut into the material (fantasy's parchment groove, sci-fi's scanline screen) in its own ink. */
 input:not([type='checkbox'], [type='radio'], [type='file'], [type='range']), select, textarea {
-  min-height: 2.5rem; padding: var(--space-1) var(--space-3); background-color: var(--input-bg); color: var(--text); max-width: 100%;
+  padding: calc(var(--space-2) + var(--control-inset)) calc(var(--space-3) + var(--control-inset)); max-width: 100%;
+  border: 0; border-radius: 0; background: transparent; border-image: var(--mat-input); color: var(--field-text); caret-color: var(--caret);
 }
-:where([data-theme='scifi']) :where(input:not([type='checkbox'], [type='radio'], [type='file'], [type='range']), select, textarea) { --c: 4px; --line: var(--input-line); }
-:where([data-theme='fantasy']) :where(input:not([type='checkbox'], [type='radio'], [type='file'], [type='range']), select, textarea) {
-  border: 1px solid var(--input-line); border-radius: 3px; box-shadow: inset 0 1px 3px #2B211826;
-}
-:where([data-theme='fantasy']) :where(input, select, textarea):focus-visible { outline-offset: 1px; }
 input[type='number'] { width: 8rem; font-family: var(--font-num); font-weight: var(--num-weight); font-size: .95em; }
-::placeholder { color: var(--dim); opacity: 1; }
-select { appearance: none; padding-right: var(--space-5); cursor: pointer; }
-/* the select's arrow: an extra background layer in each theme */
-:where([data-theme='scifi']) select {
-  background-image:
-    linear-gradient(135deg, var(--line) calc(var(--c) * .7071 + var(--lw)), transparent 0),
-    linear-gradient(225deg, var(--line) calc(var(--c) * .7071 + var(--lw)), transparent 0),
-    linear-gradient(315deg, var(--line) calc(var(--c) * .7071 + var(--lw)), transparent 0),
-    linear-gradient(45deg, var(--line) calc(var(--c) * .7071 + var(--lw)), transparent 0),
-    linear-gradient(45deg, transparent 50%, var(--accent) 50%), linear-gradient(135deg, var(--accent) 50%, transparent 50%);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 5px 5px, 5px 5px;
-  background-position: 0 0, 0 0, 0 0, 0 0, right .9rem center, right calc(.9rem - 5px) center;
+::placeholder { color: var(--field-dim); opacity: 1; }
+/* The select's arrow is a background layer, so its field is the material's edge over the field colour (no fill). */
+select {
+  appearance: none; padding-right: var(--space-5); cursor: pointer;
+  border-image-slice: 16; border-image-width: 8px;   /* both themes' input: margin 8, the 2x file sliced at 16 */
+  background: linear-gradient(45deg, transparent 50%, var(--field-text) 50%) right .9rem center / 5px 5px no-repeat,
+    linear-gradient(135deg, var(--field-text) 50%, transparent 50%) right calc(.9rem - 5px) center / 5px 5px no-repeat, var(--field-bg);
+  background-clip: padding-box;
 }
-:where([data-theme='fantasy']) select {
-  background-image: linear-gradient(45deg, transparent 50%, var(--text) 50%), linear-gradient(135deg, var(--text) 50%, transparent 50%);
-  background-size: 5px 5px, 5px 5px; background-position: right .9rem center, right calc(.9rem - 5px) center; background-repeat: no-repeat;
-}
+select option { background: var(--panel-solid); color: var(--text); }
 input[type='checkbox'], input[type='radio'], progress { accent-color: var(--accent); }
 input[type='checkbox'], input[type='radio'] { width: 1.05rem; height: 1.05rem; vertical-align: -.15em; margin: 0 var(--space-1) 0 0; }
 input[type='file'] { max-width: 100%; }
-input[type='file']::file-selector-button { font: inherit; margin-right: var(--space-3); padding: var(--space-1) var(--space-3); border: 1px solid var(--btn-line); background: var(--btn-bg); color: var(--button-text); cursor: pointer; border-radius: 3px; }
+input[type='file']::file-selector-button { font: inherit; margin-right: var(--space-3); padding: calc(var(--space-2) + var(--control-inset)) calc(var(--space-3) + var(--control-inset)); border: 0; border-image: var(--mat-button); background: transparent; color: var(--button-text); cursor: pointer; }
 fieldset { border: 1px solid var(--rule); padding: var(--space-2) var(--space-3) var(--space-3); margin: 0; min-width: 0; }
 fieldset > label { margin-right: var(--space-3); display: inline-flex; align-items: center; gap: var(--space-1); }
 legend { font-size: .75rem; padding: 0 var(--space-1); color: var(--dim); }
@@ -217,8 +169,6 @@ dialog::backdrop { background: #05080CB3; backdrop-filter: blur(2px); }
   .site-nav .label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 
-/* Sci-fi focus: the clip hides an outline, so the control's own frame turns light and doubles. */
-:where([data-theme='scifi']) :where(button:not(.quiet), .button, input:not([type='checkbox'], [type='radio'], [type='file'], [type='range']), select, textarea):focus-visible, :where([data-theme='scifi']) :where(button, .button).danger:focus-visible { outline: none; --line: var(--text); --lw: 2px; box-shadow: inset 0 0 0 1px var(--text); }
 
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
@@ -228,7 +178,7 @@ dialog::backdrop { background: #05080CB3; backdrop-filter: blur(2px); }
 /* The shared vocabulary (UX redesign index → Shared vocabulary): card, tile, chip, key cap, pips, quiet band, the ▸ menu, thumbnails. */
 .cards { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); margin: 0 0 var(--space-4); padding: 0; list-style: none; }
 .panel.card, .card { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-3); min-width: 0; }
-:where([data-theme='fantasy']) .panel.card { padding: calc(var(--space-3) + var(--frame-inset)); }
+.panel.card { padding: calc(var(--space-3) + var(--frame-inset)); }
 .card > .title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; margin: 0; }
 .card > .title :where(h2, h3) { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 1.05rem; }
 .card > .foot { display: flex; align-items: center; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); }

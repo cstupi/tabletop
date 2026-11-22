@@ -258,7 +258,7 @@
   .grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: var(--space-3); margin-bottom: var(--space-3) }
   .vgrid .grid { position: absolute; inset: 0 0 auto 0; grid-auto-rows: var(--row); margin: 0 }
   .tile-m { position: relative; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-1); padding: var(--space-2); min-height: 0;
-    background: var(--panel-solid); color: var(--text); border: 2px solid var(--rule); white-space: normal; text-align: left; clip-path: none; border-radius: 6px }
+    background: var(--panel-solid); color: var(--text); border: 2px solid var(--rule); white-space: normal; text-align: left; clip-path: none; border-image: none; border-radius: 6px }
   .tile-m :global(.thumb) { width: 100%; height: auto; aspect-ratio: 1; border: 0 }
   .tile-m .name { font-size: .85rem; line-height: 1.2; height: 2.4em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere }
   .tile-m.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) }
@@ -277,7 +277,7 @@
   .more { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); color: var(--dim) }
   .foot { display: grid; gap: var(--space-2); padding-top: var(--space-3); border-top: 2px solid var(--accent) }
   :global([data-theme='fantasy']) .foot { border-top-color: var(--wood) }
-  .scope[aria-checked='true'], .scope[aria-checked='true']:hover:not(:disabled) { background-color: var(--btn-pressed-bg); color: var(--btn-pressed-text) }
+  .scope[aria-checked='true'], .scope[aria-checked='true']:hover:not(:disabled) { border-image: var(--mat-button-pressed); color: var(--accent) }
   .scopes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) }
   .go { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3) }
   .change { color: var(--text) }

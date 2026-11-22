@@ -144,7 +144,7 @@
   .tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); padding: var(--space-2) var(--space-2);
     min-height: 0; white-space: normal; text-align: center; }
   .tile kbd { position: absolute; top: 4px; right: 4px; }
-  .tile.lit:not(:disabled) { background-color: var(--btn-hover); }
+  .tile.lit:not(:disabled) { border-image: var(--mat-button-hover); }
   .tile.row { flex-direction: row; justify-content: flex-start; text-align: left; gap: var(--space-2); }
   .tile.row .word { flex: 1; min-width: 0; }
   .tile.row kbd { position: static; }
@@ -164,7 +164,7 @@
   .casualties { color: var(--danger-text); letter-spacing: .08em; }
   .foot { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
   .foot button { display: inline-flex; align-items: center; gap: var(--space-2); width: auto; }
-  .foot button.flat { background: none; box-shadow: none; clip-path: none; border-color: transparent; }
+  .foot button.flat { background: none; box-shadow: none; clip-path: none; border-image: none; border-color: transparent; }
   kbd { font-family: var(--font-num); font-size: .75rem; line-height: 1; padding: var(--space-1) var(--space-1); border: 1px solid currentColor; border-radius: 3px; opacity: .7; flex: none; }
   .label { color: var(--text); font-family: var(--font-num); }
   .spin { display: flex; gap: var(--space-2); align-items: center; justify-content: space-between; }
