@@ -52,6 +52,13 @@ public static partial class CallCases
         }
         JsonNode Send(CallState s, AskAnswer a) => Command(AskAnswers.Answer(ask, a, s.Acting));
         JsonNode? SendOrNull(CallState s, AskAnswer? a) => a is null ? null : Send(s, a);
+        int? ActionKey(Ask a, string id)
+        {
+            var s = CallState.Playing(log, upTo, player);
+            if (s.Mine is not { } mine || mine.Ask.Id != a.Id) return null;
+            var key = CardActions.Numbered(CardActions.Of(a, mine.Mode, s.P!), DecisionView.Of(s.P!, s.Game, s.Names, s.Acting).Numbered.Count).FirstOrDefault(x => x.Id == id)?.Key;
+            return key is > 0 ? key : null;
+        }
 
         switch (ask.Legal, ta.Answer)
         {
@@ -98,12 +105,17 @@ public static partial class CallCases
 
             case (_, Passed) when ask.AllowPass:
                 if (take("pass")) yield return Make("pass", Choice("pass"), s => Send(s, new Passed()), answerOf: _ => new Passed());
+                // The owner, 2026-11-21: the card's actions are numbered after its tiles; Pass's number answers as its button does.
+                if (ActionKey(ask, CardActions.Pass) is { } passKey && take("pass/key"))
+                    yield return Make("pass/key", Choice("key", ("key", passKey)), s => Send(s, new Passed()), answerOf: _ => new Passed());
                 break;
 
             case (Confirmation, Confirmed):
                 var endRound = ask.Question == AskQuestions.EndRound;
                 if (take(endRound ? "confirm/endRound" : "confirm"))
                     yield return Make(endRound ? "confirm/endRound" : "confirm", Choice("confirm"), s => Send(s, new Confirmed()), answerOf: _ => new Confirmed());
+                if (ActionKey(ask, CardActions.Confirm) is { } confirmKey && take("confirm/key"))
+                    yield return Make("confirm/key", Choice("key", ("key", confirmKey)), s => Send(s, new Confirmed()), answerOf: _ => new Confirmed());
                 break;
 
             case (TokenSpend, TokensSpent spent):

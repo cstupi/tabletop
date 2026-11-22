@@ -31,8 +31,6 @@ export interface QuietBand { readonly teamId: string; readonly ordinal: number; 
 /** One team's answer to a sealed Ask, as its band and a chip. */
 export interface RevealChip { readonly ordinal: number; readonly team: string; readonly choice: string }
 
-/** The key caps drawn on the buttons. */
-export const ENTER = '⏎', ESC = 'Esc', STOP = 'C';
 /** The questions whose options are one unit's actions. */
 export const ACTIVATIONS: ReadonlySet<string> = new Set(['activate', 'act_or_end_phase']);
 const DEPLOYS: ReadonlySet<string> = new Set(['deploy', 'deploy_scouts', 'deploy_ambusher', 'deploy_reinforcement']);

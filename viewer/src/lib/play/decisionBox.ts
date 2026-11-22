@@ -12,8 +12,9 @@ import type {
   Ask, AskAnswer, AskOption, Assignment, Allocation, Command, GameEvent, GameInfo, Options, PieceSelection, Placement, Point3, Refused, TokenSpend,
 } from '../protocol/wire.generated';
 import { confirmLabel, mine as myAsk, spendableBy, answeredBy, type AskView } from './askView';
+import { actionsOf, numberActions, type CardAction } from './cardActions';
 import { CasualtyPick } from './casualtyPick';
-import { ENTER, ESC, groupsOf, headOf, keyCap, quietOf, unitPips, type AllowanceBar, type CardHead, type OptionGroup, type OptionTile, type RevealChip } from './decisionCard';
+import { groupsOf, headOf, keyCap, quietOf, unitPips, type AllowanceBar, type CardHead, type OptionGroup, type OptionTile, type RevealChip } from './decisionCard';
 import { choicesOf, clickAnswers, othersPiece, decisionOf, number as numberChoices, unitNamed, type Numbered } from './decisionView';
 import { midDeploy, offTable, pickable, type MidDeploy } from './deployView';
 import { Names } from './names';
@@ -101,6 +102,7 @@ export class DecisionBox {
   readonly #ghost = new Set<string>();
   readonly #seen = new Map<string, Refused>();
   #eligible: ReadonlySet<string> = new Set();
+  #cardActions: readonly CardAction[] = [];
   #marks: ReadonlyMap<string, string> = new Map();
   #targets: TargetAssignment | null = null;
   #head: CardHead | null = null; #note = ''; #quiet: QuietLine[] = [];
@@ -233,8 +235,15 @@ export class DecisionBox {
     if (this.#refusal === null) this.#refusalDetail = null;
     const said = this.#refusalDetail;
     // A reason line that repeats the server's refusal is shown once, as the refusal.
-    const controls = said === null || said === '' ? [...this.#controls]
-      : this.#controls.map((c) => (c.kind === 'reason' && c.text.includes(said) ? { ...c, text: '' } : c));
+    const keyed = numberActions(this.#cardActions, this.#numbered.length);
+    const capped = this.#controls.map((c) => {
+      if (c.kind !== 'button') return c;
+      const key = keyed.find((a) => a.id === c.id)?.key ?? 0;
+      const { key: _old, ...rest } = c;
+      return key > 0 ? { ...rest, key: keyCap(key) } : rest;
+    });
+    const controls = said === null || said === '' ? capped
+      : capped.map((c) => (c.kind === 'reason' && c.text.includes(said) ? { ...c, text: '' } : c));
     this.#panel = {
       seat: this.#seat, head: this.#head, ordinal: this.#ordinal(), revealed: this.#revealed, note: this.#note, controls, refusal: this.#refusal,
       quiet: this.#head === null ? this.#quiet : [],
@@ -275,6 +284,7 @@ export class DecisionBox {
     this.#head = headOf(mine.ask, p, names);
     if (fresh.length === 0) this.#revealed = null;                          // a reveal is cleared only after a render has shown it
     this.#numbered = model.numbered;
+    this.#cardActions = actionsOf(mine.ask, mine.mode, p);
     this.glow(mine.highlights);
     switch (mine.mode) {
       case 'choose': this.#renderChoose(mine, game, names); break;
@@ -282,12 +292,12 @@ export class DecisionBox {
       case 'tokenSpend': this.#renderSpend(mine, p, names); break;
       case 'confirm': {                                                      // "Continue" for a step gate, "End the round" at the round boundary
         this.handlers.onEnter = () => this.#send(mine.ask, { kind: 'confirmed' });
-        this.add(button('enter', confirmLabel(mine.ask), ENTER, true, 'ready'), this.handlers.onEnter);
+        this.add(button('confirm', confirmLabel(mine.ask), undefined, true, 'ready'), this.handlers.onEnter);
         break;
       }
       default: this.#renderPicks(mine, p, names); break;                    // PickPieces, Assign, Allocate
     }
-    if (mine.ask.allowPass) this.add(button('pass', mine.ask.question === 'act_or_end_phase' ? 'End phase' : 'Pass'), () => this.#send(mine.ask, { kind: 'passed' }));
+    if (mine.ask.allowPass) this.add(button('pass', mine.ask.question === 'act_or_end_phase' ? 'End phase' : 'Pass', undefined, false, 'skip'), () => this.#send(mine.ask, { kind: 'passed' }));
     const who = answeredBy(st.log, mine.ask.id, team, st.participantId, names);
     if (who !== null) this.#note = `${who} answered for your team`;
   }
@@ -403,7 +413,7 @@ export class DecisionBox {
     this.#segmentLength = spendable.size;
     const spend = () => this.#send(mine.ask, { kind: 'tokens_spent', counts: Object.fromEntries([...values].filter(([, v]) => v > 0)) });
     this.handlers.onEnter = spend;
-    this.add(button('spend', 'Spend', ENTER, true, 'cast'), spend);
+    this.add(button('spend', 'Spend', undefined, true, 'cast'), spend);
     if (mine.answeredTeams.length > 0) this.#note = mine.answeredTeams.map((t) => `${t} has answered`).join(', ');
   }
   #spins: { values: Map<string, number>; max: ReadonlyMap<string, number>; rebuild: () => void } | null = null;
@@ -424,14 +434,30 @@ export class DecisionBox {
     this.#actions.get(controlId)?.();
   }
 
+  /** A number key: the tile it caps, else the foot action it caps (cardActions.numberActions), when that can be pressed. */
   number(key: number): boolean {
     const pick = this.handlers.onNumber;
-    if (pick === null) return false;
-    const entry = this.#numbered.find((n) => n.key === key);
-    if (entry === undefined) return false;
-    pick(entry.optionId);
+    const entry = pick === null ? undefined : this.#numbered.find((n) => n.key === key);
+    if (pick !== null && entry !== undefined) { pick(entry.optionId); return true; }
+    const action = this.actions.find((a) => a.key === key);
+    if (action === undefined || !action.enabled) return false;
+    this.press(action.id);
     return true;
   }
+
+  /** The foot's actions as the card shows them now: their keys, and enabled as their buttons are (a dim one's tooltip its reason). */
+  get actions(): CardAction[] {
+    const keyed = numberActions(this.#cardActions, this.#numbered.length);
+    const out: CardAction[] = [];
+    for (const c of this.#controls) {
+      if (c.kind !== 'button') continue;
+      const a = keyed.find((x) => x.id === c.id);
+      if (a !== undefined) out.push({ ...a, enabled: !c.disabled, reason: c.disabled && c.tooltip !== undefined && c.tooltip !== '' ? c.tooltip : null });
+    }
+    return out;
+  }
+  /** The open Ask's foot actions (a placement's: PLACING). */
+  set cardActions(actions: readonly CardAction[]) { this.#cardActions = actions; }
   enter(): boolean { const f = this.handlers.onEnter; if (f === null) return false; f(); return true; }
   cancel(): boolean { return this.handlers.onCancel?.() === true; }
   stop(): boolean { const f = this.handlers.onStop; if (f === null) return false; f(); return true; }
@@ -512,7 +538,7 @@ export class DecisionBox {
 
   /** Unhook, and the box's controls and the table's highlights with it. */
   #reset(): void {
-    this.#unhook(); this.#numbered = [];
+    this.#unhook(); this.#numbered = []; this.#cardActions = [];
     this.#controls = []; this.#segmentLength = 0; this.#actions.clear();
   }
 
@@ -540,7 +566,7 @@ export class DecisionBox {
         items.push([{ kind: 'row', id: `pick:${id}`, label: names.piece(id), key: keyCap(key), pips: p.units.has(id) ? unitPips(p, id, this.#host.state().maxWounds) : null,
           ordinal: game?.teams.find((t) => t.id === team)?.ordinal ?? 0, disabled: false, pieces: [id] }, () => toggle(id)]);
       }
-      if (sel.max > 1) items.push([{ ...button('done', 'Done', ENTER, true, 'ready'), disabled: picked.length < sel.min || picked.length > sel.max }, done]);
+      if (sel.max > 1) items.push([{ ...button('done', 'Done', undefined, true, 'ready'), ...dim(picked.length < sel.min || picked.length > sel.max, `${picked.length} of ${sel.min === sel.max ? sel.min : `${sel.min}–${sel.max}`}`) }, done]);
       this.#segment(items);
     };
     const toggle = (id: string) => {
@@ -577,8 +603,8 @@ export class DecisionBox {
           target: target === undefined ? null : { name: names.unit(target), ordinal } } as Control,
           () => { t.pickOnly(g.id); show(); }] as const;
       });
-      items.push([{ ...button('fire', 'Fire', ENTER, true, 'shoot'), disabled: t.answer() === null }, fire]);
-      items.push([{ ...button('clear-targets', 'Clear', ESC), disabled: !t.canClear }, () => { clear(); }]);
+      items.push([{ ...button('fire', 'Fire', undefined, true, 'shoot'), ...dim(t.answer() === null, 'No target') }, fire]);
+      items.push([{ ...button('clear', 'Clear', undefined, false, 'remove'), ...dim(!t.canClear, 'No target') }, () => { clear(); }]);
       this.#eligible = new Set(t.candidates); this.glow(t.candidates);       // only units a picked group can shoot; two targets taken (p.8): nothing else glows
       this.#segment(items);
     };
@@ -605,9 +631,9 @@ export class DecisionBox {
       this.#marks = marks;
       this.#segment([
         [{ kind: 'counter', id: 'counter', text: `${pick.chosen} of ${pick.required}`, pips: '●'.repeat(pick.chosen) + '○'.repeat(Math.max(0, pick.required - pick.chosen)) }],
-        [{ ...button('confirm', 'Confirm', ENTER, true, 'ready'), disabled: !pick.complete }, confirm],
-        [button('auto', 'Auto'), () => { pick.auto(); show(); }],
-        [button('clear', 'Clear'), () => { pick.clear(); show(); }],
+        [{ ...button('confirm', 'Confirm', undefined, true, 'ready'), ...dim(!pick.complete, `${pick.chosen} of ${pick.required}`) }, confirm],
+        [button('auto', 'Auto', undefined, false, 'refresh'), () => { pick.auto(); show(); }],
+        [button('clear', 'Clear', undefined, false, 'remove'), () => { pick.clear(); show(); }],
       ]);
     };
     this.#eligible = new Set(legal.targets);
@@ -620,5 +646,8 @@ export class DecisionBox {
 /** A window kind in words: `before_shooting` is "before shooting". */
 export const button = (id: string, label: string, key?: string, primary = false, icon?: string): Extract<Control, { kind: 'button' }> =>
   ({ kind: 'button', id, label, disabled: false, ...(key !== undefined && key !== '' ? { key } : {}), ...(primary ? { primary } : {}), ...(icon !== undefined ? { icon } : {}) });
+/** A foot button's state: dim, with why as its tooltip (the bar over the unit shows it too). */
+export const dim = (disabled: boolean, reason: string | null): { disabled: boolean; tooltip?: string } =>
+  disabled && reason !== null && reason !== '' ? { disabled, tooltip: reason } : { disabled };
 const disable = (c: Control): Control => (c.kind === 'button' || c.kind === 'chip' || c.kind === 'row' ? { ...c, disabled: true }
   : c.kind === 'group' ? { ...c, tiles: c.tiles.map((t) => ({ ...t, disabled: true })) } : c);
