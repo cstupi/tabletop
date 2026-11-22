@@ -3,6 +3,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { cursorPanelAt, hudFrameOf, overlaps, PLAY, SETUP, type HudPart, type Rect } from '../src/lib/play/hudFrame';
+import { placeMarkLabels } from '../src/lib/play/markLabels';
+import { placeRingLabels } from '../src/lib/play/ringShape';
+import { placeRect } from '../src/lib/play/unitActionsView';
 
 type R = [number, number, number, number];
 interface Case {
@@ -51,5 +54,27 @@ describe('cursorPanelAt (CursorPanel.Place)', () => {
     expect(arr(f.rects.get('undoButton')!)).toEqual([54, 674, 38, 38]);
     const at = cursorPanelAt({ x: log.x - 18, y: log.y - 18 }, { w: 30, h: 14 }, view, f.obstacles);
     expect(f.obstacles.some((o) => overlaps({ ...at, w: 30, h: 14 }, o))).toBe(false);
+  });
+});
+
+describe('every overlay keeps off the frame\'s obstacles', () => {
+  const view = { x: 0, y: 0, w: 1280, h: 720 };
+  const shown = new Set<HudPart>(['header', 'logButton', 'undoButton', 'decision']);
+  const moved = PLAY.map((r) => r.part === 'logButton' ? { ...r, x: 'left' as const, y: 'bottom' as const } : r);
+  const overlays: [string, (want: Rect, o: readonly Rect[]) => Rect][] = [
+    ['ring label', (want, o) => placeRingLabels([want], view, o)[0]!],
+    ['mark label', (want, o) => placeMarkLabels([{ modelId: 'm', anchor: { x: want.x + want.w / 2, y: want.y }, w: want.w, h: want.h }], view, o)[0]!],
+    ['unit actions', (want, o) => placeRect(want.x + want.w / 2, want.y + want.h + 8, want.w, want.h, view, o, 8)],
+    ['terrain hover', (want, o) => ({ ...cursorPanelAt({ x: want.x - 22, y: want.y - 22 }, { w: want.w, h: want.h }, view, o), w: want.w, h: want.h })],
+  ];
+  it('moving a part\'s row moves what every overlay keeps off', () => {
+    const before = hudFrameOf(1280, 720, shown), after = hudFrameOf(1280, 720, shown, null, moved);
+    for (const [name, place] of overlays)
+      for (const part of ['logButton', 'undoButton'] as const) {
+        const at = after.rects.get(part)!, was = before.rects.get(part)!;
+        const spot = { x: at.x + 4, y: at.y, w: 30, h: 14 }, old = { ...was, w: 30, h: 14 };
+        expect(after.obstacles.some((o) => overlaps(place(spot, after.obstacles), o)), `${name} under ${part}`).toBe(false);
+        expect(place(old, after.obstacles), `${name} where ${part} was`).toEqual(place(old, []));
+      }
   });
 });

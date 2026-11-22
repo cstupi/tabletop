@@ -100,9 +100,10 @@
 {/if}
 
 <style>
-  /* One height whatever it says: three single-line rows (the round, the activation, the wait), each cut short with an ellipsis. */
-  .bar { --line: 1.6rem; display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: var(--space-4);
-    box-sizing: border-box; height: calc(3 * var(--line) + 2 * var(--space-1) + 2 * var(--space-2)); overflow: hidden;
+  /* Three single-line rows (the round, the activation, the wait), each cut short with an ellipsis, beside the score; in a slot too narrow
+     for both (the HUD frame's header between the corner and the toasts) the score takes a row above them, as Godot's header does. */
+  .bar { --line: 1.6rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-4);
+    box-sizing: border-box; min-height: calc(3 * var(--line) + 2 * var(--space-1) + 2 * var(--space-2)); overflow: hidden;
     padding: var(--space-2) var(--space-3); background: var(--panel-solid); border-bottom: 1px solid var(--rule); }
   p { margin: 0; height: var(--line); line-height: var(--line); min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
     display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-2); }
@@ -121,7 +122,8 @@
   .wait.quiet { color: var(--dim); }
   .wait.mine { color: var(--team); font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); }
   .band { flex: none; width: 4px; height: 1.1rem; background: var(--team); }
-  .score { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-2); flex: none; }
+  .score { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-2); flex: none; max-width: 100%; }
+  @container (max-width: 52rem) { .score { order: -1; } .state { flex-basis: 100%; } }
   /* web/src/app.css gives every .tile a column, 4.5rem minimum height and centred text; this one is a single row. */
   .tile { display: inline-flex; flex-direction: row; justify-content: flex-start; min-height: 0; text-align: left; white-space: nowrap; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); cursor: context-menu; line-height: 1.2;
     border: 1px solid color-mix(in srgb, var(--team) 45%, transparent); border-left: 6px solid var(--team); border-radius: 4px;

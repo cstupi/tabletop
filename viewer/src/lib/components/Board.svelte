@@ -12,9 +12,11 @@
 
   let {
     scene, view = $bindable(null), extent, interaction, overlays = [], selected = new Set<string>(), models = 'bases',
-    showGrid = true, showZones = true, showLabels = true, glow, marks, warned, dimmed, floating, above,
+    showGrid = true, showZones = true, showLabels = true, glow, marks, warned, dimmed, floating, above, resetAt = null,
   }: {
     scene: Scene;
+    /** Where Reset view stands (its top right, from the board's top right), clear of panels over the board; default its corner. */
+    resetAt?: { readonly top: number; readonly right: number } | null;
     /** The parent holds the view, so setup and play share one pan and zoom; null fits the extent. */
     view?: View | null;
     /** A box in table inches for fitBox (the table, widened to hold terrain beside it); default the table. */
@@ -172,7 +174,7 @@
   ></canvas>
   {#if floating !== undefined}<canvas class="floating" bind:this={floatCanvas} aria-hidden="true"></canvas>{/if}
   {@render above?.((p) => toScreen(current, scene.table, p), current.scale, box)}
-  <button class="small reset" title="Fit the table to the window" onclick={() => (view = null)}>Reset view</button>
+  <button class="small reset" title="Fit the table to the window" style:top={resetAt === null ? null : `${resetAt.top}px`} style:right={resetAt === null ? null : `${resetAt.right}px`} onclick={() => (view = null)}>Reset view</button>
 </div>
 
 <style>

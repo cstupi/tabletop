@@ -1,22 +1,22 @@
 <!-- viewer/src/lib/play/TerrainHoverPanel.svelte -->
 <!-- HoverLabels.cs's terrain panel: beside the pointer over the board, the hovered piece's name and height, then one chip per effect in
-     the effect's colour (terrainEffects.ts). Flips left of or above the pointer near the board's right or bottom edge. -->
+     the effect's colour (terrainEffects.ts). Kept inside the board and off the HUD's panels (cursorPanelAt over the frame's obstacles). -->
 <script lang="ts">
   import HudIcon from './HudIcon.svelte';
+  import { cursorPanelAt, type Rect } from './hudFrame';
   import type { TerrainHover } from './terrainHover';
 
-  let { hover, at }: { hover: TerrainHover; at: { x: number; y: number } } = $props();
+  let { hover, at, obstacles = [] }: { hover: TerrainHover; at: { x: number; y: number }; obstacles?: readonly Rect[] } = $props();
   let width = $state(0), height = $state(0), stageW = $state(0), stageH = $state(0);
   let el: HTMLDivElement | undefined = $state();
   $effect(() => {
     const parent = el?.parentElement;
     if (parent) { stageW = parent.clientWidth; stageH = parent.clientHeight; }
   });
-  const left = $derived(at.x + 22 + width > stageW ? Math.max(4, at.x - 16 - width) : at.x + 22);
-  const top = $derived(at.y + 22 + height > stageH ? Math.max(4, at.y - 16 - height) : at.y + 22);
+  const place = $derived(cursorPanelAt(at, { w: width, h: height }, { x: 0, y: 0, w: stageW, h: stageH }, obstacles));
 </script>
 
-<div class="panel hover" bind:this={el} bind:clientWidth={width} bind:clientHeight={height} style:left="{left}px" style:top="{top}px" role="tooltip">
+<div class="panel hover" bind:this={el} bind:clientWidth={width} bind:clientHeight={height} style:left="{place.x}px" style:top="{place.y}px" role="tooltip">
   <div class="head"><strong>{hover.name}</strong><span class="dim">{hover.height}</span></div>
   <div class="chips">
     {#each hover.effects as e (e.name)}

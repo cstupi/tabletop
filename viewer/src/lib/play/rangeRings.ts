@@ -109,8 +109,8 @@ function drawIcon(ctx: CanvasRenderingContext2D, icon: 'charge' | 'shoot' | 'war
 
 /** RangeRingNode: each ring's area filled in its kind's opacity of the colour (even-odd, so a hole stays open), its outline 2.5–3 px over a
  * dark halo, and a pill label (icon and words in the colour) under the outline's point lowest on the canvas; the labels of every layer are
- * kept apart and inside the canvas (`placeRingLabels`), in layer order. */
-export const ringsOverlay = (layers: readonly RingLayer[]): Overlay => (ctx, project) => {
+ * kept apart, inside the canvas and off the HUD frame's obstacles (`placeRingLabels`), in layer order. */
+export const ringsOverlay = (layers: readonly RingLayer[], obstacles: readonly Rect[] = []): Overlay => (ctx, project) => {
   ctx.save();
   const labels: { text: string; icon: 'charge' | 'shoot' | 'warning'; colour: string; at: { x: number; y: number } }[] = [];
   const view: Rect = { x: 0, y: 0, w: viewportWidthOf(ctx), h: viewportHeightOf(ctx) };
@@ -126,12 +126,12 @@ export const ringsOverlay = (layers: readonly RingLayer[]): Overlay => (ctx, pro
     ctx.globalAlpha = 1; ctx.lineJoin = 'round';
     ctx.lineWidth = look.lineWidth + 2; ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)'; ctx.stroke();
     ctx.lineWidth = look.lineWidth; ctx.strokeStyle = rim ?? colour; ctx.stroke();
-    const at = ringAnchor(shape.candidates.map(project), view, 8);
+    const at = ringAnchor(shape.candidates.map(project), view, 8, obstacles);
     if (at !== null) labels.push({ text: r.label, icon: look.icon, colour: words ?? colour, at });
   }
   ctx.font = LABEL_FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   const measure = measureOf(ctx);
-  const placed = placeRingLabels(labels.map((l) => labelUnder(l.at, PAD + ICON + ICON_GAP + measure(l.text) + PAD, LABEL_H)), view);
+  const placed = placeRingLabels(labels.map((l) => labelUnder(l.at, PAD + ICON + ICON_GAP + measure(l.text) + PAD, LABEL_H)), view, obstacles);
   labels.forEach((l, i) => {
     const b = placed[i]!;
     ctx.beginPath();

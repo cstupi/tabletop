@@ -1,14 +1,14 @@
 <!-- viewer/src/lib/play/InfoColumn.svelte -->
 <!-- Plan D3 on the play page: the hovered enemy's strip and the unit card (SheetFocus) or the selected terrain piece's card, the latest roll's tray, the combat log (G and its
-     button) and Undo (Ctrl+Z). PlayPage holds the selection, the hover and the undo prediction; this reads them and the connection's
-     log. A watcher sees the log and the card and no Undo. -->
+     button) and Undo (Ctrl+Z), each part in its HUD frame rect (PlayPage's place and measure). PlayPage holds the selection, the hover and
+     the undo prediction; this reads them and the connection's log. A watcher sees the log and the card and no Undo. -->
 <script lang="ts">
   import type { Overlay } from '../board/interaction';
   import type { Scene } from '../board/frame';
   import type { ConnectionState, GameConnection } from '../connection/gameConnection';
   import type { Geometry } from '../geometry';
   import type { Projection } from '../live/apply';
-  import { filter as filterEntries, flatten } from './combatLog';
+  import { filter as filterEntries } from './combatLog';
   import { CombatLogCache } from './combatLogState';
   import CombatLogPanel from './CombatLogPanel.svelte';
   import { noteOf } from './decisionView';
@@ -34,12 +34,13 @@
   import type { UndoPrediction } from './undo';
   import { FILTER_LABELS, bandOf } from './logRows';
   import HudIcon from './HudIcon.svelte';
+  import type { HudFrame, HudPart } from './hudFrame';
 
   const FILTERS: readonly LogFilter[] = ['all', 'rolls', 'mine', 'unit'];
 
   let {
     connection, snap, shown, scene, prediction, pendingUndoTo, rules, geometry, selection, hoveredUnit, catalog, myTeam, eligible, getSettings, updateSettings,
-    onPickModel, onTouch, overlay = $bindable(null), pickHovered = null, placing = null,
+    onPickModel, onTouch, overlay = $bindable(null), pickHovered = null, placing = null, frame, place, measure, logOpen = $bindable(false),
   }: {
     connection: GameConnection; snap: ConnectionState;
     /** The projection to show: the prediction while an undo travels, else the connection's. */
@@ -56,11 +57,16 @@
     overlay?: Overlay | null;
     /** A deploy pick's row under the pointer, and the unit my team is placing (PlacingFocus's): the card shows a unit not yet on the table. */
     pickHovered?: string | null; placing?: string | null;
+    /** The HUD frame, a part's wrapper style in it and the action that reports a wrapper's size (PlayPage). */
+    frame: HudFrame; place: (part: HudPart, width: number, fills?: boolean) => string;
+    measure: (node: HTMLElement, part: HudPart) => { destroy: () => void };
+    /** The log's drawer is open (G): the page's frame gives it the right column's top. */
+    logOpen?: boolean;
   } = $props();
 
   const cache = new CombatLogCache();
   // svelte-ignore state_referenced_locally
-  let logOpen = $state(getSettings().logOpen);
+  logOpen = getSettings().logOpen;
   // svelte-ignore state_referenced_locally
   let logFilter = $state<LogFilter>(getSettings().logFilter);
   // svelte-ignore state_referenced_locally
@@ -132,10 +138,8 @@
     const n = log.names;
     return filterEntries(log.entries, logFilter, (u) => { const t = n.teamOfUnit(u); return t !== null && t === myTeam; }, focus);
   });
-  /** The tray hides when the open log holds the same roll, and gives its slot to the decision box. */
-  const covered = $derived(logOpen && log?.latest != null && flatten(entries).some((e) => e.type === 'roll' && e.record.id === log.latest?.record.id));
-
-  const tray = $derived(!covered && log?.latest != null);
+  /** The open log holds the latest roll: the frame gives the tray no slot then (HudFrame's covered), and it hides. */
+  const tray = $derived(!frame.covered.has('dice') && log?.latest != null);
 
   function setLogOpen(open: boolean): void {
     logOpen = open;
@@ -184,15 +188,15 @@
 <svelte:window onkeydown={onKeydown} />
 
 {#if playing}
-  <!-- Its parts are items of the play page's right column (display: contents), in its order: the corner's Undo and Log, the open log under
-       them, the strip and the cards, then the latest roll above the decision box at the column's foot. -->
-  <div class="info">
-    <div class="corner">
-      <UndoButton bind:this={undo} plan={log?.undo ?? null} {watching} onUndo={(seq) => void undoTo(seq)} />
-      <button type="button" class="corner-button" class:open={logOpen} tabindex="-1" aria-pressed={logOpen} aria-label="Log" title="Log (G)"
-        onmousedown={(e) => e.preventDefault()} onclick={() => setLogOpen(!logOpen)}><HudIcon name="log" size={22} /></button>
-    </div>
-    {#if logOpen}
+  <div class="part" style={place('undoButton', 38, true)}>
+    <UndoButton bind:this={undo} plan={log?.undo ?? null} {watching} onUndo={(seq) => void undoTo(seq)} />
+  </div>
+  <div class="part" style={place('logButton', 38, true)}>
+    <button type="button" class="corner-button" class:open={logOpen} tabindex="-1" aria-pressed={logOpen} aria-label="Log" title="Log (G)"
+      onmousedown={(e) => e.preventDefault()} onclick={() => setLogOpen(!logOpen)}><HudIcon name="log" size={22} /></button>
+  </div>
+  {#if logOpen}
+    <div class="part" style={place('logPanel', 640, true)}>
       <section class="panel log" aria-label="Combat log">
         <div class="head">
           <h2><HudIcon name="log" size={18} />Log</h2>
@@ -209,31 +213,34 @@
           onFilter={setFilter} onUndoTo={(seq) => void undoTo(seq)} {onTouch}
         />
       </section>
-    {/if}
-    {#if problem !== null}<p class="problem" role="alert">{problem}</p>{/if}
+    </div>
+  {/if}
+  <div class="part cards" style={place('unitCard', 420)} use:measure={'unitCard'}>
+    {#if problem !== null}<p class="problem panel" role="alert">{problem}</p>{/if}
     {#if strip !== null}<EnemyStrip {strip} />{/if}
     {#if card !== null}
       <UnitCard {card} selectedModel={selection?.modelIds.length === 1 ? selection.modelIds[0] ?? null : null} picked={selection?.pieceId === card.sheet.unitId ? selection.modelIds : []} onPick={onPickModel} />
     {/if}
     {#if terrainCard !== null}<TerrainCard card={terrainCard} />{/if}
-    {#if selectionLine !== null && (card === null || selection?.modelIds.length === 1)}<p class="selection">{selectionLine}</p>{/if}
-    {#if !logOpen}<div class="push"></div>{/if}
+    {#if selectionLine !== null && (card === null || selection?.modelIds.length === 1)}<p class="selection panel">{selectionLine}</p>{/if}
+  </div>
+  <div class="part" style={place('dice', 480)} use:measure={'dice'}>
     {#if tray}<div class="panel roll"><DiceTray roll={log?.latest ?? null} onClick={openAt} /></div>{/if}
   </div>
 {/if}
 
 <style>
-  .info { display: contents; }
-  .corner { order: 0; display: flex; justify-content: flex-end; gap: var(--space-2); flex: none; }
-  .corner :global(.corner-button) { display: inline-flex; align-items: center; justify-content: center; min-height: 0; padding: var(--space-2); line-height: 0; }
-  .corner .open { background-color: var(--btn-hover); color: var(--accent); }
-  .log { order: 1; display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-2); flex: 1 1 50%; min-height: 10rem; }
+  /* Each part at its frame rect (PlayPage's place): the wrapper caps it, its own content scrolls inside. */
+  .part { position: absolute; z-index: 2; display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; overflow: hidden; box-sizing: border-box; }
+  .part > :global(*) { flex: 0 1 auto; min-height: 0; max-height: none; margin: 0; }
+  .part :global(.corner-button) { display: inline-flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-height: 0; padding: 0; line-height: 0; }
+  .part .open { background-color: var(--btn-hover); color: var(--accent); }
+  .log { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-2); flex: 1 1 auto; height: 100%; box-sizing: border-box; }
   :global([data-theme='fantasy']) .log { padding: calc(var(--space-2) + var(--frame-inset)); }
-  .problem { order: 1; margin: 0; }
-  .info > :global(:is(.strip, .card, .selection)) { order: 2; }
-  .selection { margin: 0; color: var(--dim); font-size: .9rem; }
-  .push { order: 3; flex: 1 1 0; min-height: 0; }
-  .roll { order: 4; flex: none; margin: 0; padding: var(--space-2); }
+  .cards { justify-content: flex-end; }
+  .problem, .selection { margin: 0; padding: var(--space-2); }
+  .selection { color: var(--dim); font-size: .9rem; }
+  .roll { margin: 0; padding: var(--space-2); }
   .head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
   .head h2 { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; font-size: .9rem; }
   .filter { min-height: 2rem; min-width: 0; font-size: .9rem; }

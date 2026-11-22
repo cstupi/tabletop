@@ -61,6 +61,7 @@
   import { Violations } from './violations';
   import { KeptPathCache, volumeName } from './movePaths';
   import { pathsOverlay } from './moveOverlays';
+  import { EMPTY_FRAME, hudFrameOf, M, PLAY, type HudPart } from './hudFrame';
 
   let { connection, api, view = $bindable(null) }: { connection: GameConnection; api: Api; view?: View | null } = $props();
 
@@ -238,7 +239,7 @@
     if (scene === null) return [];
     const ordinal = snap?.game?.teams.find((t) => t.id === actingTeam)?.ordinal ?? 1;
     const centreOf = (id: string) => scene.models.find((m) => m.id === id)?.centre ?? null;
-    return drags.overlays(centreOf, ordinal);
+    return drags.overlays(centreOf, ordinal, frame.obstacles);
   });
 
   /** TableInput.OnLeftDown: a click on a model the open Ask offers answers (the model or its unit); any other model click selects its unit. */
@@ -342,7 +343,7 @@
   // Every layer in one overlay, so their labels are kept apart; the keep-away's and the threats' labels place first.
   const ringsDrawn = $derived.by((): Overlay | null => {
     const layers = [keepAwayLayer, ...threatLayers, rangeLayer].filter((l): l is RingLayer => l !== null);
-    return layers.length === 0 ? null : ringsOverlay(layers);
+    return layers.length === 0 ? null : ringsOverlay(layers, frame.obstacles);
   });
 
   // D4: the sight check — L held with a unit selected, or the shooter of my open target pick, over the hovered unit.
@@ -472,6 +473,44 @@
   }
   // --- end D3 helpers ---
 
+  // The HUD frame (hudFrame.ts, Godot's HudFrame): every part placed absolutely from its rect in the page's box; the parts that measure
+  // (the header, the roster, the cards, the decision box, the dice) report their height, a part whose wrapper measures nothing does not show.
+  let boxW = $state(0), boxH = $state(0);
+  let measured = $state.raw<ReadonlyMap<HudPart, { w: number; h: number }>>(new Map());
+  let logOpen = $state(false);
+  const MEASURED: readonly HudPart[] = ['header', 'roster', 'unitCard', 'decision', 'dice'];
+  const hudShown = $derived.by(() => {
+    // The corner's slot stays empty here (the page's strip above holds Games, the name and the status), so the columns stand as Godot's.
+    const parts = new Set<HudPart>(['corner', 'logButton', 'undoButton']);
+    for (const p of MEASURED) if ((measured.get(p)?.h ?? 0) > 0) parts.add(p);
+    if (logOpen) parts.add('logPanel');
+    if (scene !== null && !$tools.finished) parts.add('loading');
+    return parts;
+  });
+  const frame = $derived(boxW > 0 && boxH > 0 ? hudFrameOf(boxW, boxH, hudShown, (p) => measured.get(p) ?? null) : EMPTY_FRAME);
+  /** A part's wrapper style: its rect (a part that fills its slot takes its height; one that measures is capped by its slot); a part
+   *  with no slot is laid out hidden at its column's width, so it can measure and come back. */
+  function place(part: HudPart, width: number, fills = false): string {
+    const r = frame.rects.get(part), slot = frame.slots.get(part);
+    if (r === undefined || slot === undefined) return `left:0;top:0;width:${width}px;visibility:hidden;pointer-events:none`;
+    const sized = PLAY.find((row) => row.part === part)?.h.kind === 'atLeast';   // as tall as it draws: its slot follows it
+    return `left:${r.x}px;top:${r.y}px;width:${r.w}px;${fills ? `height:${r.h}px` : sized ? '' : `max-height:${slot.h}px`}`;
+  }
+  /** Reset view left of Undo, on the corner buttons' row (the band between the header and them stays clear). */
+  const resetAt = $derived.by(() => { const u = frame.rects.get('undoButton'); return u === undefined ? null : { top: u.y, right: boxW - u.x + M }; });
+  /** Reports the wrapper's laid-out size into `measured`, only on a change. */
+  function measure(node: HTMLElement, part: HudPart) {
+    const note = (): void => {
+      const w = node.offsetWidth, h = node.offsetHeight, was = measured.get(part);
+      if (was !== undefined && was.w === w && was.h === h) return;
+      measured = new Map(measured).set(part, { w, h });
+    };
+    const observer = new ResizeObserver(note);
+    observer.observe(node);
+    note();
+    return { destroy: () => { observer.disconnect(); measured = new Map([...measured].filter(([k]) => k !== part)); } };
+  }
+
   function onKeydown(e: KeyboardEvent): void {
     if (e.key === 'Escape' && pending !== null) { pending = null; e.preventDefault(); return; }
     if (e.defaultPrevented || textFocused(e.target) || box === null) return;
@@ -493,43 +532,46 @@
 
 <svelte:window onpointerdowncapture={(e) => { pointerAt = { x: e.clientX, y: e.clientY }; }} onkeydown={onKeydown} onkeyup={(e) => { if (e.key === 'l' || e.key === 'L') sightHeld = false; }} onblur={() => { sightHeld = false; }} />
 
-<div class="play">
-  {#if snap !== null && shown !== null && snap.game !== null}
-    <div class="top"><HeaderBar {snap} {shown} myTeams={teams} {actingTeam} onGameOver={() => gameOver?.open()} onTeamMenu={teamMenuAt} /></div>
-    <div class="roster"><Roster {snap} {shown} myTeam={actingTeam} myTeams={teams} selected={selection?.pieceId ?? null} onPick={pickUnit} onMenu={rosterMenuAt} /></div>
-  {/if}
+<div class="play" bind:clientWidth={boxW} bind:clientHeight={boxH}>
   <div class="stage" role="presentation" onpointermove={(e) => { const r = e.currentTarget.getBoundingClientRect(); stagePointer = { x: e.clientX - r.left, y: e.clientY - r.top }; }}>
     {#if scene === null || snap === null}
       <Loading text={waitText(snap)} />
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...(keptDrawn === null ? [] : [keptDrawn]), ...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} floating={woundFloats}>
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...(keptDrawn === null ? [] : [keptDrawn]), ...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} floating={woundFloats} {resetAt}>
         {#snippet above(project, scale, size)}
           {#if unitActions !== null && box !== null}<UnitActions actions={unitActions} targets={unitTargets} {box} {panel} {scene} woundLine={actionWoundLine} {project} {scale} {size}
-            names={unitName} onHoverUnit={(u) => { pointedUnit = u; }} />{/if}
+            names={unitName} onHoverUnit={(u) => { pointedUnit = u; }} obstacles={frame.obstacles} />{/if}
         {/snippet}
       </Board>
     {/if}
-    {#if scene !== null && !$tools.finished}<Loading strip text={tableToolsText($tools)} done={$tools.done} total={$tools.total} />{/if}
-    {#if terrainHover !== null}<TerrainHoverPanel hover={terrainHover} at={stagePointer} />{/if}
-    <div class="float banner"><Banner {connection} /></div>
-    {#if pending !== null || problem !== null}
-      <div class="float foot">
-        {#if pending !== null}<p class="notice" role="status">{pending.item.label}: {pending.what === 'piece' ? 'click a piece' : 'click the table'}. Esc cancels.</p>{/if}
-        {#if problem !== null}<p role="alert">{problem}</p>{/if}
-      </div>
-    {/if}
+    {#if terrainHover !== null}<TerrainHoverPanel hover={terrainHover} at={stagePointer} obstacles={frame.obstacles} />{/if}
   </div>
-  <aside class="side" aria-label="Decision, unit and log">
+  {#if scene !== null && !$tools.finished}
+    <div class="part loading" style={place('loading', 280)}><Loading strip text={tableToolsText($tools)} done={$tools.done} total={$tools.total} /></div>
+  {/if}
+  {#if snap !== null && shown !== null && snap.game !== null}
+    <div class="part header" style={place('header', 760)} use:measure={'header'}><HeaderBar {snap} {shown} myTeams={teams} {actingTeam} onGameOver={() => gameOver?.open()} onTeamMenu={teamMenuAt} /></div>
+    <div class="part" style={place('roster', 420)} use:measure={'roster'}><Roster {snap} {shown} myTeam={actingTeam} myTeams={teams} selected={selection?.pieceId ?? null} onPick={pickUnit} onMenu={rosterMenuAt} /></div>
+  {/if}
+  <div class="part" style={place('decision', 480)} use:measure={'decision'}>
     {#if snap !== null}<WaitingPanel {connection} {api} {snap} />{/if}
     {#if box !== null}<DecisionBoxView {box} {panel} />{/if}
-    {#if snap !== null && box !== null}
-      <InfoColumn
-        {connection} {snap} {shown} {scene} {prediction} pendingUndoTo={pendingUndo} {rules} {geometry}
-        {selection} {hoveredUnit} {catalog} myTeam={actingTeam} eligible={infoEligible} getSettings={() => settings} updateSettings={changeSettings}
-        onPickModel={pickModel} onTouch={(ids) => { touchedIds = new Set(ids); }} bind:overlay={infoOverlay} {pickHovered} placing={placingUnit}
-      />
-    {/if}
-  </aside>
+  </div>
+  {#if snap !== null && box !== null}
+    <InfoColumn
+      {connection} {snap} {shown} {scene} {prediction} pendingUndoTo={pendingUndo} {rules} {geometry}
+      {selection} {hoveredUnit} {catalog} myTeam={actingTeam} eligible={infoEligible} getSettings={() => settings} updateSettings={changeSettings}
+      onPickModel={pickModel} onTouch={(ids) => { touchedIds = new Set(ids); }} bind:overlay={infoOverlay} {pickHovered} placing={placingUnit}
+      {frame} {place} {measure} bind:logOpen
+    />
+  {/if}
+  <div class="part float banner" style={place('banner', 0)}><Banner {connection} /></div>
+  {#if pending !== null || problem !== null}
+    <div class="part float toasts" style={place('toasts', 360)}>
+      {#if pending !== null}<p class="notice" role="status">{pending.item.label}: {pending.what === 'piece' ? 'click a piece' : 'click the table'}. Esc cancels.</p>{/if}
+      {#if problem !== null}<p role="alert">{problem}</p>{/if}
+    </div>
+  {/if}
   {#if menu !== null}<PieceMenu items={menu.items} at={menu.at} {onStep} onClose={() => (menu = null)} />{/if}
   {#if snap !== null && box !== null}
     <GameOverModal bind:this={gameOver} {connection} {snap} myTeams={teams} {actingTeam} />
@@ -537,27 +579,20 @@
 </div>
 
 <style>
-  /* The top bar over the roster and the board; the right column the full height, Undo and Log at its top right. Nothing floats over the board but the banner and the
-     pick hint or refusal at its foot. */
-  .play { display: grid; height: 100%; min-height: 0; grid-template-columns: auto minmax(0, 1fr) 23rem; grid-template-rows: auto minmax(0, 1fr);
-    grid-template-areas: 'top top side' 'roster stage side'; }
-  .top { grid-area: top; min-width: 0; }
-  .roster { grid-area: roster; min-height: 0; }
-  .stage { grid-area: stage; position: relative; min-height: 0; min-width: 0; }
-  .float { position: absolute; z-index: 2; left: 50%; transform: translateX(-50%); pointer-events: none; max-width: calc(100% - 2 * var(--space-3)); }
-  .float.banner { top: 20%; }
-  .float.foot { bottom: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); align-items: center; }
-  .float.foot p { margin: 0; box-shadow: 0 2px 10px #0000004d; }
-  .side { grid-area: side; display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; overflow: hidden; padding: var(--space-2);
-    border-left: 1px solid var(--rule); background: color-mix(in srgb, var(--panel-solid) 60%, transparent); }
-  /* The column's order (InfoColumn's parts are its items): Undo and Log in the top right corner, the open log under them, the cards, then
-     the latest roll and the decision box (or the waiting teams) flush at the foot. */
-  .side > :global(:is(.decision, .quiet-bands, .waiting)) { order: 5; }
-  @media (max-width: 75rem) { .play { grid-template-columns: auto minmax(0, 1fr) 20rem; } }
-  /* A short window: the decision box stays whole at the foot; the cards and the log give way above it, and the column scrolls only past that. */
-  @media (max-height: 52rem) {
-    .side { overflow-y: auto; }
-    .side :global(.decision) { max-height: none; }
-    .side :global(.log) { min-height: 8rem; }
-  }
+  /* The board to the page's edges, every HUD part over it at its frame rect (hudFrame.ts): no layout here but the parts' insides. */
+  .play { position: relative; height: 100%; min-height: 0; overflow: hidden; }
+  .stage { position: absolute; inset: 0; }
+  .part { position: absolute; z-index: 2; display: flex; flex-direction: column; min-height: 0; overflow: hidden; box-sizing: border-box; }
+  .part > :global(*) { flex: 0 1 auto; min-height: 0; max-height: none; margin: 0; }
+  .part > :global(.roster:not(.collapsed)) { width: 100%; height: auto; }
+  .part > :global(.roster) { border: 1px solid var(--rule); }
+  .part > :global(.bar) { border: 1px solid var(--rule); }
+  .header { container-type: inline-size; }
+  .part > :global(:is(.decision, .waiting)) { overflow-y: auto; background: var(--panel-solid); }
+  .float { pointer-events: none; z-index: 3; overflow: visible; }
+  .banner { align-items: center; }
+  .toasts { gap: var(--space-2); align-items: stretch; }
+  .toasts p { margin: 0; padding: var(--space-2) var(--space-3); background: var(--panel-solid); box-shadow: 0 2px 10px #0000004d; }
+  .loading { z-index: 3; pointer-events: none; overflow: visible; }
+  .loading > :global(.strip) { position: static; transform: none; max-width: none; }
 </style>

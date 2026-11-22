@@ -2,6 +2,7 @@
 // TableInput's drags on the play board: OnLeftDown's pick-up (MayDrag), OnMotion, Hold's Turn and Arrange, OnLeftUp's drop. The page binds
 // the board's pointer to it and draws its overlays; the decisions are here, over ModelDrag, HandMove and the box's ghosts.
 
+import type { Rect } from './hudFrame';
 import type { Modifiers, Overlay } from '../board/interaction';
 import { teamColour } from '../board/palette';
 import type { BoardHit } from '../board/interaction';
@@ -293,8 +294,9 @@ export class PlayDrags {
     if (token !== undefined) this.#refuseHand(token, refusalText(refused) ?? refused.detail ?? 'refused');
   }
 
-  /** The move's area in bands (else its allowance rings), rulers, landing rings, violation labels and the marker in hand, in the order the plan draws them. */
-  overlays(centreOf: (id: string) => XY | null, colour: number): Overlay[] {
+  /** The move's area in bands (else its allowance rings), rulers, landing rings, violation labels (off the HUD frame's obstacles) and the marker
+   *  in hand, in the order the plan draws them. */
+  overlays(centreOf: (id: string) => XY | null, colour: number, obstacles: readonly Rect[] = []): Overlay[] {
     const out: Overlay[] = [];
     const hooks = this.#deps.hooks(), p = this.#deps.state().projection, held = this.#held;
     const bands = hooks?.bands() ?? [];
@@ -316,7 +318,7 @@ export class PlayDrags {
     }
     const order = [...(held?.ids ?? []), ...this.#deps.violations.marked.keys(), ...this.#deps.violations.warned.keys()];
     const labels = violationLabels(this.#deps.violations, order, centreOf);
-    if (labels.length > 0) out.push(labelOverlay(labels, '#ffc44e'));
+    if (labels.length > 0) out.push(labelOverlay(labels, '#ffc44e', obstacles));
     if (this.#box !== null) out.push(boxOverlay(this.#box.from, this.#box.to));
     const marker = this.#marker;
     if (marker !== null) out.push(landingOverlay([{ centre: { x: marker.at.x, y: marker.at.y }, radius: Math.max(0.5, marker.radius) }]));

@@ -2,6 +2,7 @@
 // What RulerNode, LandingMarks, MoveRegionNode (the area in its bands, or a circle until they are built), ViolationMarks and the pick box draw, as data
 // and then as board Overlays.
 
+import type { Rect } from './hudFrame';
 import type { Overlay } from '../board/interaction';
 import { drawLabel, measureOf, viewportWidthOf } from '../board/labelPlacement';
 import type { MoveBands, XY } from '../geometry';
@@ -153,8 +154,8 @@ export const boxOverlay = (from: XY, to: XY, colour = '#ffffff'): Overlay => (ct
 };
 
 /** ViolationMarks' labels: short words by each model, a model's stacked MARK_GAP apart under its base (the unit's name label stands over it),
- *  no two meeting and none leaving the board's canvas (placeMarkLabels). */
-export const labelOverlay = (labels: readonly Label[], colour: string): Overlay => (ctx, project, ppi) => {
+ *  no two meeting, none leaving the board's canvas and all off the HUD frame's obstacles (placeMarkLabels). */
+export const labelOverlay = (labels: readonly Label[], colour: string, obstacles: readonly Rect[] = []): Overlay => (ctx, project, ppi) => {
   if (labels.length === 0) return;
   ctx.fillStyle = colour; ctx.font = 'bold 11px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   const lineHeight = 13, measure = measureOf(ctx);
@@ -169,7 +170,7 @@ export const labelOverlay = (labels: readonly Label[], colour: string): Overlay 
   const scale = typeof ctx.getTransform === 'function' ? ctx.getTransform()?.d : undefined;
   const w = viewportWidthOf(ctx), h = typeof canvas?.height === 'number' ? canvas.height / (typeof scale === 'number' && scale > 0 ? scale : 1) : Infinity;
   const view = Number.isFinite(w) && Number.isFinite(h) ? { x: 0, y: 0, w, h } : { x: -1e6, y: -1e6, w: 2e6, h: 2e6 };
-  const placed = placeMarkLabels(wanted, view);
+  const placed = placeMarkLabels(wanted, view, obstacles);
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)'; ctx.lineWidth = 3; ctx.lineJoin = 'round';     // a halo, so the words read over the bands and paths
   labels.forEach((l, i) => { const r = placed[i]!; ctx.strokeText(l.text, r.x + r.w / 2, r.y); ctx.fillText(l.text, r.x + r.w / 2, r.y); });
   ctx.textBaseline = 'alphabetic';

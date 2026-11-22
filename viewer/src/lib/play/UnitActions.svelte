@@ -13,10 +13,12 @@
   import { hoverLabelBox } from './hoverLabels';
   import { placeRect, tipOf, UnitActionsHold, type Rect, type UnitActions, type UnitTarget } from './unitActionsView';
 
-  let { actions, targets, box, panel, scene, woundLine, project, scale, size, names, onHoverUnit }: {
+  let { actions, targets, box, panel, scene, woundLine, project, scale, size, names, onHoverUnit, obstacles = [] }: {
     actions: UnitActions; targets: readonly UnitTarget[]; box: DecisionBox; panel: DecisionPanel; scene: Scene; woundLine: boolean;
     project: (p: { x: number; y: number }) => { x: number; y: number }; scale: number; size: { width: number; height: number };
     names: (unitId: string) => string; onHoverUnit: (unitId: string | null) => void;
+    /** The HUD frame's obstacles: the panels over the board, which the bar keeps off. */
+    obstacles?: readonly Rect[];
   } = $props();
 
   const BUTTON = 42, GAP = 4, SPACE = 8;   // a button's size (the tile's 26 px icon in an 8 px inset); --s1 between buttons, --s2 above the models
@@ -37,7 +39,7 @@
     const at = topOf(actions.unitId, actions.anchor);
     const w = count * BUTTON + (count - 1) * GAP;
     // Above the unit's name label too, shown or not, so a button that brings it up never moves out from under the pointer.
-    return placeRect(at.x, at.y, w, BUTTON, view, [], SPACE, hoverLabelBox(scene, actions.unitId, woundLine, project, scale));
+    return placeRect(at.x, at.y, w, BUTTON, view, obstacles, SPACE, hoverLabelBox(scene, actions.unitId, woundLine, project, scale));
   });
   // Where the bar is drawn: held while the pointer is over it or a button is down anywhere (a drag of the models moves the name label under
   // it, and a click aimed at Commit right after must land), else eased to rect each animation frame.
@@ -59,7 +61,7 @@
   });
   const targetRects = $derived(targets.map((t) => {
     const at = topOf(t.unitId, t.anchor);
-    return { target: t, rect: placeRect(at.x, at.y, BUTTON, BUTTON, view, [], SPACE, hoverLabelBox(scene, t.unitId, false, project, scale)) };
+    return { target: t, rect: placeRect(at.x, at.y, BUTTON, BUTTON, view, obstacles, SPACE, hoverLabelBox(scene, t.unitId, false, project, scale)) };
   }));
   // The foot's actions as the card shows them now (enabled as its buttons, a dim one's reason), else as the bar was made.
   const live = $derived.by((): readonly CardAction[] => { void panel; const now = box.actions; return actions.actions.map((a) => now.find((x) => x.id === a.id) ?? { ...a, enabled: false }); });
