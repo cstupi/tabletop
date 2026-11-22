@@ -6,7 +6,7 @@ namespace Tabletop.Client.Table;
 /// <summary>A print with its height in alpha (a board, the table's wood, a surface grain), loaded once per file: the colour with
 /// mipmaps, the normal map <see cref="HeightNormals"/> derives from the height, and the mean colour. A packed file comes through
 /// the resource loader (its lossless import), a served one from its PNG bytes once its header is within 4096 a side. Decoding,
-/// the normal map and the mipmaps run on the thread pool; the textures too.</summary>
+/// the normal map and the mipmaps run on the thread pool; the textures are made on the main thread the caller awaits on.</summary>
 public static class PrintTextures
 {
     public sealed record Print(ImageTexture Albedo, ImageTexture Normal, Color Mean);
@@ -27,10 +27,12 @@ public static class PrintTextures
         return task;
     }
 
-    // The textures are made on the pool too: the rendering server takes texture creation from any thread, and a 1024² print with its
-    // mipmaps took up to 23 ms of a main-thread frame.
-    static Task<Print?> Build(string file, float strength) => Task.Run(() =>
-        Decode(file, strength) is var (albedo, normal, mean) ? new Print(ImageTexture.CreateFromImage(albedo), ImageTexture.CreateFromImage(normal), mean) : null);
+    static async Task<Print?> Build(string file, float strength)
+    {
+        var made = await Task.Run(() => Decode(file, strength));
+        if (made is not var (albedo, normal, mean)) return null;
+        return new Print(ImageTexture.CreateFromImage(albedo), ImageTexture.CreateFromImage(normal), mean);
+    }
 
     static (Image Albedo, Image Normal, Color Mean)? Decode(string file, float strength)
     {

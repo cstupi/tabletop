@@ -1,5 +1,6 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Screens;
 using Tabletop.Geometry;
 using Orientation = Tabletop.Geometry.Orientation;
 
@@ -7,8 +8,8 @@ namespace Tabletop.Client.Table;
 
 /// <summary>
 /// Runtime GLB loading: manifest → cache → GltfDocument. Nearest to the camera first; a failure leaves the proxy and logs. Each
-/// file is parsed and its template scene generated once, off the main thread; every piece gets its own duplicate of it. Main thread
-/// only, apart from the parse, the scene's generation and the downloads.
+/// file is parsed once, off the main thread, into a template scene; every piece gets its own duplicate of it. Main thread only,
+/// apart from the parse and the downloads.
 /// </summary>
 public sealed class MeshLoader(AssetCache cache, ManagementClient management, Guid gameId) : IDisposable
 {
@@ -145,11 +146,11 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         return scene;
     }
 
-    /// <summary>The file read and parsed, and its scene generated, on the thread pool.
+    /// <summary>The file read and parsed on the thread pool; the scene tree generated on the main thread the await resumes on.
     /// A path is a content hash or a built-in that ships in the build, so its template never goes stale.</summary>
     async Task<Node3D?> Template(string path, bool builtin)
     {
-        var parsed = await Task.Run<Node3D?>(() =>
+        var parsed = await Task.Run(() =>
         {
             // A cached blob may predate the server's checks or be hostile: Godot sees it only after GlbPreflight. A res:// file
             // ships in the build.
@@ -157,23 +158,24 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
             {
                 string? refusal;
                 try { refusal = GlbPreflight.CheckFile(path); } catch (IOException e) { refusal = e.Message; }
-                if (refusal is not null) { GD.PushWarning($"GLB {path} refused: {refusal}"); return null; }
+                if (refusal is not null) { GD.PushWarning($"GLB {path} refused: {refusal}"); return ((GltfDocument, GltfState)?)null; }
             }
             var doc = new GltfDocument(); var state = new GltfState();
             var err = doc.AppendFromFile(path, state);
-            if (err != Error.Ok) { GD.PushWarning($"GLB {path}: {err}"); return null; }
+            if (err != Error.Ok) { GD.PushWarning($"GLB {path}: {err}"); return ((GltfDocument, GltfState)?)null; }
             // Levels of detail, which Godot's runtime glTF import leaves out: a printed miniature is tens of thousands of
             // triangles and a table of 150 of them few pixels each, in the camera's view and every shadow split.
             foreach (var mesh in state.GetMeshes()) mesh.Mesh?.GenerateLods(LodNormalMergeAngle, 0, []);
-            // The scene too: its meshes, materials and nodes are made outside the tree, which Godot allows off the main thread (the
-            // rendering server takes resource creation from any thread). On the main thread one file's scene took 10-40 ms, a frame each.
-            var generated = doc.GenerateScene(state);
-            if (generated is not Node3D root) { generated?.Free(); return null; }
-            Settle(root);
-            return root;
+            return (doc, state);
         });
-        if (parsed is not { } scene) return null;
-        if (_disposed && !builtin) { scene.Free(); return null; }
+        if (parsed is not var (d, s)) return null;
+        // The scene is made on the main thread, within the frame's budget: a table's files arrive together. Not on the pool: the
+        // rendering server runs a thread's resource creation on the main thread anyway, and its queue then stalled the main
+        // thread's own calls for 170-260 ms in one frame (a loaded layout's markers), where here each file takes its own 10-80 ms frame.
+        await FrameBudget.Turn();
+        var generated = FrameBudget.Use(() => d.GenerateScene(s));
+        if (generated is not Node3D scene || _disposed && !builtin) { generated?.Free(); return null; }
+        Settle(scene);
         return scene;
     }
 

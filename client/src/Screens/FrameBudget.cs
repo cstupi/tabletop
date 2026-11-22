@@ -3,9 +3,10 @@ using Godot;
 namespace Tabletop.Client.Screens;
 
 /// <summary>
-/// The main thread's work budget per frame for what can wait a frame: the dispatcher's queue. Work past it goes on in the next
-/// frame, so a burst keeps the window drawing (spec 2026-10-25-loading-design.md → Entering a game). 8 ms leaves a 60 Hz frame's
-/// 16.7 ms room for the frame's own process and draw. One action is never split: a single long one still takes its frame. Main thread only.
+/// The main thread's work budget per frame for what can wait a frame: the dispatcher's queue and the meshes' templates. Work
+/// past it goes on in the next frame, so a burst keeps the window drawing (spec 2026-10-25-loading-design.md → Entering a game).
+/// 8 ms leaves a 60 Hz frame's 16.7 ms room for the frame's own process and draw. One action is never split: a single long one
+/// still takes its frame. Main thread only.
 /// </summary>
 public static class FrameBudget
 {
@@ -31,4 +32,10 @@ public static class FrameBudget
     /// <summary>Calls the action at the start of the next frame.</summary>
     public static void Next(Action action) =>
         ((SceneTree)Engine.GetMainLoop()).Connect(SceneTree.SignalName.ProcessFrame, Callable.From(action), (uint)GodotObject.ConnectFlags.OneShot);
+
+    /// <summary>Returns once this frame has budget left, waiting for later frames while it has none.</summary>
+    public static async Task Turn()
+    {
+        while (Spent) await ((SceneTree)Engine.GetMainLoop()).ToSignal((SceneTree)Engine.GetMainLoop(), SceneTree.SignalName.ProcessFrame);
+    }
 }

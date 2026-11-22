@@ -56,8 +56,9 @@ The frame that applied the welcome, the board, the whole log and the first rende
 - A board's print and the table's wood decode, take their normal maps and mipmaps on the thread pool (`PrintTextures.LoadAsync`);
   the slab drawn before stays until the new one is built. A built-in mesh's grains load the same way before the mesh is handed out
   (`TerrainLook.ApplyAsync`).
-- A mesh file is parsed, given its levels of detail and generated into its template scene on the thread pool (`MeshLoader`); the main
-  thread only duplicates the template per piece. A terrain piece's hitboxes share one unit box and one unit cylinder, scaled.
+- A mesh file is parsed and given its levels of detail on the thread pool; its template scene is generated within the same budget
+  (`FrameBudget.Turn`), one per frame when several arrive together, and each piece takes a duplicate. A terrain piece's hitboxes share
+  one unit box and one unit cylinder, scaled.
 - The curtain stays until the table's meshes are in (`LoadSettled`, at most 20 s after the table stood). Behind it the unit card makes
   its controls, the move warm-up runs and the loading's garbage is collected, and two more frames draw the new meshes, so their first
   draw is not paid after it lifts.
