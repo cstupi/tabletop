@@ -27,6 +27,7 @@ public static class MoveWarmup
         var lead = p.Models[legal.ModelIds[0]];
         var start = ((OnTable)lead.Location).Placement;
         _ = regions.Bands(lead.Id);
+        _ = regions.Area([.. legal.ModelIds.Take(2)]);                        // two models' areas as one (MoveReach.Union), as a pickup draws them
         var target = regions.Clamp(lead.Id, start.Position.Horizontal + new Point2(2, 0));
         var held = new HeldBody(lead.Id, new PlacedModel(new ModelBody(lead.Slot.Base, lead.Slot.Height), start), target);
         var stationary = DragBodies.Stationary(p, [lead.Id]);

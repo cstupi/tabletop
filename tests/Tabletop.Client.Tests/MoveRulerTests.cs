@@ -72,14 +72,15 @@ public class MoveRulerTests
         var big = Wood(44, 24, 4);
         MoveRegions Make() => new(new Dictionary<Guid, PlacedModel> { [A] = At(36, 24), [B] = At(36, 10) }, new MoveRegion([A, B], 12, [], [big.Id], 6), [big], Opr, []);
         var alone = Make();
-        var (a, b, clamp) = (alone.Bands(A).Clear, alone.Bands(B).Clear, alone.Clamp(B, new Point2(50, 10)));
+        var (a, both, clamp) = (alone.Bands(A).Clear, alone.Area([A, B]).Clear, alone.Clamp(B, new Point2(50, 10)));
         var shared = Make();
-        var outlines = await shared.BandsAsync([A, B]);
+        var outline = await shared.AreaAsync([A, B]);
         var raced = await Task.WhenAll(Enumerable.Range(0, 8).Select(i => Task.Run(() => i % 2 == 0 ? shared.Bands(A).Clear.Count : shared.Clamp(B, new Point2(50, 10)).X)));
-        Assert.Equal(a, outlines[0].Clear); Assert.Equal(b, outlines[1].Clear);
+        Assert.Equal(both, outline.Clear); Assert.Equal(a, shared.Bands(A).Clear);
         Assert.Equal(clamp, shared.Clamp(B, new Point2(50, 10)));
         Assert.All(raced.Where((_, i) => i % 2 == 0), n => Assert.Equal(a.Count, n));
-        Assert.Same(shared.Bands(A), outlines[0]);                                                   // still computed once per model
+        Assert.Same(shared.Area([A, B]), outline);                                                   // still computed once per set of models
+        Assert.Same(shared.Bands(A), shared.Area([A]));                                              // one model's area is its own
     }
 
     [Fact]
@@ -89,9 +90,10 @@ public class MoveRulerTests
         var big = Wood(44, 24, 4);
         var regions = new MoveRegions(new Dictionary<Guid, PlacedModel> { [A] = At(36, 24), [B] = At(36, 10) }, new MoveRegion([A, B], 12, [], [big.Id], 6), [big], Opr, []);
         Assert.False(regions.Built(A));
-        await regions.Prepare();
+        await regions.Prepare(A);
         Assert.True(regions.Built(A)); Assert.True(regions.Built(B));
         Assert.False(regions.Built(Guid.CreateVersion7()));
+        Assert.Same(regions.Area([A, B]), regions.Area([B, A]));                                     // one area per set of models, in any order
     }
 
     [Fact]

@@ -184,7 +184,7 @@ shape over models on the shelf, anchored on a model on the table (`MoveRuler.IsS
 
 | | ordinary move | disembark (`Containment.ExitingId` set) | reserve placement (movers on the shelf) |
 | --- | --- | --- | --- |
-| region | `MoveRegions.Bands`: each model's own reach by path (round difficult terrain within the allowance or through it within the cap), in its bands (clear, difficult, dangerous: spec `2026-11-09-move-area-bands-design.md`), the lead's at first, then the held models' on each pickup (`TableInput.PickedUp`) | `MoveRuler.ExitRegion` about the container's base, the lead's | the same, about the anchor model |
+| region | `MoveRegions.Bands`: each model's own reach by path (round difficult terrain within the allowance or through it within the cap), in its bands (clear, difficult, dangerous: spec `2026-11-09-move-area-bands-design.md`), the lead's at first, then the held models' as one (`MoveRegions.Area`) on each pickup (`TableInput.PickedUp`), the whole unit's built on the pool from the Ask's opening | `MoveRuler.ExitRegion` about the container's base, the lead's | the same, about the anchor model |
 | clamp (no Alt) | each held model to its `MoveRegions.Clamp`: the nearest point a path within the allowance, or through difficult terrain within the cap, reaches | none | none |
 | draggable node | the model's own `PieceNode` | `TableView.ShowExitGhosts` on the container's node | `TableView.ShowGhosts` in rings about the anchor (`DeployView.Around`): the first ring clear of the anchor's base (a rectangle's corner) by the Ask's separation, a spot whose base would leave the table skipped |
 | `TableInput.Allowance` | `Allowance − UsedInFrame` | `null` | `null` |

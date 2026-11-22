@@ -10,7 +10,7 @@ namespace Tabletop.Client.Core;
 /// round difficult terrain within the allowance or through it within the cap (p.11), drawn in bands by what getting there costs (MoveReach.Bands: clear,
 /// only through difficult ground, only into ground the Ask names dangerous to the move). Each reach is built the first time it is asked for and kept for
 /// the Ask. The unit's allowance is the one thing read from where every model is going (Allowance): p.11 holds all of them to the cap once any one
-/// of them goes in or through difficult terrain. Safe across threads: the decision box draws the areas off the main thread (BandsAsync) while a
+/// of them goes in or through difficult terrain. Safe across threads: the decision box draws the areas off the main thread (AreaAsync) while a
 /// drag clamps and routes on it; each reach and area is still built once.
 /// </summary>
 public sealed class MoveRegions(IReadOnlyDictionary<Guid, PlacedModel> starts, MoveRegion legal, IReadOnlyList<WorldVolume> volumes, TableSize size, IReadOnlyList<PlacedModel> others)
@@ -43,21 +43,45 @@ public sealed class MoveRegions(IReadOnlyDictionary<Guid, PlacedModel> starts, M
     })).Value;
 
     /// <summary>The area drawn round this model, in its bands, as triangles; a minimum (Minimum) cuts its middle out.</summary>
-    public MoveBands Bands(Guid id) => _areas.GetOrAdd(id, key => new Lazy<MoveBands>(() =>
-    {
-        Func<Point2, double>? least = legal.MinDistance is null ? null : p => Minimum(key, p) ?? 0;
-        return ReachOf(key).Bands(least);
-    })).Value;
+    public MoveBands Bands(Guid id) => _areas.GetOrAdd(id, key => new Lazy<MoveBands>(() => ReachOf(key).Bands(Least(key)))).Value;
 
-    /// <summary>These models' areas (the ones the Ask moves), each built on the thread pool at once, in the order asked: a long move's among much
-    /// terrain and many models takes a frame or more.</summary>
-    public async Task<IReadOnlyList<MoveBands>> BandsAsync(IReadOnlyList<Guid> ids) =>
-        await Task.WhenAll(ids.Where(Has).Select(id => Task.Run(() => Bands(id))));
+    /// <summary>These models' areas drawn as one (MoveReach.Union: each band wherever any of them reaches a point in it), the ones the Ask moves;
+    /// kept per set of models, in any order. One model's is its own Bands.</summary>
+    public MoveBands Area(IReadOnlyList<Guid> ids)
+    {
+        // By id, so a set's area (and the grid it is cut on, its first model's) is the same in whatever order the models are held.
+        var moved = ids.Where(Has).Distinct().Order().ToList();
+        if (moved.Count == 1) return Bands(moved[0]);
+        return _unions.GetOrAdd(string.Join(',', moved), _ => new Lazy<MoveBands>(() =>
+            MoveReach.Union(moved.Select(ReachOf).ToList(), legal.MinDistance is null ? null : moved.Select(Least).ToList()))).Value;
+    }
+
+    readonly ConcurrentDictionary<string, Lazy<MoveBands>> _unions = new();
+
+    Func<Point2, double>? Least(Guid id) => legal.MinDistance is null ? null : p => Minimum(id, p) ?? 0;
+
+    /// <summary>Area on the thread pool: each model's reach and band fields built on its own pool thread at once (those Prepare has not built
+    /// yet), then the one area walked, its coarse cells on several threads; it stays on the pool throughout (no step waits for the main thread's
+    /// next turn). Kept, so a set Prepare has drawn returns at once.</summary>
+    public async Task<MoveBands> AreaAsync(IReadOnlyList<Guid> ids)
+    {
+        var moved = ids.Where(Has).Distinct().ToList();
+        await Task.WhenAll(moved.Select(id => Task.Run(() => ReachOf(id).PrepareBands()))).ConfigureAwait(false);
+        return await Task.Run(() => Area(moved)).ConfigureAwait(false);
+    }
 
     /// <summary>Every model's reach built on the thread pool, one task each, with the fields its route reads round dangerous ground
-    /// (MoveReach.PrepareRoute): the decision box starts it when the Ask opens, so a pickup's first drag frame (which clamps and routes each held
-    /// model on the main thread) finds them built instead of waiting on the builds.</summary>
-    public Task Prepare() => Task.WhenAll(starts.Keys.Select(id => Task.Run(() => ReachOf(id).PrepareRoute())));
+    /// (MoveReach.PrepareRoute) and its bands read (PrepareBands); `first`'s area (the lead's, which the Ask's opening draws) before the rest; then
+    /// the whole unit's area (Area), what a plain drag picks up. The decision box starts it when the Ask opens, so a pickup's first drag frame
+    /// (which clamps and routes each held model on the main thread) finds the reaches built, and the unit's area is drawn from the pickup's first
+    /// frame, without the unit's area taking the pool from the lead's.</summary>
+    public async Task Prepare(Guid? first = null)
+    {
+        var reaches = Task.WhenAll(starts.Keys.Select(id => Task.Run(() => { var reach = ReachOf(id); reach.PrepareRoute(); reach.PrepareBands(); })));
+        if (first is { } lead && Has(lead)) await Task.Run(() => Bands(lead)).ConfigureAwait(false);
+        await reaches.ConfigureAwait(false);
+        await Task.Run(() => Area([.. starts.Keys])).ConfigureAwait(false);
+    }
 
     /// <summary>Whether this model's reach is built.</summary>
     public bool Built(Guid id) => _reaches.TryGetValue(id, out var reach) && reach.IsValueCreated;

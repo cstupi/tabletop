@@ -5,7 +5,7 @@ using Tabletop.Geometry;
 namespace Tabletop.Client.Table;
 
 /// <summary>Reachable regions as flat triangles just above the slab: the server's parameters, rendered by Tabletop.Geometry, drawn here. A move's area
-/// is drawn in its bands (MoveBandLook), one mesh each.</summary>
+/// is drawn in its bands (MoveBandLook), one mesh each, from vertex arrays built off the main thread (MeshesOf).</summary>
 public partial class MoveRegionNode : Node3D
 {
     readonly List<MeshInstance3D> _meshes = [];
@@ -22,16 +22,28 @@ public partial class MoveRegionNode : Node3D
         ShowTriangles([fan], colour);
     }
 
-    /// <summary>The held models' areas (MoveRegions.Bands), each band in one mesh across every model, in its look for the moving team's colour.</summary>
-    public void ShowBands(IReadOnlyList<MoveBands> areas, Color team)
+    /// <summary>A move's area (MoveRegions.Area) as vertex arrays, one per band, each triangle wound one way: built on any thread (MeshesOf), so
+    /// the main thread only hands them to Godot (ShowBands).</summary>
+    public sealed record BandMeshes(IReadOnlyList<(MoveBand Band, Vector3[] Vertices)> Layers);
+
+    /// <summary>The area's vertices per band (MoveBandLook.Layers), wound for Godot; no Godot object is made, so any thread may build them.</summary>
+    public static BandMeshes MeshesOf(MoveBands area) =>
+        new([.. MoveBandLook.Layers([area]).Select(l => (l.Band, Vertices(l.Areas)))]);
+
+    /// <summary>The held models' area in its bands, one mesh each, in its look for the moving team's colour.</summary>
+    public void ShowBands(MoveBands area, Color team) => ShowBands(MeshesOf(area), team);
+
+    /// <summary>Built band meshes drawn, one mesh each: one array handed to Godot per band, each band sorted over the one before (clear,
+    /// difficult, dangerous on top) whatever the depth order of the meshes' centres.</summary>
+    public void ShowBands(BandMeshes meshes, Color team)
     {
         Hide();
         var rgba = new Rgba(team.R, team.G, team.B, team.A);
-        foreach (var (band, triangles) in MoveBandLook.Layers(areas))
+        foreach (var (band, vertices) in meshes.Layers)
         {
             var c = MoveBandLook.Colour(band, rgba);
             var colour = new Color(c.R, c.G, c.B, c.A);
-            Add(triangles, MoveBandLook.Striped(band) ? Striped(colour) : Palette.Translucent(colour));
+            Add(vertices, MoveBandLook.Striped(band) ? Striped(colour) : Palette.Translucent(colour), (int)band);
         }
     }
 
@@ -39,24 +51,36 @@ public partial class MoveRegionNode : Node3D
     public void ShowTriangles(IReadOnlyList<IReadOnlyList<Point2>> areas, Color colour)
     {
         Hide();
-        Add(areas, Palette.Translucent(colour with { A = 0.25f }));
+        Add(Vertices(areas), Palette.Translucent(colour with { A = 0.25f }));
     }
 
-    void Add(IReadOnlyList<IReadOnlyList<Point2>> areas, Material material)
+    static Vector3[] Vertices(IReadOnlyList<IReadOnlyList<Point2>> areas)
     {
-        if (areas.All(a => a.Count < 3)) return;
-        var st = new SurfaceTool(); st.Begin(Mesh.PrimitiveType.Triangles);
+        var vertices = new Vector3[areas.Sum(a => a.Count / 3 * 3)];
+        var n = 0;
         foreach (var area in areas)
             for (var i = 0; i + 2 < area.Count; i += 3)
             {
                 Vector3 a = At(area[i]), b = At(area[i + 1]), c = At(area[i + 2]);
                 // Godot culls clockwise-from-above back faces: wind each triangle one way whatever order the geometry gave it.
-                if ((area[i + 1] - area[i]).Cross(area[i + 2] - area[i]) > 0) { st.AddVertex(a); st.AddVertex(c); st.AddVertex(b); }
-                else { st.AddVertex(a); st.AddVertex(b); st.AddVertex(c); }
+                vertices[n++] = a;
+                if ((area[i + 1] - area[i]).Cross(area[i + 2] - area[i]) > 0) { vertices[n++] = c; vertices[n++] = b; }
+                else { vertices[n++] = b; vertices[n++] = c; }
             }
-        var mesh = new MeshInstance3D { Mesh = st.Commit(), MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
-        AddChild(mesh);
-        _meshes.Add(mesh);
+        return vertices;
+    }
+
+    void Add(Vector3[] vertices, Material material, int layer = 0)
+    {
+        if (vertices.Length < 3) return;
+        var arrays = new Godot.Collections.Array();
+        arrays.Resize((int)Mesh.ArrayType.Max);
+        arrays[(int)Mesh.ArrayType.Vertex] = vertices;
+        var mesh = new ArrayMesh();
+        mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+        var instance = new MeshInstance3D { Mesh = mesh, MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, SortingOffset = layer * 100 };
+        AddChild(instance);
+        _meshes.Add(instance);
     }
 
     static readonly Dictionary<Color, StandardMaterial3D> _striped = new();
