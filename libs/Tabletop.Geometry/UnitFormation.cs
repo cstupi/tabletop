@@ -40,17 +40,18 @@ public static class UnitFormation
     public static IReadOnlyDictionary<Guid, Point3>? InContact(IReadOnlyList<(Guid Id, PlacedModel Start)> unit, IReadOnlyList<PlacedModel> members,
         IReadOnlyList<PlacedModel> targets, FormationTerms t)
     {
+        var paths = new Paths(t);
         var tries = 0;
         foreach (var lead in unit.OrderBy(u => targets.Min(x => Distance.EdgeToEdge(u.Start, x))))
             foreach (var target in targets.OrderBy(x => Distance.EdgeToEdge(lead.Start, x)))
             {
                 if (Movement.ContactDistance(lead.Start, target, t.Allowance, t.Impassable, t.Table) is null) continue;
                 double? level = t.ContactVertical is null ? null : target.Bottom();
-                foreach (var at in Movement.ContactPoints(lead.Start, target, ContactGap))
+                foreach (var at in Movement.Contacts(lead.Start, target, ContactGap))
                 {
-                    if (t.ContactVertical is { } reach && Math.Abs(Rest(lead.Start, at, t, level).Bottom() - target.Bottom()) > reach + Tolerance.Distance) continue;
-                    if (!Fits(lead.Start, at, t, [], level)) continue;
-                    if (Follow(unit, members, lead.Id, at, t, level) is { } formed) return formed;
+                    if (t.ContactVertical is { } reach && Math.Abs(Rest(lead.Start, at, t, paths, level).Bottom() - target.Bottom()) > reach + Tolerance.Distance) continue;
+                    if (!Fits(lead.Start, at, t, [], paths, level)) continue;
+                    if (Follow(unit, members, lead.Id, at, t, paths, leadLevel: level) is { } formed) return formed;
                     if (++tries >= Attempts) return null;
                     break;
                 }
@@ -65,38 +66,43 @@ public static class UnitFormation
     /// its open surface nearest `leadLevel` (the highest when null), every other model on its highest.
     /// </summary>
     public static IReadOnlyDictionary<Guid, Point3>? Follow(IReadOnlyList<(Guid Id, PlacedModel Start)> unit, IReadOnlyList<PlacedModel> members, Guid lead,
-        Point2 leadAt, FormationTerms t, double? leadLevel = null)
+        Point2 leadAt, FormationTerms t, double? leadLevel = null) => Follow(unit, members, lead, leadAt, t, new Paths(t), leadLevel);
+
+    static IReadOnlyDictionary<Guid, Point3>? Follow(IReadOnlyList<(Guid Id, PlacedModel Start)> unit, IReadOnlyList<PlacedModel> members, Guid lead,
+        Point2 leadAt, FormationTerms t, Paths paths, double? leadLevel)
     {
         var start = unit.Single(u => u.Id == lead).Start;
         var shift = leadAt - start.Placement.Position.Horizontal;
         var result = new Dictionary<Guid, Point2> { [lead] = leadAt };
-        var placed = new List<PlacedModel> { Rest(start, leadAt, t, leadLevel) };
+        var placed = new List<PlacedModel> { Rest(start, leadAt, t, paths, leadLevel) };
         foreach (var (id, from) in unit.Where(u => u.Id != lead))
         {
             var moved = from.Placement.Position.Horizontal + shift;
-            Point2? at = Fits(from, moved, t, placed) ? moved : null;
+            Point2? at = Fits(from, moved, t, placed, paths) ? moved : null;
             at ??= ((IEnumerable<PlacedModel>)placed).Reverse().Concat(members)
-                .SelectMany(o => Gaps.SelectMany(gap => Movement.ContactPoints(from, o, gap, 16)))
-                .Select(p => (Point2?)p).FirstOrDefault(p => Fits(from, p!.Value, t, placed));
+                .SelectMany(o => Gaps.SelectMany(gap => Movement.Contacts(from, o, gap, 16)))
+                .Select(p => (Point2?)p).FirstOrDefault(p => Fits(from, p!.Value, t, placed, paths));
             if (at is not { } there) return null;
             result[id] = there;
-            placed.Add(Rest(from, there, t));
+            placed.Add(Rest(from, there, t, paths));
         }
         if (!Coherency.Check([.. placed, .. members], t.Chain, t.Elevated, t.Spread).Coherent) return null;
         if (t.DifficultCap is { } cap && cap < t.Allowance)
         {
-            var paths = unit.Select(u => Path(u.Start, result[u.Id], t, t.Allowance, t.Difficult, cap, t.Steep)).ToList();
-            if (paths.Any(p => p.EntersDifficult) && unit.Any(u => Path(u.Start, result[u.Id], t, cap, [], null, null).Distance > cap + Tolerance.Distance)) return null;
+            var checks = unit.Select(u => Path(u.Start, result[u.Id], t, t.Allowance, t.Difficult, cap, t.Steep)).ToList();
+            if (checks.Any(p => p.EntersDifficult) && unit.Any(u => Path(u.Start, result[u.Id], t, cap, [], null, null).Distance > cap + Tolerance.Distance)) return null;
         }
         var rests = placed.Zip(unit.Where(u => u.Id != lead).Select(u => u.Id).Prepend(lead)).ToDictionary(x => x.Second, x => x.First.Bottom());
         return result.ToDictionary(kv => kv.Key, kv => new Point3(kv.Value.X, kv.Value.Y, rests[kv.Key]));
     }
 
-    /// <summary>The body at a point, rested on its highest surface there, or with a `level` on its open surface nearest it (Collision.RestNear).</summary>
-    static PlacedModel Rest(PlacedModel start, Point2 at, FormationTerms t, double? level = null)
+    /// <summary>The body at a point, rested on its highest surface there, or with a `level` on its open surface nearest it (Collision.RestNear),
+    /// over the volumes that can be under it (Paths.Under).</summary>
+    static PlacedModel Rest(PlacedModel start, Point2 at, FormationTerms t, Paths paths, double? level = null)
     {
         var there = start with { Placement = start.Placement with { Position = new Point3(at.X, at.Y, 0) } };
-        var z = level is { } l ? Collision.RestNear(there, t.Volumes, l) : Collision.RestHeight(there, t.Volumes);
+        var under = paths.Under(there);
+        var z = level is { } l ? Collision.RestNear(there, under, l) : Collision.RestHeight(there, under);
         return there with { Placement = there.Placement with { Position = new Point3(at.X, at.Y, z) } };
     }
 
@@ -105,13 +111,13 @@ public static class UnitFormation
 
     /// <summary>One model's landing: on no standing or placed base, in no landing volume, on a path within the allowance (and cap) that goes round
     /// what it may not pass and stays on the table.</summary>
-    static bool Fits(PlacedModel start, Point2 at, FormationTerms t, IReadOnlyList<PlacedModel> placed, double? level = null)
+    static bool Fits(PlacedModel start, Point2 at, FormationTerms t, IReadOnlyList<PlacedModel> placed, Paths paths, double? level = null)
     {
-        var landed = Rest(start, at, t, level);
-        if (t.Standing.Any(o => Overlap.Bases(landed, o)) || placed.Any(o => Overlap.Bases(landed, o))) return false;
+        var landed = Rest(start, at, t, paths, level);
+        if (t.Standing.Any(o => Overlap.BasesFacing(landed, o)) || placed.Any(o => Overlap.BasesFacing(landed, o))) return false;
         if (t.Apart is { } apart && apart.Any(o => Distance.BodyToBody(landed, o) < t.Separation - 1e-6)) return false;   // other units' models a landing keeps Separation from
-        if (t.Landing.Count > 0 && Movement.Check(landed, at, 0, t.Landing, [], null, null).CrossesImpassable) return false;
-        return Path(start, at, t, t.Allowance, t.Difficult, t.DifficultCap, t.Steep) is { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false, CrossesModels: false };
+        if (paths.InLanding(landed, at)) return false;
+        return paths.Of(start).Fits(at);
     }
 
     /// <summary>
@@ -123,6 +129,7 @@ public static class UnitFormation
     /// </summary>
     public static IReadOnlyDictionary<Guid, Point2>? Regroup(IReadOnlyList<(Guid Id, PlacedModel Start)> unit, IReadOnlyList<PlacedModel> members, FormationTerms t)
     {
+        var paths = new Paths(t);
         IReadOnlyList<PlacedModel> all = [.. unit.Select(u => u.Start), .. members];
         var check = Coherency.Check(all, t.Chain, t.Elevated, t.Spread);
         var outOf = check.OutOfCoherency.ToHashSet();
@@ -136,12 +143,12 @@ public static class UnitFormation
         {
             var here = from.Placement.Position.Horizontal;
             Point2? at = chain.OrderBy(o => Distance.EdgeToEdge(from, o))
-                .SelectMany(o => Gaps.SelectMany(gap => Movement.ContactPoints(from, o, gap, 16)))
+                .SelectMany(o => Gaps.SelectMany(gap => Movement.Contacts(from, o, gap, 16)))
                 .Where(p => here.DistanceTo(p) <= t.Allowance + Tolerance.Distance)          // a straight line is the shortest path: beyond it, no path fits
-                .Select(p => (Point2?)p).FirstOrDefault(p => Fits(from, p!.Value, t, chain));
+                .Select(p => (Point2?)p).FirstOrDefault(p => Fits(from, p!.Value, t, chain, paths));
             if (at is not { } there) return null;
             result[id] = there;
-            chain.Add(Rest(from, there, t));
+            chain.Add(Rest(from, there, t, paths));
         }
         return Coherency.Check(chain, t.Chain, t.Elevated, t.Spread).Coherent ? result : null;
     }
@@ -160,6 +167,7 @@ public static class UnitFormation
         var chain = all.Where((_, i) => !outOf.Contains(i)).ToList();
         if (chain.Count == 0 || t.Allowance <= Tolerance.Distance) return null;
         var others = all.Where((_, i) => outOf.Contains(i)).ToList();
+        var paths = new Paths(t);
         foreach (var i in outOf.Where(i => i < unit.Count))
         {
             var from = unit[i].Start; var here = from.Placement.Position.Horizontal;
@@ -172,9 +180,50 @@ public static class UnitFormation
             {
                 var step = Math.Min(t.Allowance, gap - ContactGap) * share;
                 var at = new Point2(here.X + (to.X - here.X) / line * step, here.Y + (to.Y - here.Y) / line * step);
-                if (Fits(from, at, t, [.. chain, .. others.Where(o => o != from)])) return (unit[i].Id, at);
+                if (Fits(from, at, t, [.. chain, .. others.Where(o => o != from)], paths)) return (unit[i].Id, at);
             }
         }
         return null;
+    }
+
+    /// <summary>One search's moves judged per model against one MoveSpace each (Movement.Fitting), built on the model's first landing.</summary>
+    sealed class Paths(FormationTerms t)
+    {
+        readonly Dictionary<PlacedModel, Movement.Fitting> _of = [];
+        (Point2 Centre, double Radius)[]? _landing;
+        (Point2 Centre, double Radius)[]? _volumes;
+
+        /// <summary>t.Volumes less those whose circle is clear of the base's: none of those shares interior with it, so a rest never reads them.</summary>
+        public IReadOnlyList<WorldVolume> Under(PlacedModel there)
+        {
+            _volumes ??= [.. t.Volumes.Select(v => v.WorldOutline().BoundingCircle())];
+            var (centre, reach) = (there.Placement.Position.Horizontal, there.Body.Reach());
+            var under = new List<WorldVolume>();
+            for (var i = 0; i < _volumes.Length; i++)
+                if (centre.DistanceTo(_volumes[i].Centre) <= reach + _volumes[i].Radius + Tolerance.Distance) under.Add(t.Volumes[i]);
+            return under;
+        }
+
+        /// <summary>A base this far from every landing volume is in none (Movement.Check's zero move from it meets nothing).</summary>
+        const double LandingClear = 0.01;
+
+        /// <summary>The landed base is in a landing volume: Movement.Check(landed, at, 0, t.Landing, [], null, null).CrossesImpassable, not asked of a
+        /// base whose circle is LandingClear from every volume's.</summary>
+        public bool InLanding(PlacedModel landed, Point2 at)
+        {
+            if (t.Landing.Count == 0) return false;
+            _landing ??= [.. t.Landing.Select(v => v.WorldOutline().BoundingCircle())];
+            var (centre, reach) = (landed.Placement.Position.Horizontal, landed.Body.Reach());
+            return _landing.Any(v => centre.DistanceTo(v.Centre) <= reach + v.Radius + LandingClear)
+                && Movement.Check(landed, at, 0, t.Landing, [], null, null).CrossesImpassable;
+        }
+
+        public Movement.Fitting Of(PlacedModel start)
+        {
+            if (!_of.TryGetValue(start, out var fitting))
+                _of[start] = fitting = new Movement.Fitting(start, t.Allowance, t.Impassable, t.Difficult, t.DifficultCap, t.Table,
+                    t.PassesModels ? null : t.Standing, t.Volumes, t.Steep);
+            return fitting;
+        }
     }
 }

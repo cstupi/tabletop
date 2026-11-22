@@ -7,6 +7,46 @@ public static class Overlap
     public static bool Bases(PlacedModel a, PlacedModel b) =>
         !Bodies.Apart(a, b, 0) && IntervalsOverlap(a.Bottom(), a.Top(), b.Bottom(), b.Top()) && Outline.InteriorsIntersect(a.BaseOutline(), b.BaseOutline());
 
+    /// <summary>
+    /// Bases(a, b), for many tests of one landing: two polygon bases whose inner circles (about their centres, inside their outlines) overlap
+    /// overlap; otherwise the separating axes are tried facing the other base first (PolygonOutline.SeparatingAxisTest's answer in any order).
+    /// </summary>
+    internal static bool BasesFacing(PlacedModel a, PlacedModel b)
+    {
+        if (Bodies.Apart(a, b, 0) || !IntervalsOverlap(a.Bottom(), a.Top(), b.Bottom(), b.Top())) return false;
+        var (oa, ob) = (a.BaseOutline(), b.BaseOutline());
+        if (oa is not PolygonOutline pa || ob is not PolygonOutline pb) return Outline.InteriorsIntersect(oa, ob);
+        var toward = b.Placement.Position.Horizontal - a.Placement.Position.Horizontal;
+        if (toward.Length < Inner(a) + Inner(b) - 1e-5) return true;
+        return PolygonOutline.SeparatingAxisTest(pa, pb, toward);
+    }
+
+    /// <summary>Inner radii by base. The radius is a distance from the centre to each edge's line, so turning the base leaves it unchanged
+    /// and the yaw is no part of the key; bases come from army data, few per game, and the cache empties itself past <see cref="InnersCap"/>
+    /// so a long-running server cannot grow it without bound.</summary>
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<Base, double> Inners = new();
+    const int InnersCap = 512;
+
+    /// <summary>The radius about a polygon base's centre of a circle inside its outline, padded down.</summary>
+    static double Inner(PlacedModel m)
+    {
+        if (Inners.TryGetValue(m.Body.Base, out var known)) return known;
+        if (Inners.Count >= InnersCap) Inners.Clear();
+        return Inners[m.Body.Base] = InnerOf(m);
+    }
+
+    static double InnerOf(PlacedModel m)
+    {
+        var v = m.BaseOffsets()!;
+        var inner = double.PositiveInfinity;
+        for (int i = 0, j = v.Length - 1; i < v.Length; j = i++)
+        {
+            var e = v[i] - v[j];
+            if (e.Length > 0) inner = Math.Min(inner, Math.Abs(e.Cross(v[j])) / e.Length);   // the line's distance from the centre (the origin)
+        }
+        return Math.Max(0, inner - 1e-9);
+    }
+
     /// <summary>The body is inside a Solid volume. Standing on its top is not; Area volumes never intersect.</summary>
     public static bool WithSolid(PlacedModel model, WorldVolume volume) =>
         volume.Volume.Kind == VolumeKind.Solid

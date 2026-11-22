@@ -5,6 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>12</LangVersion>
     <RootNamespace>Tabletop.Geometry</RootNamespace>
+    <!-- Optimized in every configuration: the compose servers (dotnet watch, Debug) and a dev client judge moves and charges with it, about ten
+         times slower unoptimized. -->
+    <Optimize>true</Optimize>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Tabletop.Geometry.Tests" />

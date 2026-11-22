@@ -1,0 +1,987 @@
+{
+  "name": "Testing Locally seq 1261",
+  "table": {
+    "width": 72,
+    "length": 48
+  },
+  "volumes": [
+    {
+      "id": "01a2044d-6538-7808-adbf-279e623b5174",
+      "volume": {
+        "kind": "Solid",
+        "footprint": {
+          "kind": "Rect",
+          "a": 6,
+          "b": 6
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 8,
+        "declarations": "Impassable, BlocksLineOfSight",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 59.79836497632711,
+          "y": 9.898386110504333,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 285
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-766f-bcce-f162c42294b6",
+      "volume": {
+        "kind": "Solid",
+        "footprint": {
+          "kind": "Rect",
+          "a": 6,
+          "b": 0.5
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 1.5,
+        "declarations": "Cover, Difficult",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 59.46138775882376,
+          "y": 36.67231405743971,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 180
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-74d3-b3da-3c7d1073c151",
+      "volume": {
+        "kind": "Area",
+        "footprint": {
+          "kind": "Circle",
+          "a": 3,
+          "b": 3
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 6,
+        "declarations": "BlocksLineOfSight, SeeInAndOut, Cover, Difficult",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 27.47586633799405,
+          "y": 42.68496065339305,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 150
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-7549-bc3a-7fa8efee71fb",
+      "volume": {
+        "kind": "Area",
+        "footprint": {
+          "kind": "Rect",
+          "a": 6,
+          "b": 6
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 1,
+        "declarations": "Cover, Difficult",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 12.538612241176242,
+          "y": 11.327685942560288,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-731d-b009-efbb7a8ba39b",
+      "volume": {
+        "kind": "Area",
+        "footprint": {
+          "kind": "Rect",
+          "a": 3,
+          "b": 12
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 0.5,
+        "declarations": "Difficult",
+        "notes": "Optionally one 3\u0022-6\u0022 wide bridge per full 24\u0022"
+      },
+      "transform": {
+        "position": {
+          "x": 25.642181520183655,
+          "y": 24,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 285
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-78aa-9019-72b7b6c47ebe",
+      "volume": {
+        "kind": "Solid",
+        "footprint": {
+          "kind": "Circle",
+          "a": 3,
+          "b": 3
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 2,
+        "declarations": "Cover, Steep",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 49.374078188731374,
+          "y": 24,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 30
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-725e-9d44-657061c54aea",
+      "volume": {
+        "kind": "Area",
+        "footprint": {
+          "kind": "Circle",
+          "a": 3,
+          "b": 3
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 6,
+        "declarations": "BlocksLineOfSight, SeeInAndOut, Cover, Difficult",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 39.42128069671862,
+          "y": 24,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 105
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-7704-ad0f-83ffb2de1f2b",
+      "volume": {
+        "kind": "Area",
+        "footprint": {
+          "kind": "Rect",
+          "a": 6,
+          "b": 6
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 6,
+        "declarations": "BlocksLineOfSight, SeeInAndOut, Cover, Difficult",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 64.65134214267663,
+          "y": 23.51602997235769,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 180
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-71a5-b716-a8e1a7c8ab2e",
+      "volume": {
+        "kind": "Area",
+        "footprint": {
+          "kind": "Circle",
+          "a": 3,
+          "b": 3
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 6,
+        "declarations": "BlocksLineOfSight, SeeInAndOut, Cover, Difficult",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 46.712595037516486,
+          "y": 44.710619798261035,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 180
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-79c9-814f-7f7b2f39d1a0",
+      "volume": {
+        "kind": "Area",
+        "footprint": {
+          "kind": "Circle",
+          "a": 3,
+          "b": 3
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 6,
+        "declarations": "BlocksLineOfSight, SeeInAndOut, Cover, Difficult",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 25.287404962483514,
+          "y": 3.2893802017389646,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-7a3d-a711-836df9173859",
+      "volume": {
+        "kind": "Solid",
+        "footprint": {
+          "kind": "Rect",
+          "a": 6,
+          "b": 6
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 8,
+        "declarations": "Impassable, BlocksLineOfSight",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 12.201635023672894,
+          "y": 38.10161388949567,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 105
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-7d50-a4d2-78daa586e807",
+      "volume": {
+        "kind": "Solid",
+        "footprint": {
+          "kind": "Rect",
+          "a": 6,
+          "b": 6
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 4,
+        "declarations": "Impassable, BlocksLineOfSight",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 34.29414106639761,
+          "y": 14.42218774483641,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 30
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-730e-812a-6de27d8c2e9c",
+      "volume": {
+        "kind": "Area",
+        "footprint": {
+          "kind": "Circle",
+          "a": 3,
+          "b": 3
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 6,
+        "declarations": "BlocksLineOfSight, SeeInAndOut, Cover, Difficult",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 44.52413366200595,
+          "y": 5.315039346606955,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 330
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-7ff9-9953-30b905c0f014",
+      "volume": {
+        "kind": "Solid",
+        "footprint": {
+          "kind": "Rect",
+          "a": 6,
+          "b": 6
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 4,
+        "declarations": "Impassable, BlocksLineOfSight",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 37.70585893360239,
+          "y": 33.57781225516359,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 210
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-7a2d-89b3-aef4782abf69",
+      "volume": {
+        "kind": "Solid",
+        "footprint": {
+          "kind": "Rect",
+          "a": 6,
+          "b": 0.5
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 1.5,
+        "declarations": "Cover, Difficult",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 57.591097024079,
+          "y": 24,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 75
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "01a2044d-6538-7bde-8419-1ee597571639",
+      "volume": {
+        "kind": "Area",
+        "footprint": {
+          "kind": "Rect",
+          "a": 6,
+          "b": 6
+        },
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "bottom": 0,
+        "top": 6,
+        "declarations": "BlocksLineOfSight, SeeInAndOut, Cover, Difficult",
+        "notes": null
+      },
+      "transform": {
+        "position": {
+          "x": 7.348657857323372,
+          "y": 24.48397002764231,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        },
+        "scale": 1
+      }
+    }
+  ],
+  "impassable": [
+    "01a2044d-6538-7a3d-a711-836df9173859",
+    "01a2044d-6538-7808-adbf-279e623b5174",
+    "01a2044d-6538-7d50-a4d2-78daa586e807",
+    "01a2044d-6538-7ff9-9953-30b905c0f014"
+  ],
+  "difficult": [
+    "01a2044d-6538-731d-b009-efbb7a8ba39b",
+    "01a2044d-6538-7549-bc3a-7fa8efee71fb",
+    "01a2044d-6538-766f-bcce-f162c42294b6",
+    "01a2044d-6538-7bde-8419-1ee597571639",
+    "01a2044d-6538-7704-ad0f-83ffb2de1f2b",
+    "01a2044d-6538-730e-812a-6de27d8c2e9c",
+    "01a2044d-6538-74d3-b3da-3c7d1073c151",
+    "01a2044d-6538-71a5-b716-a8e1a7c8ab2e",
+    "01a2044d-6538-79c9-814f-7f7b2f39d1a0",
+    "01a2044d-6538-725e-9d44-657061c54aea",
+    "01a2044d-6538-7a2d-89b3-aef4782abf69"
+  ],
+  "difficultCap": 6,
+  "steep": [
+    "01a2044d-6538-78aa-9019-72b7b6c47ebe"
+  ],
+  "landing": [
+    "01a2044d-6538-7808-adbf-279e623b5174",
+    "01a2044d-6538-7a3d-a711-836df9173859",
+    "01a2044d-6538-7d50-a4d2-78daa586e807",
+    "01a2044d-6538-7ff9-9953-30b905c0f014"
+  ],
+  "allowance": 16,
+  "passesModels": false,
+  "unit": [
+    {
+      "id": "01a1b970-f3e3-799d-9d49-69e9b4704655",
+      "start": {
+        "body": {
+          "base": {
+            "shape": "Oval",
+            "a": 2.362204724409449,
+            "b": 1.3779527559055118
+          },
+          "height": 4.429133858267717
+        },
+        "placement": {
+          "position": {
+            "x": 42.797192513529104,
+            "y": 19.80831476963582,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": -101.81482696533203
+          }
+        }
+      }
+    },
+    {
+      "id": "01a1b970-f3e3-7587-9050-dd64cbbadf91",
+      "start": {
+        "body": {
+          "base": {
+            "shape": "Oval",
+            "a": 2.362204724409449,
+            "b": 1.3779527559055118
+          },
+          "height": 4.429133858267717
+        },
+        "placement": {
+          "position": {
+            "x": 41.581337727716644,
+            "y": 16.83928851997136,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 71.18984985351562
+          }
+        }
+      }
+    },
+    {
+      "id": "01a1b970-f3e3-76f2-b21c-8dae586648ff",
+      "start": {
+        "body": {
+          "base": {
+            "shape": "Oval",
+            "a": 2.362204724409449,
+            "b": 1.3779527559055118
+          },
+          "height": 4.429133858267717
+        },
+        "placement": {
+          "position": {
+            "x": 38.265403747558594,
+            "y": 18.389320373535156,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 71.18984985351562
+          }
+        }
+      }
+    },
+    {
+      "id": "01a1b970-f3e3-763a-98a5-b94a13a2793f",
+      "start": {
+        "body": {
+          "base": {
+            "shape": "Oval",
+            "a": 2.362204724409449,
+            "b": 1.3779527559055118
+          },
+          "height": 4.429133858267717
+        },
+        "placement": {
+          "position": {
+            "x": 40.83409093340792,
+            "y": 19.269877935838572,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 71.18984985351562
+          }
+        }
+      }
+    },
+    {
+      "id": "01a1b970-f3e3-7a40-bbda-13b6ada0e5ba",
+      "start": {
+        "body": {
+          "base": {
+            "shape": "Oval",
+            "a": 2.362204724409449,
+            "b": 1.3779527559055118
+          },
+          "height": 4.429133858267717
+        },
+        "placement": {
+          "position": {
+            "x": 38.664920806884766,
+            "y": 20.96546173095703,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 71.18984985351562
+          }
+        }
+      }
+    }
+  ],
+  "members": [],
+  "targets": [
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 53.4607894847708,
+          "y": 18.36420981430632,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    },
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 54.920632166655565,
+          "y": 18.36420981430632,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    },
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 56.38047484854033,
+          "y": 18.36420981430632,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    },
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 57.8403175304251,
+          "y": 18.36420981430632,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    },
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 59.1473349307446,
+          "y": 18.36193916816405,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    },
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 53.4607894847708,
+          "y": 16.904367132421555,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    }
+  ],
+  "standing": [
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 26.94710656881543,
+          "y": 28.752804892668653,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": -201.99191284179688
+        }
+      }
+    },
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 28.406949250700194,
+          "y": 28.752804892668653,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": -201.99191284179688
+        }
+      }
+    },
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 53.4607894847708,
+          "y": 18.36420981430632,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    },
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 54.920632166655565,
+          "y": 18.36420981430632,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    },
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 56.38047484854033,
+          "y": 18.36420981430632,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    },
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 57.8403175304251,
+          "y": 18.36420981430632,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    },
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 59.1473349307446,
+          "y": 18.36193916816405,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    },
+    {
+      "body": {
+        "base": {
+          "shape": "Circle",
+          "a": 1.2598425196850394,
+          "b": 1.2598425196850394
+        },
+        "height": 1.889763779527559
+      },
+      "placement": {
+        "position": {
+          "x": 53.4607894847708,
+          "y": 16.904367132421555,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    }
+  ],
+  "contactVertical": 3
+}
