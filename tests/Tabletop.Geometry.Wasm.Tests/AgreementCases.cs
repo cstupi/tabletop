@@ -237,12 +237,26 @@ public static class AgreementCases
         {
             var path = capped ? Movement.Check(m.Start, m.To, 6, [], [], null, size, routeStanding, routeVolumes)
                 : Movement.Measured(m.Start, m.To, 9, [], Volumes([routeWood]), 6, size, routeStanding, routeVolumes, Volumes([routePit]), Volumes([routeRuin]), 6, []);
-            return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult);
+            var swept = SweptPath.Of(m.Start, path.Path, SweptPath.DangerousTo(path.Distance, Volumes([routePit]), Volumes([routeRuin]), 6));
+            return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult, [.. swept.Footprints], [.. swept.Dangerous]);
         })];
         foreach (var capped in new[] { false, true })
             Add(capped ? "move_routes_capped" : "move_routes_wood_pit_and_ruin", "MoveRoutes",
                 new RoutesRequest(routeModels, 9, [], [routeWood.Volumes[0].Id], 6, routeField, size, routeStanding, Dangerous: [routePit.Volumes[0].Id],
                     Unstable: [routeRuin.Volumes[0].Id], UnstableOver: 6, Capped: capped), Routes(capped));
+        // MoveRoutes with a base's edge clipping dangerous ground its centre line misses: a game's 16" Rush of 60 x 35 mm ovals past an 8" toxic smog,
+        // the first rider's base about 0.35" in (owner ruling: any part of the base counts).
+        var smog = PieceAt(15.955780558267506, 16.17559109636377, 255, 1, Vol(VolumeKind.Area, Footprint.Circle(4), 6, TerrainDeclarations.Dangerous));
+        var cavalry = new ModelBody(Base.Oval(2.362204724409449, 1.3779527559055118), 4.43);
+        RouteModel[] riders = [new(Id(), new PlacedModel(cavalry, Pl(14.497011184692383, 9.693385124206543)), new Point2(28.048744327367796, 18.199296529206755)),
+            new(Id(), new PlacedModel(cavalry, Pl(16.074962615966797, 9.693385124206543)), new Point2(29.9576309014231, 17.64772490045357))];
+        Add("move_routes_base_edge_clips_dangerous", "MoveRoutes", new RoutesRequest(riders, 16, [], [], 6, [smog], size, [], Dangerous: [smog.Volumes[0].Id]),
+            riders.Select(m =>
+            {
+                var path = Movement.Measured(m.Start, m.To, 16, [], [], 6, size, [], Volumes([smog]), Volumes([smog]), [], 0, []);
+                var swept = SweptPath.Of(m.Start, path.Path, Volumes([smog]));
+                return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult, [.. swept.Footprints], [.. swept.Dangerous]);
+            }).ToArray());
         return cases;
     }
 

@@ -32,14 +32,10 @@ public partial class LastMovePath : MovePathNode
         _shown = segments;
         var request = ++_request;
         if (segments.Count == 0 || _session.Projection is not { } p) { Hide(); return; }
-        var moving = segments.SelectMany(s => s.Moves.Select(m => m.ModelId)).ToHashSet();
-        var bodies = moving.Where(p.Models.ContainsKey).ToDictionary(id => id, id => new ModelBody(p.Models[id].Slot.Base, p.Models[id].Slot.Height));
-        var standing = p.Models.Values.Where(m => !moving.Contains(m.Id) && m.Location is OnTable)
-            .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
-        var unit = p.Models.GetValueOrDefault(moving.First())?.UnitId;
+        var unit = p.Models.GetValueOrDefault(segments[0].Moves.FirstOrDefault()?.ModelId ?? Guid.Empty)?.UnitId;
         var ordinal = unit is { } u && _session.Game is { } g ? SheetFocus.TeamOf(p, g, u)?.Ordinal : null;
-        var (volumes, size) = (_view.Volumes, _view.Size);
-        var paths = await Task.Run(() => segments.SelectMany(s => MovePaths.Measured(s, id => bodies.TryGetValue(id, out var b) ? b : null, volumes, size, standing)).ToList());
+        var measure = MovePaths.KeptLater(segments, p, _view.Volumes, _view.Size);
+        var paths = await Task.Run(measure);
         if (request != _request || !IsInstanceValid(this)) return;
         Show(paths, ordinal is { } o ? Palette.Team(o) : Palette.Unassigned);
     }

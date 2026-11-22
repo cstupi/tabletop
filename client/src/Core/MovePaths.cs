@@ -137,4 +137,15 @@ public static class MovePaths
         }
         return paths;
     }
+
+    /// <summary>The kept segments' paths (Measured), reading the projection now and measuring later, on any thread: each moved model's base from its
+    /// slot, the standing models every model on the table that none of the segments moves.</summary>
+    public static Func<IReadOnlyList<ModelPath>> KeptLater(IReadOnlyList<MoveSegment> segments, Projection p, IReadOnlyList<WorldVolume> volumes, TableSize size)
+    {
+        var moving = segments.SelectMany(s => s.Moves.Select(m => m.ModelId)).ToHashSet();
+        var bodies = moving.Where(p.Models.ContainsKey).ToDictionary(id => id, id => new ModelBody(p.Models[id].Slot.Base, p.Models[id].Slot.Height));
+        var standing = p.Models.Values.Where(m => !moving.Contains(m.Id) && m.Location is OnTable)
+            .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
+        return () => segments.SelectMany(s => Measured(s, id => bodies.TryGetValue(id, out var b) ? b : null, volumes, size, standing)).ToList();
+    }
 }

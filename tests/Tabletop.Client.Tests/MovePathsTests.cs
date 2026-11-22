@@ -17,8 +17,12 @@ public class MovePathsTests
         public static readonly TableSize Table = new(72, 48);
         public static readonly Base Oval = Base.Oval(2.362204724409449, 1.3779527559055118);
 
+        static int _made;
+        /// <summary>Fixed ids, so the viewer fixture written from this scene stays the same from run to run.</summary>
+        static Guid Next() => new($"00000000-0000-4000-8000-{++_made:D12}");
+
         static WorldVolume Piece(double x, double y, double yaw, VolumeKind kind, bool circle, double a, double b, double top, TerrainDeclarations d) =>
-            new(Guid.CreateVersion7(), new Volume(kind, circle ? Footprint.Circle(a) : Footprint.Rect(a, b), new Point2(0, 0), new Yaw(0), 0, top, d, null),
+            new(Next(),new Volume(kind, circle ? Footprint.Circle(a) : Footprint.Rect(a, b), new Point2(0, 0), new Yaw(0), 0, top, d, null),
                 new TerrainTransform(new Point3(x, y, 0), new Yaw(yaw), 1));
 
         const TerrainDeclarations Unstable = TerrainDeclarations.DangerousOnRushCharge, Dangerous = TerrainDeclarations.Dangerous,
@@ -48,7 +52,7 @@ public class MovePathsTests
 
         static List<Guid> With(TerrainDeclarations d) => Volumes.Where(v => v.Volume.Declarations.HasFlag(d)).Select(v => v.Id).ToList();
 
-        public static readonly Guid[] Ids = [.. Enumerable.Range(0, 5).Select(_ => Guid.CreateVersion7())];
+        public static readonly Guid[] Ids = [.. Enumerable.Range(0, 5).Select(_ => Next())];
         public static readonly (Point2 From, Point2 To)[] Moves =
         [
             (new(14.497011184692383, 9.693385124206543), new(28.048744327367796, 18.199296529206755)),
