@@ -100,7 +100,7 @@ public partial class GameScreen : Control
         _gameMenu.Opened += Input.ClearHover;
         // A late army arrives as a board after the game info: the waiting panel follows the board, and goes when the board ends the wait.
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) { ShowStatus(); if (_wasWaiting != _session.WaitingTeams.Count > 0) Rebuild(); else { _waiting?.Refresh(); Callable.From(ShowSelection).CallDeferred(); } } };
-        _onRefused = r => { if (Feedback.Refusal(r) is { } text) Toast(text); };
+        _onRefused = r => { if (Feedback.Refusal(r, IsInstanceValid(_decision) ? _decision!.LastCommand : null) is { } text) Toast(text); };
         // The status line once the session has counted this attempt: the phase stays Reconnecting, so Rebuild does not run for it.
         _onLost = (c, will) => { Toast(Feedback.Closed(c, will)); Callable.From(() => { if (IsInstanceValid(_status)) ShowStatus(); }).CallDeferred(); };
         _session.GameChanged += Rebuild; _session.PhaseChanged += Rebuild; _session.Frame.Render += _onFrame;

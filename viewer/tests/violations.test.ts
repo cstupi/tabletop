@@ -30,7 +30,7 @@ describe('Violations', () => {
     const v = new Violations((id) => (id === C ? null : id.toUpperCase()));
     v.measure([A, B, C], marks({ [A]: 'within 1" of Orcs', [B]: 'within 1" of Orcs', [C]: 'overlaps a base' }));
     expect(v.marked).toEqual(marks({ [A]: 'A would end within 1" of Orcs', [B]: 'A would end within 1" of Orcs', [C]: 'overlaps a base' }));
-    expect(v.labels([B, A, C])).toEqual([{ modelId: B, reason: 'within 1" of Orcs' }, { modelId: C, reason: 'overlaps a base' }]);
+    expect(v.labels([B, A, C])).toEqual([{ modelId: B, reason: 'Too close 1"' }, { modelId: C, reason: 'On a base' }]);
     v.refused([C], 'C would be placed outside its deployment zone');
     v.measure([C], marks({}));
     expect(v.marked.get(C)).toBe('C would be placed outside its deployment zone');
@@ -68,8 +68,8 @@ describe('Violations', () => {
   it('labels name each reason once over its first model', () => {
     const v = new Violations();
     v.measure([A, B, C], marks({ [A]: 'overlaps a base', [B]: 'overlaps a base', [C]: 'within 1" of Orcs' }));
-    expect(v.labels([A, B, C])).toEqual([{ modelId: A, reason: 'overlaps a base' }, { modelId: C, reason: 'within 1" of Orcs' }]);
-    expect(v.labels([B, C, A])).toEqual([{ modelId: B, reason: 'overlaps a base' }, { modelId: C, reason: 'within 1" of Orcs' }]);
+    expect(v.labels([A, B, C])).toEqual([{ modelId: A, reason: 'On a base' }, { modelId: C, reason: 'Too close 1"' }]);
+    expect(v.labels([B, C, A])).toEqual([{ modelId: B, reason: 'On a base' }, { modelId: C, reason: 'Too close 1"' }]);
   });
 
   it('clear drops the measure and the refusal', () => {
@@ -88,7 +88,7 @@ describe('Violations', () => {
     expect(v.marked.size).toBe(0);
     expect(v.blocks('strict')).toBe(false);
     v.measure([B], marks({ [B]: 'overlaps a base' }));
-    expect(v.labels([A, B])).toEqual([{ modelId: A, reason: 'Dangerous terrain test' }, { modelId: B, reason: 'overlaps a base' }]);
+    expect(v.labels([A, B])).toEqual([{ modelId: A, reason: 'Dangerous terrain test' }, { modelId: B, reason: 'On a base' }]);
     v.warn([A, B], marks({ [A]: 'Dangerous terrain test' }));
     expect(raised).toBe(2);
     v.clear();

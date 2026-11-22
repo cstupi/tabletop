@@ -70,9 +70,10 @@ public sealed class Violations
     /// <summary>Under strict a marked model holds the commit; under warn and silent it goes and the server judges.</summary>
     public bool Blocks(Enforcement enforcement) => enforcement == Enforcement.Strict && _marked.Count > 0;
 
-    /// <summary>One label per reason, over the first model in this order that has it: the words, since the label stands over the model.</summary>
+    /// <summary>One label per reason, over the first model in this order that has it, in its short words (MarkWords.Short: the full sentence is the
+    /// decision box's); a model with a mark and a warning carries both, the mark first.</summary>
     public IReadOnlyList<(Guid ModelId, string Reason)> Labels(IEnumerable<Guid> order) =>
-        order.SelectMany(id => new[] { _words.GetValueOrDefault(id), _warned.GetValueOrDefault(id) }.OfType<string>().Select(w => (id, w)))
+        order.SelectMany(id => new[] { _words.GetValueOrDefault(id), _warned.GetValueOrDefault(id) }.OfType<string>().Select(w => (id, MarkWords.Short(w))))
             .DistinctBy(x => x.Item2).ToList();
 
     /// <summary>Recomputes the marks; true when they changed (and Changed was raised).</summary>

@@ -3,18 +3,20 @@
 // and then as board Overlays.
 
 import type { Overlay } from '../board/interaction';
-import { drawLabel } from '../board/labelPlacement';
+import { drawLabel, measureOf, viewportWidthOf } from '../board/labelPlacement';
 import type { MoveBands, XY } from '../geometry';
 import { bandColour, layers, STRIPE_SPACING, striped } from './moveBandLook';
 import { readoutText, type RulerReadout } from './moveRuler';
 import type { Held } from './modelDrag';
 import { footprintColour, lineColour, outline, type ModelPath } from './movePaths';
 import type { Violations } from './violations';
+import { placeMarkLabels } from './markLabels';
 
 /** `path`: the bent path the move is measured along (from `from` to `to`), drawn instead of the straight line. */
 export interface RulerLine { readonly from: XY; readonly to: XY; readonly text: string; readonly outOfRange: boolean; readonly path?: readonly XY[] }
 export interface Ring { readonly centre: XY; readonly radius: number }
-export interface Label { readonly at: XY; readonly text: string }
+/** `modelId`: whose label it is, so one model's labels stack (placeMarkLabels); absent for a label of its own. */
+export interface Label { readonly at: XY; readonly text: string; readonly modelId?: string }
 
 /** RulerNode: the line from where each piece started to where it is. One reading for the drag: the model that moved farthest, which binds
  *  the allowance; the other lines carry none. */
@@ -41,7 +43,7 @@ export function landingRings(held: Held, radius: (modelId: string) => number): R
 export function violationLabels(v: Violations, order: readonly string[], centreOf: (id: string) => XY | null): Label[] {
   return v.labels(order).flatMap((l) => {
     const at = centreOf(l.modelId);
-    return at === null ? [] : [{ at, text: l.reason }];
+    return at === null ? [] : [{ modelId: l.modelId, at, text: l.reason }];
   });
 }
 
@@ -150,7 +152,21 @@ export const boxOverlay = (from: XY, to: XY, colour = '#ffffff'): Overlay => (ct
   ctx.restore();
 };
 
+/** ViolationMarks' labels: short words over each model, a model's stacked MARK_GAP apart, no two meeting and none leaving the board's canvas
+ *  (placeMarkLabels). */
 export const labelOverlay = (labels: readonly Label[], colour: string): Overlay => (ctx, project) => {
-  ctx.fillStyle = colour; ctx.font = 'bold 11px ui-monospace, monospace'; ctx.textAlign = 'center';
-  for (const label of labels) { const p = project(label.at); drawLabel(ctx, label.text, { x: p.x, y: p.y - 16 }, colour, { lineHeight: 13, grow: 'up' }); }
+  if (labels.length === 0) return;
+  ctx.fillStyle = colour; ctx.font = 'bold 11px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const lineHeight = 13, measure = measureOf(ctx);
+  const wanted = labels.map((l, i) => {
+    const p = project(l.at);
+    return { modelId: l.modelId ?? `#${i}`, anchor: { x: p.x, y: p.y - 10 }, w: measure(l.text) + 4, h: lineHeight };
+  });
+  const canvas = (ctx as { canvas?: { width?: unknown; height?: unknown } }).canvas;
+  const scale = typeof ctx.getTransform === 'function' ? ctx.getTransform()?.d : undefined;
+  const w = viewportWidthOf(ctx), h = typeof canvas?.height === 'number' ? canvas.height / (typeof scale === 'number' && scale > 0 ? scale : 1) : Infinity;
+  const view = Number.isFinite(w) && Number.isFinite(h) ? { x: 0, y: 0, w, h } : { x: -1e6, y: -1e6, w: 2e6, h: 2e6 };
+  const placed = placeMarkLabels(wanted, view);
+  labels.forEach((l, i) => { const r = placed[i]!; ctx.fillText(l.text, r.x + r.w / 2, r.y); });
+  ctx.textBaseline = 'alphabetic';
 };
