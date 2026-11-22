@@ -26,15 +26,38 @@ public class KeyOverlayViewTests
     {
         foreach (var mode in new[] { AskMode.Move, AskMode.PickPieces, AskMode.Choose, AskMode.Assign })
             Assert.Equal(new KeyRow(["T"], "all enemy threats"), KeyOverlayView.Of(mode, "Deploy", false)[0].Rows[^1]);
-        Assert.Contains(new KeyRow(["T"], "all enemy threats"), KeyOverlayView.Table.Rows);
+        Assert.Contains(new KeyRow(["T"], "all enemy threats"), KeyOverlayView.Table(KeyBindings.Default).Rows);
     }
 
     [Fact]
     public void Each_key_the_overlay_names_is_one_the_hotkeys_map()
     {
         // The single-letter caps of Camera, Measure and Table each map to an intent.
-        foreach (var row in new[] { KeyOverlayView.Camera, KeyOverlayView.Measure, KeyOverlayView.Table }.SelectMany(g => g.Rows))
+        foreach (var row in new[] { KeyOverlayView.Camera(KeyBindings.Default), KeyOverlayView.Measure(KeyBindings.Default), KeyOverlayView.Table(KeyBindings.Default) }.SelectMany(g => g.Rows))
             foreach (var key in row.Keys.Where(k => k.Length == 1 && char.IsAsciiLetterUpper(k[0])))
-                Assert.NotNull(Hotkeys.Of(Enum.Parse<HotKey>(key), row.Keys.Contains("⇧"), row.Keys.Contains("Ctrl")));
+                Assert.NotNull(KeyBindings.Default.Of(Enum.Parse<HotKey>(key), row.Keys.Contains("⇧"), row.Keys.Contains("Ctrl")));
+    }
+
+    static KeyRow R(string does, params string[] keys) => new(keys, does);
+
+    [Fact]
+    public void The_default_bindings_give_the_overlay_s_original_caps()
+    {
+        Assert.Equal([R("move", "W", "A", "S", "D"), R("orbit", "Q", "E"), R("zoom", "Wheel"), R("top-down", "Home"), R("level", "End"),
+            R("to the active unit", "Space"), R("next of mine", "Tab"), R("previous of mine", "⇧", "Tab")], KeyOverlayView.Camera(KeyBindings.Default).Rows);
+        Assert.Equal([R("ruler from the point", "Ctrl"), R("measure tool", "M"), R("2D or 3D", "H"), R("sight check", "L")], KeyOverlayView.Measure(KeyBindings.Default).Rows);
+        Assert.Equal([R("range rings", "V"), R("all enemy threats", "T"), R("model hitboxes", "B"), R("terrain hitboxes", "⇧", "B"), R("roster", "R"), R("log", "G"),
+            R("undo", "Ctrl", "Z"), R("ping", "P"), R("remove (setup)", "Del"), R("this overlay", "F1")], KeyOverlayView.Table(KeyBindings.Default).Rows);
+        var move = KeyOverlayView.Of(AskMode.Move, "Advance", true, KeyBindings.Default)[0].Rows;
+        Assert.Contains(R("turn each held model", "⇧", "Q", "E"), move);
+        Assert.Contains(R("lower or raise held", "PgDn", "PgUp"), move);
+    }
+
+    [Fact]
+    public void A_rebind_shows_in_the_overlay()
+    {
+        var keys = KeyBindings.Default.With(Intent.ToggleRangeRings, 0, new KeyBinding(HotKey.J));
+        Assert.Contains(R("range rings", "J"), KeyOverlayView.Table(keys).Rows);
+        Assert.Contains(R("range rings", "J"), KeyOverlayView.Of(null, null, false, keys)[2].Rows);
     }
 }
