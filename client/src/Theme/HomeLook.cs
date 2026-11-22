@@ -18,11 +18,20 @@ public static partial class HomeLook
 
     static int Radius => Ui.Current.Shape.CornerRadius;
 
-    /// <summary>A card: the theme's panel material, M inside its frame; the status shows in the card's status line.</summary>
-    public static StyleBox Card(GameStatus status) => ThemeBuilder.Nine(Ui.Current.Materials.Panel, Space.M, Space.M);
+    /// <summary>A card inside Home's framed list: a flat inset box (a material inside the material's frame would double it), its status as a
+    /// band on its left edge, M inside (a box of several lines).</summary>
+    public static StyleBox Card(GameStatus status) => Inset(status, Space.M, Space.M);
 
-    /// <summary>A row of a list: the theme's panel material, M across and S down inside its frame; the status shows in the row's mark.</summary>
-    public static StyleBox Row(GameStatus status) => ThemeBuilder.Nine(Ui.Current.Materials.Panel, Space.M, Space.S);
+    /// <summary>A row of the framed list: the same inset box, M across and S down.</summary>
+    public static StyleBox Row(GameStatus status) => Inset(status, Space.M, Space.S);
+
+    static StyleBoxFlat Inset(GameStatus status, int x, int y)
+    {
+        var b = new StyleBoxFlat { BgColor = Ui.Background with { A = 0.55f }, BorderColor = Status(status) with { A = 0.7f }, CornerDetail = Ui.Current.Shape.Clipped ? 1 : 8 };
+        b.SetBorderWidthAll(1); b.BorderWidthLeft = 4; b.SetCornerRadiusAll(Math.Min(Radius, 4));
+        b.ContentMarginLeft = b.ContentMarginRight = x; b.ContentMarginTop = b.ContentMarginBottom = y;
+        return b;
+    }
 
     /// <summary>The primary action: the theme's primary face (Variation.Primary), with a focus frame in the text colour.</summary>
     public static void Primary(Button b)

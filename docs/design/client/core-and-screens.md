@@ -177,5 +177,5 @@ UI scale, tooltip delay, buses and frame counter on `Session.SettingsChanged`.
 `scripts/check-client` is the colour gate: `new Color(`, `new Godot.Color(`, `Colors.`, `Color.FromHtml`, `Color.Color8`,
 `Color.FromHsv`, `Color x = new(` and target-typed `Modulate`, `SelfModulate` or `Color = new(` under `client/src/Hud`,
 `Panels` and `Screens` fail the check. `Table/` draws in world colours through `Palette`, whose team colours come from
-the theme. Assets sit in `client/content/themes/<id>/`: `fonts/`, `icons/`, and for `fantasy` also `panel.svg`,
-`button.svg` and `dice/1.svg` to `6.svg`; each folder carries its `LICENSES.md`.
+the theme. Assets sit in `client/content/themes/<id>/`: `fonts/`, `icons/`, the material images (panel, button faces, input, backdrop; `scripts/ThemeTextures`), and for `fantasy` also
+`dice/1.svg` to `6.svg`; each folder carries its `LICENSES.md`.

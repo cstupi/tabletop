@@ -62,7 +62,10 @@ public partial class HomeScreen : Control
         root.AddChild(Toolbar());
         var scroll = new ScrollContainer { SizeFlagsVertical = SizeFlags.ExpandFill, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve,
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
-        root.AddChild(scroll);
+        // The lists in one framed panel down to the page's margin: rows scroll inside the frame and are cut at its inner edge.
+        var frame = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
+        frame.AddThemeStyleboxOverride("panel", ThemeBuilder.Nine(Ui.Current.Materials.Panel, Space.M, Space.M));
+        root.AddChild(frame); frame.AddChild(scroll);
         scroll.AddChild(_body = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill });
         _body.AddThemeConstantOverride("separation", Space.S);
         // The status line floats over the list's foot, shown only while it has words: the list runs down to the page's margin.

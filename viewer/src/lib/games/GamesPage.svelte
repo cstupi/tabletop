@@ -143,6 +143,7 @@
     <button class="quiet" title="Refresh the list" aria-label="Refresh" onclick={reload}><Icon name="replay" /></button>
     <label class="check"><input type="checkbox" bind:checked={endedToo} />Ended too</label>
   </div>
+  <section class="lists"><div class="scroll">
   {#if error !== null}<p role="alert">{error}</p>{/if}
 
   {#if !loaded}
@@ -202,6 +203,7 @@
       </section>
     {/if}
   {/if}
+  </div></section>
 </div></div>
 
 {#if creating}
@@ -220,6 +222,12 @@
 </dialog>
 
 <style>
+  /* The page fits the window: the lists scroll inside one framed panel that runs to the page's foot (as the client's Home). */
+  .doc { overflow: hidden; }
+  .inner { display: flex; flex-direction: column; height: 100%; padding-bottom: var(--space-5); }
+  .lists { flex: 1; min-height: 0; display: flex; padding: calc(var(--space-3) + var(--frame-inset)); border-image: var(--mat-panel); }
+  .lists > .scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: var(--space-2); }
+  .lists h2:first-child { margin-top: 0; }
   .inner { --lobby: var(--dim); --setup: var(--warning); --playing: var(--accent); --ended: var(--dim); }
   .toolbar { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); flex-wrap: wrap; }
   .toolbar input[type='search'] { width: 14rem; }
@@ -236,8 +244,8 @@
   .status.ended .mark { border: 0; border-radius: 0; width: .8rem; height: .45rem; border-left: 2px solid var(--band); border-bottom: 2px solid var(--band); transform: rotate(-45deg) translate(1px, -1px); }
 
   .cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--space-4); }
-  .card { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: calc(var(--space-3) + var(--frame-inset));
-    border: 0; border-image: var(--mat-panel); }   /* the theme's panel material, as the client's Home; the status in the card's status line */
+  .card { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: var(--space-3);
+    background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid color-mix(in srgb, var(--band) 70%, transparent); border-left-width: 4px; }   /* a flat inset box inside the framed list, its status band on the left */
   .title { font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .players { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
   .players .names { overflow: hidden; text-overflow: ellipsis; white-space: pre; min-width: 0; }
@@ -247,7 +255,7 @@
 
   .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
   .row { display: grid; grid-template-columns: 9.5rem minmax(8rem, 2fr) minmax(6rem, 2fr) 7.5rem auto 2.75rem; align-items: center; gap: var(--space-3);
-    padding: calc(var(--space-2) + var(--frame-inset)) calc(var(--space-3) + var(--frame-inset)); border: 0; border-image: var(--mat-panel); }
+    padding: var(--space-2) var(--space-3); background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid color-mix(in srgb, var(--band) 70%, transparent); border-left-width: 4px; }
   .row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row .when { text-align: right; white-space: nowrap; }
   .menu { width: 2.75rem; min-height: 2rem; padding: 0 var(--space-2); }
