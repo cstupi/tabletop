@@ -35,7 +35,7 @@ public partial class GameScreen : Control
         Table = GD.Load<PackedScene>("res://scenes/TableView.tscn").Instantiate<TableView>(); viewport.AddChild(Table);
         Input = new TableInput(); Table.AddChild(Input);
         viewportContainer.MouseExited += () => Input.ClearHover();   // the pointer over a Hud part is off the table: no hovered unit, no enemy strip
-        // A setup terrain tile dragged from the side panel lands where it is dropped on the table (SetupToolbar.DropTile). MouseTarget
+        // A setup terrain tile dragged from the Terrain tool lands where it is dropped on the table (SetupTerrainTool.DropTile). MouseTarget
         // makes the container itself the drop target: without it Godot looks for a Control inside the SubViewport, finds none, and refuses the drop.
         viewportContainer.SetDragForwarding(Callable.From((Vector2 _) => default(Variant)),
             Callable.From((Vector2 at, Variant data) => TileOf(data) is not null && Terrain is not null && Input.TableAt(at) is not null),
