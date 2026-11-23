@@ -24,10 +24,12 @@ export const RIM_SCALE = 1.45, RIM_ALPHA = 0.35;
 /** The rim under a mark, as a CSS rgba(). */
 export const rimColour = (kept: boolean): string => `rgba(0, 0, 0, ${kept ? RIM_ALPHA * KEPT_FADE : RIM_ALPHA})`;
 
-/** One model's move path: where it stood (its base at the start's facing), the route, the footprints and the dangerous volumes crossed. */
+/** One model's move path: where it stood (its base at the start's facing), the route, the footprints and the dangerous volumes crossed, and
+ *  the facing it ends at in degrees, where known (the ghost's or the answer's). */
 export interface ModelPath {
   readonly modelId: string; readonly start: PlacedModel; readonly route: readonly XY[];
   readonly footprints: readonly PathFootprint[]; readonly dangerous: readonly string[]; readonly stretches: readonly PathStretch[];
+  readonly end?: number;
 }
 
 /** One answered move Ask: its parameters and the models it moved, from where to where. */
@@ -49,9 +51,11 @@ export function markColour(m: Pick<PathMark, 'dangerous'>, team: string, ink: bo
 /** Whether the model is a vehicle (its slot's `vehicle`, from the army list), whose path is drawn as treads. */
 export const isVehicle = (p: Projection, modelId: string): boolean => p.models.get(modelId)?.slot.vehicle === true;
 
-/** A path from a route Geometry.moveRoutes found for the model starting at `start`. */
-export const pathOf = (start: PlacedModel, route: RouteFound): ModelPath =>
-  ({ modelId: route.id, start, route: route.points, footprints: route.footprints, dangerous: route.dangerous, stretches: route.stretches });
+/** A path from a route Geometry.moveRoutes found for the model starting at `start`, ending facing `end` degrees. */
+export const pathOf = (start: PlacedModel, route: RouteFound, end?: number): ModelPath => ({
+  modelId: route.id, start, route: route.points, footprints: route.footprints, dangerous: route.dangerous, stretches: route.stretches,
+  ...(end === undefined ? {} : { end }),
+});
 
 /** The label each crossing model carries (beside the contact marks): the test it owes. */
 export function marks(paths: readonly ModelPath[]): Map<string, string> {
@@ -107,6 +111,7 @@ export function measured(g: Geometry, segment: MoveSegment, bodyOf: (id: string)
   size: TableSize, standing: readonly PlacedModel[]): ModelPath[] {
   const legal = segment.legal;
   const starts = new Map<string, PlacedModel>();
+  const ends = new Map<string, number>();
   const models = segment.moves.flatMap((m) => {
     const body = bodyOf(m.modelId);
     if (m.from.kind !== 'table' || m.to.kind !== 'table' || body === null) return [];
@@ -114,6 +119,7 @@ export function measured(g: Geometry, segment: MoveSegment, bodyOf: (id: string)
     if (Math.hypot(to.x - from.position.x, to.y - from.position.y) <= 1e-6) return [];
     const start = placed(body, from);
     starts.set(m.modelId, start);
+    ends.set(m.modelId, m.to.placement.yaw.degrees);
     return [{ id: m.modelId, start, to: { x: to.x, y: to.y } }];
   });
   if (models.length === 0) return [];
@@ -126,7 +132,7 @@ export function measured(g: Geometry, segment: MoveSegment, bodyOf: (id: string)
     ...(legal.unstableVolumeIds === undefined ? {} : { unstable: legal.unstableVolumeIds }),
     ...(legal.unstableOver === undefined ? {} : { unstableOver: legal.unstableOver }),
   };
-  return g.moveRoutes(request, terrain).map((r) => pathOf(starts.get(r.id)!, r));
+  return g.moveRoutes(request, terrain).map((r) => pathOf(starts.get(r.id)!, r, ends.get(r.id)));
 }
 
 /** LastMovePath: the last move's paths for a log state, measured again only when its kept segments change (a new move step, the next activation). */
