@@ -63,7 +63,7 @@
     {#if strip.canLeave}<button class="small" onclick={leave}>Leave game</button>{/if}
     {#if strip.primary !== null}<button class="primary small" onclick={primary}>{strip.primary.label}</button>{/if}
   </header>
-  {#if snap?.closeReason && snap.phase !== 'connected'}<p role="alert" class="strip-alert">{snap.closeReason}</p>{/if}
+  {#if snap?.closeReason && snap.phase !== 'connected' && snap.closeReason !== strip.connection}<p role="alert" class="strip-alert">{snap.closeReason}</p>{/if}
   {#if problem !== null}<p role="alert" class="strip-alert">{problem} <button class="quiet" onclick={() => (problem = null)}>Dismiss</button></p>{/if}
 
   {#if snap?.phase === 'closed'}

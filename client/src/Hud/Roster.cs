@@ -171,7 +171,8 @@ public partial class Roster : PanelContainer
     {
         public readonly StyleBoxFlat Edge = new() { ContentMarginLeft = Space.S, ContentMarginRight = Space.S, ContentMarginTop = Space.S, ContentMarginBottom = Space.S };   // S inside the lit row's box (spacing rule 5)
         public readonly Label Acting = new() { Text = "▶", CustomMinimumSize = new Vector2(14, 0), MouseFilter = MouseFilterEnum.Ignore },
-            Title = new() { ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore },
+            // The name reads whole: the pips give way to a count first (FitPips), then the name wraps to a second line.
+            Title = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(TitleMinWidth, 0), MouseFilter = MouseFilterEnum.Ignore },
             MarkText = new() { HorizontalAlignment = HorizontalAlignment.Center, CustomMinimumSize = new Vector2(16, 0), MouseFilter = MouseFilterEnum.Pass },
             Pips = new() { MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(48, 0), HorizontalAlignment = HorizontalAlignment.Right };
         public readonly TextureRect MarkIcon = HudBits.Icon("activated", HudBits.Plain, 16, "Activated");
@@ -182,13 +183,36 @@ public partial class Roster : PanelContainer
         public readonly Kept ConditionKids, ChipKids;
         public Guid UnitId;
         public Roster? Owner;
+        const int TitleMinWidth = 64;
+        readonly HBoxContainer _line = new() { MouseFilter = MouseFilterEnum.Ignore };
+        string _dots = "", _count = "", _ink = "";
+
+        /// <summary>The row's pips as dots (a dot per model up to ten) and as a count, and their variation; FitPips picks one.</summary>
+        public void SetPips(string dots, string count, string variation) { (_dots, _count, _ink) = (dots, count, variation); FitPips(); }
+
+        /// <summary>Dots while the name fits beside them on one line, else the count, so the pips column gives way before the name wraps.</summary>
+        void FitPips()
+        {
+            var text = _dots;
+            if (_dots != _count && _line.Size.X > 0)
+            {
+                var font = Title.GetThemeFont("font"); var size = Title.GetThemeFontSize("font_size");
+                var pipFont = Pips.GetThemeFont("font"); var pipSize = Pips.GetThemeFontSize("font_size");
+                var sep = _line.GetThemeConstant("separation");
+                var others = _line.GetChildren().OfType<Control>().Where(c => c.Visible && c != Title && c != Pips).Sum(c => c.GetCombinedMinimumSize().X + sep);
+                var dots = Math.Max(Pips.CustomMinimumSize.X, pipFont.GetStringSize(_dots, HorizontalAlignment.Left, -1, pipSize).X) + sep;
+                if (font.GetStringSize(Title.Text, HorizontalAlignment.Left, -1, size).X > _line.Size.X - others - dots) text = _count;
+            }
+            Look.Text(Pips, text, _ink);
+        }
 
         public RowControls()
         {
             ConditionKids = new(Conditions); ChipKids = new(Chips);
             MouseFilter = MouseFilterEnum.Stop;
             AddThemeStyleboxOverride("panel", Edge);
-            var line = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; line.AddThemeConstantOverride("separation", Space.S); AddChild(line);
+            var line = _line; line.AddThemeConstantOverride("separation", Space.S); AddChild(line);
+            line.Resized += FitPips;
             MarkIcon.MouseFilter = MouseFilterEnum.Pass;
             foreach (var c in new Control[] { Acting, Title, MarkIcon, MarkText, Pips, Conditions, Menu }) line.AddChild(c);
             Menu.Modulate = Touch ? HudBits.Plain : HudBits.Plain with { A = 0 };
@@ -233,7 +257,7 @@ public partial class Roster : PanelContainer
         Look.Text(c.Acting, row.Acting ? "▶" : ""); Look.Ink(c.Acting, Ui.Accent);
         Look.Text(c.Title, row.Name, v);
         Mark(c, row.Mark);
-        Look.Text(c.Pips, PipsOf(row), v);
+        c.SetPips(PipsOf(row), $"{row.Left}/{row.Max}", v);
         var conditions = c.ConditionKids.Begin();
         foreach (var k in row.Conditions.Where(k => Ui.Icon(k) is not null))   // an icon with a tooltip; a condition without one goes on the chip line
         {

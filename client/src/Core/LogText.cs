@@ -55,6 +55,54 @@ public static class LogText
         return line + (e.Warning is null ? "" : $" — {e.Warning}");
     }
 
+    /// <summary>A player's own edit (the menus, a hand move) as what changed, subject first: "War Talon Harpies set aside". The player is named
+    /// only when it is another player than the reader (<see cref="Names.Other"/>).</summary>
+    public static string HandEdit(GameEvent e, Names n)
+    {
+        var text = e.Payload switch
+        {
+            ModelsMoved m => HandMoved(m, n),
+            WoundsSet w => $"{n.Model(w.ModelId)} set to {w.Wounds} wound{(w.Wounds == 1 ? "" : "s")}",
+            ConditionSet c => Condition(c, n),
+            ActionRecorded a => $"{n.Unit(a.UnitId)} recorded as {a.Action}",
+            ActionRecordCleared a => $"{n.Unit(a.UnitId)}'s action record cleared",
+            GrantAdded g => $"{n.Unit(g.UnitId)} granted {g.Grant.EntryName}",
+            GrantRemoved g => $"{n.Unit(g.UnitId)} lost a grant",
+            SpellTokensSet s => $"{n.Model(s.ModelId)} set to {s.Tokens} spell token{(s.Tokens == 1 ? "" : "s")}",
+            WoundsThisActivationSet w => $"{n.Unit(w.UnitId)}'s wounds this activation set to {w.Wounds}",
+            ScoreSet s => $"{n.Team(s.TeamId)}'s score set to {s.Score}",
+            MarkerMoved m => $"{n.Piece(m.MarkerId)} moved",
+            ObjectiveControlSet { TeamId: { } team } o => $"{n.Marker(o.MarkerId)} given to {n.Team(team)}",
+            ObjectiveControlSet o => $"{n.Marker(o.MarkerId)} made neutral",
+            var other => EventKinds.Of((StateChange)other),
+        };
+        text = char.ToUpperInvariant(text[0]) + text[1..];
+        if (n.Other(e.Actor) is { } who) text += $" · by {who}";
+        return text + (e.Warning is null ? "" : $" — {e.Warning}");
+    }
+
+    static string Condition(ConditionSet c, Names n)
+    {
+        var subject = c.Subject.Kind == SubjectKind.Unit ? n.Unit(c.Subject.Id) : n.Model(c.Subject.Id);
+        var word = c.Condition.Replace('-', ' ');
+        return c.Present ? $"{subject} {word}" : c.Condition == "set-aside" ? $"{subject} returned to deployment" : $"{subject} no longer {word}";
+    }
+
+    static string HandMoved(ModelsMoved m, Names n)
+    {
+        var first = m.Moves[0];
+        var unit = n.UnitOfModel(first.ModelId) is { } unitId ? n.Unit(unitId) : Names.Short(first.ModelId);
+        return (first.From, first.To) switch
+        {
+            (OnTable a, OnTable b) => $"{unit} moved {a.Placement.Position.Horizontal.DistanceTo(b.Placement.Position.Horizontal):0.0}\"",
+            (OnShelf, OnTable) => $"{unit} deployed",
+            (Inside i, OnTable) => $"{unit} taken out of {n.Piece(i.ContainerId)}",
+            (_, OnShelf) => $"{unit} moved to the shelf",
+            (_, Inside i) => $"{unit} put inside {n.Piece(i.ContainerId)}",
+            _ => $"{unit} moved",
+        };
+    }
+
     /// <summary>The reason, its closing full stop dropped when a result follows it ("… Markers held: Team 1: 0, Team 2: 0; tied between …").</summary>
     static string Reason(GameEnded g) => g.Winners.Count == 0 ? g.Reason : g.Reason.TrimEnd('.');
 

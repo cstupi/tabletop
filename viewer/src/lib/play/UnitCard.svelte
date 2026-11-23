@@ -33,7 +33,6 @@
       </span>
     {/each}
   </div>
-  {#if card.note !== null}<p class="warn">⚠ {card.note}</p>{/if}
   {#if card.groups.length > 0}
     <p class="caption">Models</p>
     {#each card.groups as group, i (i)}
@@ -90,7 +89,7 @@
   .warn { color: var(--warning); }
   .dim { color: var(--dim); }
   .flat { flex: 1; min-width: 0; min-height: 0; justify-content: flex-start; padding: var(--space-1) var(--space-1); border: 0; border-radius: 0; clip-path: none; border-image: none; box-shadow: none;
-    background: none; color: var(--text); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    background: none; color: var(--text); text-align: left; white-space: normal; }
   .flat:hover:not(:disabled) { background: var(--rule); color: var(--text); }
   .gone { opacity: 0.45; }
   .wounds { white-space: nowrap; font-size: .8rem; letter-spacing: 1px; color: var(--text); }

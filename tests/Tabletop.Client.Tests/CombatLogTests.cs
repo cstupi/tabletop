@@ -214,7 +214,19 @@ public class CombatLogTests
             new Undone(1), new WoundsSet(Samples.Model, 1));
         var lines = entries.OfType<LineEntry>().Select(l => l.Text).ToList();
         Assert.Contains("Undone to: R1 · Team 1 · Battle Brothers · Advance", lines);
-        Assert.Contains(lines, l => l.StartsWith("Clay set ") && l.EndsWith(" to 1 wound · by hand"));
+        Assert.Contains(lines, l => l.StartsWith("Battle Brothers (") && l.EndsWith(" set to 1 wound · by Clay"));
+    }
+
+    [Fact]
+    public void A_hand_edit_reads_what_changed_and_names_only_another_player()
+    {
+        var a = new EventApplier(Samples.Board, Samples.Game);
+        a.ApplyAll([new GameEvent(1, Samples.P1, new ConditionSet(new Subject(SubjectKind.Unit, Samples.Unit), "set-aside", true), null),
+            new GameEvent(2, Samples.P1, new ConditionSet(new Subject(SubjectKind.Unit, Samples.Unit), "set-aside", false), null)]);
+        static List<string> Lines(IReadOnlyList<GameEvent> log, Names n) => CombatLog.Flatten(CombatLog.Build(log, n)).OfType<LineEntry>().Select(l => l.Text).ToList();
+        Assert.Equal(["Battle Brothers set aside", "Battle Brothers returned to deployment"], Lines(a.Log, new Names(Samples.Game, a.Projection, Samples.P1)));
+        var other = Samples.Game with { Participants = [.. Samples.Game.Participants, new Participant(Guid.CreateVersion7(), Guid.CreateVersion7(), "Ann", Samples.Team2, null)] };
+        Assert.Equal("Battle Brothers set aside · by Clay", Lines(a.Log, new Names(other, a.Projection, other.Participants[1].Id))[0]);
     }
 
     [Fact]
@@ -354,6 +366,6 @@ public class CombatLogTests
         var n = new Names(Samples.Game, a.Projection);
         var lines = CombatLog.Flatten(CombatLog.Build(a.Log, n)).OfType<LineEntry>().Select(l => l.Text).ToList();
         Assert.DoesNotContain(lines, l => l.Contains("recorded Hold"));
-        Assert.Contains(lines, l => l.Contains("recorded Advance") && l.EndsWith("· by hand"));
+        Assert.Contains("Battle Brothers recorded as Advance · by Clay", lines);
     }
 }

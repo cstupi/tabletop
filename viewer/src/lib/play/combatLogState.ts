@@ -47,15 +47,16 @@ export class CombatLogState {
 /** Hands every reader the same CombatLogState until the log state changes: another log, another length or last seq, another pending
  * undo, another game record or another projection instance (a prediction, a rebuild after an Undone). */
 export class CombatLogCache {
-  #key: { log: readonly GameEvent[]; count: number; lastSeq: number; pending: number | null; game: GameInfo; projection: Projection | null } | null = null;
+  #key: { log: readonly GameEvent[]; count: number; lastSeq: number; pending: number | null; game: GameInfo; projection: Projection | null; me: string | null } | null = null;
   #state: CombatLogState | null = null;
 
-  of(log: readonly GameEvent[], pendingUndoTo: number | null, game: GameInfo, projection: Projection | null): CombatLogState {
+  /** me: the reader's participant row, so an edit of my own does not name me (`Names.other`). */
+  of(log: readonly GameEvent[], pendingUndoTo: number | null, game: GameInfo, projection: Projection | null, me: string | null = null): CombatLogState {
     const lastSeq = log.length === 0 ? 0 : log[log.length - 1]!.seq;
     const k = this.#key;
     if (this.#state !== null && k !== null && k.log === log && k.count === log.length && k.lastSeq === lastSeq
-      && k.pending === pendingUndoTo && k.game === game && k.projection === projection) return this.#state;
-    this.#key = { log, count: log.length, lastSeq, pending: pendingUndoTo, game, projection };
-    return this.#state = new CombatLogState(log, pendingUndoTo, new Names(game, projection));
+      && k.pending === pendingUndoTo && k.game === game && k.projection === projection && k.me === me) return this.#state;
+    this.#key = { log, count: log.length, lastSeq, pending: pendingUndoTo, game, projection, me };
+    return this.#state = new CombatLogState(log, pendingUndoTo, new Names(game, projection, me));
   }
 }

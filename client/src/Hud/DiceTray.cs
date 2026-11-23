@@ -32,7 +32,7 @@ public partial class DiceTray : PanelContainer
         AddChild(_line);
         _line.AddChild(_row);   // a Button lays out no children: the row fills it and sets its minimum size
         _row.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-        _row.MinimumSizeChanged += () => _line.CustomMinimumSize = new(0, _row.GetCombinedMinimumSize().Y);   // the height only: a long line wraps to a second row
+        _row.MinimumSizeChanged += FitLine; _row.Resized += FitLine;
         _line.Pressed += () => { if (_shown is { } r) RollClicked?.Invoke(r.Record.Id); };
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) Render(); };
         session.Frame.Render += _onFrame;
@@ -42,6 +42,12 @@ public partial class DiceTray : PanelContainer
         _onTheme = Paint; Ui.Changed += _onTheme;   // the dice faces are the theme's
         Render();
     }
+
+    /// <summary>The button as tall as the row at its width (a long line wraps to a second row). A row not yet laid out at a real width (a tray
+    /// made after a reconnect, before its first placement) counts as none: its wrapped label would measure a glyph a line, and the tray, placed
+    /// against the slot's bottom at that height, would stand blank and taller than the column, its words above the window.</summary>
+    void FitLine() => _line.CustomMinimumSize = new(0, _row.Size.X >= RowMinWidth ? _row.GetCombinedMinimumSize().Y : 0);
+    const float RowMinWidth = 160;
 
     public override void _ExitTree()
     {

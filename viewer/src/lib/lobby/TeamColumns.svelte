@@ -134,7 +134,7 @@
   .member.you { background: color-mix(in srgb, var(--accent) 10%, transparent); }
   .name, .army { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
   .player { color: var(--team); display: inline-flex; }
-  .text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
+  .text { overflow-wrap: anywhere; min-width: 0; flex: 1 1 auto; }
   .army { padding-left: var(--space-3); font-size: .95rem; }
   .compact .army { padding-left: var(--space-1); font-size: .85rem; }
   .army.warn { color: var(--warning); }

@@ -58,8 +58,10 @@ public class FeedbackTests
     [Fact]
     public void A_socket_that_never_opened_names_the_server_and_a_desync_names_the_rebuild()
     {
-        Assert.Equal("Cannot reach the game server (Connection refused); reconnecting…", Feedback.Closed(new SocketClosed(null, "Connection refused", new IOException("x")), true));
-        Assert.Equal("The connection dropped; reconnecting…", Feedback.Closed(new SocketClosed(null, null, null), true));
+        Assert.Equal("Reconnecting…", Feedback.Closed(new SocketClosed(null, "The remote party closed the WebSocket connection without completing the close handshake.", new IOException("x")), true));
+        Assert.Equal("Reconnecting…", Feedback.Closed(new SocketClosed(null, null, null), true));
+        Assert.Equal("Cannot reach the game server.", Feedback.Closed(new SocketClosed(null, "Connection refused", new IOException("x")), false));
+        Assert.Equal("The connection dropped.", Feedback.Closed(new SocketClosed(null, null, null), false));
         var desync = new ProjectionDesyncException("models_moved", Guid.Empty);
         Assert.Equal("Rebuilding the table from the log…", Feedback.Closed(new SocketClosed(null, desync.Message, desync), true));
         Assert.StartsWith("This game's log cannot be replayed: ", Feedback.Closed(new SocketClosed(null, desync.Message, desync), false));

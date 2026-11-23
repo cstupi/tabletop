@@ -78,6 +78,8 @@ public static partial class DecisionTiles
         public readonly TextureRect Picture = DecisionTiles.Icon(null, 26);
         public readonly Label Word = new() { HorizontalAlignment = HorizontalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart, MouseFilter = MouseFilterEnum.Ignore };
         public readonly Label Key = DecisionTiles.Cap("");
+        /// <summary>The word's sides: clear of the key cap when no picture holds the top row, so a long word never runs under the cap.</summary>
+        readonly MarginContainer _wordInset = new() { MouseFilter = MouseFilterEnum.Ignore };
         /// <summary>What the tile stands for now, read by the handlers the decision box wires once.</summary>
         public OptionTile? Option;
 
@@ -89,13 +91,22 @@ public static partial class DecisionTiles
             var col = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
             col.AddThemeConstantOverride("separation", Space.XS);
             Picture.SizeFlagsHorizontal = SizeFlags.ShrinkCenter; col.AddChild(Picture);
-            Word.CustomMinimumSize = new Vector2(minWidth - 24, 0); col.AddChild(Word);
+            Word.CustomMinimumSize = new Vector2(minWidth - 24, 0); _wordInset.AddChild(Word); col.AddChild(_wordInset);
             DecisionTiles.Holding(this, col, Space.S, Space.S);
             Key.SetAnchorsAndOffsetsPreset(LayoutPreset.TopRight);
             Key.GrowHorizontal = GrowDirection.Begin;
             Key.Position = new Vector2(-4, 4);
             AddChild(Key);
             Resized += () => Key.Position = new Vector2(Size.X - Key.Size.X - 5, 5);
+            Key.Resized += ClearCap;
+        }
+
+        /// <summary>Both sides of the word as wide as the cap (the word stays centred) while the cap shares its row.</summary>
+        public void ClearCap()
+        {
+            var side = Key.Visible && !Picture.Visible ? (int)Key.GetCombinedMinimumSize().X : 0;
+            if (_wordInset.GetThemeConstant("margin_left") == side) return;
+            _wordInset.AddThemeConstantOverride("margin_left", side); _wordInset.AddThemeConstantOverride("margin_right", side);
         }
     }
 
@@ -112,6 +123,7 @@ public static partial class DecisionTiles
         Look.Text(b.Word, tile.Word);
         var key = DecisionCard.KeyCap(tile.Key) ?? "";
         Look.Text(b.Key, key, Variation.KeyCap); b.Key.Visible = key.Length > 0;
+        b.ClearCap();
         if (b.Disabled) b.Disabled = false;
     }
 

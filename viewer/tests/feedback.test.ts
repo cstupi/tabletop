@@ -34,9 +34,11 @@ describe('closedText', () => {
     expect(closedText(1008, null, false)).toBe('Your sign-in on the game server expired; sign in again.');
   });
   it('no code: unreachable, dropped, other', () => {
-    expect(closedText(null, null, true, false, true)).toBe('Cannot reach the game server; reconnecting…');
-    expect(closedText(null, 'refused', true, false, true)).toBe('Cannot reach the game server (refused); reconnecting…');
-    expect(closedText(null, null, true)).toBe('The connection dropped; reconnecting…');
+    expect(closedText(null, null, true, false, true)).toBe('Reconnecting…');
+    expect(closedText(null, 'refused', true, false, true)).toBe('Reconnecting…');
+    expect(closedText(null, null, true)).toBe('Reconnecting…');
+    expect(closedText(null, 'refused', false, false, true)).toBe('Cannot reach the game server.');
+    expect(closedText(null, null, false)).toBe('The connection dropped.');
     expect(closedText(4000, 'bye', false)).toBe('Disconnected: bye.');
     expect(closedText(4000, null, false)).toBe('Disconnected (code 4000).');
   });

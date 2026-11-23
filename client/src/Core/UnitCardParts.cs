@@ -1,8 +1,8 @@
 namespace Tabletop.Client.Core;
 
 /// <summary>The unit card's parts, top to bottom: the band and name, the pips and count note, the stat badges and state chips, the
-/// limited-choice note, the model groups, the weapons table, the rules.</summary>
-public enum UnitCardPart { Title, Count, State, Note, Models, Weapons, Rules }
+/// model groups, the weapons table, the rules.</summary>
+public enum UnitCardPart { Title, Count, State, Models, Weapons, Rules }
 
 /// <summary>
 /// Which parts of the unit card a new content redraws (UnitCard): every part for the first card or another unit, else only those whose drawn
@@ -19,7 +19,6 @@ public static class UnitCardParts
         if (before.Team != now.Team || a.Name != b.Name) changed.Add(UnitCardPart.Title);
         if (before.Team != now.Team || before.Pips != now.Pips || before.CountNote != now.CountNote) changed.Add(UnitCardPart.Count);
         if (a.Quality != b.Quality || a.Defense != b.Defense || before.InCover != now.InCover || !a.Chips.SequenceEqual(b.Chips)) changed.Add(UnitCardPart.State);
-        if (before.Note != now.Note) changed.Add(UnitCardPart.Note);
         if (before.Team != now.Team || !before.Groups.SequenceEqual(now.Groups) || !before.Groups.Select(before.Marked).SequenceEqual(now.Groups.Select(now.Marked)))
             changed.Add(UnitCardPart.Models);
         if (a.Weapons.Count != b.Weapons.Count || a.Weapons.Zip(b.Weapons).Any(w => !Same(w.First, w.Second))) changed.Add(UnitCardPart.Weapons);

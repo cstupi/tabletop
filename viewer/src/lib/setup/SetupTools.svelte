@@ -303,7 +303,7 @@
   .tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); padding: var(--space-2); min-height: 4.6rem; min-width: 0;
     font-size: .72rem; line-height: 1.15; }
   .tile .glyph { color: var(--kind, var(--accent)); display: inline-flex; }
-  .tile .name { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: center; max-width: 100%; }
+  .tile .name { white-space: normal; overflow-wrap: break-word; text-align: center; max-width: 100%; }
   .none { margin: var(--space-2) 0; font-size: .9rem; grid-column: 1 / -1; }
   .pair { display: flex; gap: var(--space-2); }
   .pair > button { flex: 1; display: inline-flex; align-items: center; gap: var(--space-1); justify-content: center; }

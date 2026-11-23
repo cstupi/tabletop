@@ -14,7 +14,7 @@ public class UnitCardPartsTests
             [new SheetRule(rule, "text", false)],
             [new SheetModel(Model, "Trooper", left, 3, false, "t", ["Rifle"], false)]);
 
-    static UnitCardContent C(UnitSheetModel sheet, int team = 1, string? note = null, IReadOnlyList<Guid>? picked = null) => new(sheet, team, note, picked);
+    static UnitCardContent C(UnitSheetModel sheet, int team = 1, IReadOnlyList<Guid>? picked = null) => new(sheet, team, picked);
 
     [Fact]
     public void A_first_card_or_another_unit_redraws_every_part()
@@ -33,7 +33,6 @@ public class UnitCardPartsTests
         Assert.Equal([UnitCardPart.State], UnitCardParts.Changed(before, C(Sheet(quality: "5+"))));
         Assert.Equal([UnitCardPart.State], UnitCardParts.Changed(before, C(Sheet()) with { InCover = true }));   // the cover shield
         Assert.Equal([UnitCardPart.Count, UnitCardPart.Models], UnitCardParts.Changed(before, C(Sheet(left: 1))));   // a wound
-        Assert.Equal([UnitCardPart.Note], UnitCardParts.Changed(before, C(Sheet(), note: "Shaken: may only Idle.")));
         Assert.Equal([UnitCardPart.Models], UnitCardParts.Changed(before, C(Sheet(), picked: [Model])));
         Assert.Equal([UnitCardPart.Weapons], UnitCardParts.Changed(before, C(Sheet(weaponRule: "AP(2)"))));
         Assert.Equal([UnitCardPart.Rules], UnitCardParts.Changed(before, C(Sheet(rule: "Tough(6)"))));

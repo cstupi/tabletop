@@ -273,7 +273,7 @@ record that broke the tie carries `Team k wins` (`CombatLog.Aftermath`, from `wi
 `LineEntry` lines: `{k} model(s) wounded` (leaving out a model the same step sends to the shelf), `{k} model(s) removed`,
 `{unit} Fled!` for models shelved unwounded, each condition set or cleared (`{unit} · ` first when it is not the block's actor), and
 `{unit} gets {rule}` for a grant. Outside an action: `Round n`, `{Team} · {unit} deployed` for a player's placement from the shelf,
-a step's deployment or objective change and a round end's objective changes (`LogText.RoundChange`), a menu edit ending `· by hand`,
+a step's deployment or objective change and a round end's objective changes (`LogText.RoundChange`), a menu or hand edit as what changed, subject first (`War Talon Harpies set aside`; `· by Ann` only for another player's),
 `Undone to: {header}` (the first block the undo took back that no earlier undo had already taken, else the action it stepped into)
 and the game's end. Words come from `Names` (participants, teams, units,
 weapons, models, markers; an unknown id degrades to its first eight characters). Asks, answers, closes, sequence starts without an

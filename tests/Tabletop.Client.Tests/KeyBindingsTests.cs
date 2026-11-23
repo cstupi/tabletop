@@ -53,6 +53,15 @@ public class KeyBindingsTests
     }
 
     [Fact]
+    public void Backtab_is_shift_tab_so_previous_unit_reads_one_binding()
+    {
+        Assert.Equal(["⇧", "Tab"], KeyBindings.Caps(Assert.Single(KeyBindings.Default.Of(Intent.PreviousUnit))));
+        Assert.Equal(KeyBindings.Capture(Intent.PreviousUnit, HotKey.Tab, true, false), KeyBindings.Capture(Intent.PreviousUnit, HotKey.Backtab, false, false));
+        var rebound = KeyBindings.Default.With(Intent.PreviousUnit, 0, new KeyBinding(HotKey.J));
+        Assert.Null(rebound.Of(HotKey.Backtab, true, false));
+    }
+
+    [Fact]
     public void A_rebind_replaces_the_slot_and_the_old_key_does_nothing()
     {
         var keys = KeyBindings.Default.With(Intent.ToggleRangeRings, 0, new KeyBinding(HotKey.J));

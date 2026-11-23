@@ -51,6 +51,23 @@ public class SessionReconnectTests : IDisposable
     }
 
     [Fact]
+    public async Task Entering_a_game_after_leaving_a_reconnect_reads_connecting()
+    {
+        await LoggedIn();
+        await _s.ConnectAsync(Game.Id);
+        _sockets.Last.Deliver(new Welcome(Samples.P1, Game));
+        _sockets.Last.Drop(1001, "going away");
+        await _sockets.ConnectedAsync(2);
+        Assert.Equal(SessionPhase.Reconnecting, _s.Phase);
+        await _s.DisconnectAsync();
+        var phases = new List<SessionPhase>();
+        _s.PhaseChanged += () => phases.Add(_s.Phase);
+        await _s.ConnectAsync(Guid.NewGuid());
+        Assert.Equal(SessionPhase.Connecting, phases[0]);
+        Assert.DoesNotContain(SessionPhase.Reconnecting, phases);
+    }
+
+    [Fact]
     public async Task A_command_sent_while_reconnecting_goes_out_after_the_next_welcome()
     {
         await LoggedIn();

@@ -36,7 +36,7 @@ public sealed class KeyBindings
         [Intent.MeasureHeld] = [B(HotKey.Ctrl, null, null)],
         [Intent.Ping] = [B(HotKey.P)],
         [Intent.NextUnit] = [B(HotKey.Tab, false)],
-        [Intent.PreviousUnit] = [B(HotKey.Tab, true), B(HotKey.Backtab)],
+        [Intent.PreviousUnit] = [B(HotKey.Tab, true)],
         [Intent.FocusCamera] = [B(HotKey.Space)],
         [Intent.Undo] = [B(HotKey.Z, null, true)],
         [Intent.ToggleLog] = [B(HotKey.G)],
@@ -89,9 +89,11 @@ public sealed class KeyBindings
 
     public IReadOnlyList<KeyBinding> Of(Intent intent) => Overrides.TryGetValue(intent, out var o) ? o : Defaults.GetValueOrDefault(intent) ?? [];
 
-    /// <summary>The intent of a press: the most specific binding that matches it, else none.</summary>
+    /// <summary>The intent of a press: the most specific binding that matches it, else none. Backtab (what some platforms send for
+    /// Shift+Tab) is Shift+Tab.</summary>
     public Intent? Of(HotKey key, bool shift, bool ctrl)
     {
+        if (key == HotKey.Backtab) (key, shift) = (HotKey.Tab, true);
         Intent? best = null; var rank = -1;
         foreach (var (b, i) in _all)
             if (b.Matches(key, shift, ctrl) && b.Rank > rank) { best = i; rank = b.Rank; }
@@ -114,6 +116,7 @@ public sealed class KeyBindings
     /// intent's default treats it (the measure keys work with Ctrl down). A modifier key ignores its own flag.</summary>
     public static KeyBinding Capture(Intent intent, HotKey key, bool shift, bool ctrl)
     {
+        if (key == HotKey.Backtab) (key, shift) = (HotKey.Tab, true);
         if (key == HotKey.Shift) shift = false;
         if (key == HotKey.Ctrl) return new(key, null, null);
         var ctrlAny = Defaults.GetValueOrDefault(intent) is [{ Ctrl: null }, ..];
@@ -144,7 +147,7 @@ public sealed class KeyBindings
         >= HotKey.Key1 and <= HotKey.Key9 => ((int)(k - HotKey.Key1) + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
         HotKey.Key0 => "0",
         HotKey.Enter or HotKey.KpEnter => "⏎",
-        HotKey.Escape => "Esc", HotKey.Shift => "⇧", HotKey.Backtab => "⇧Tab", HotKey.Delete => "Del", HotKey.Insert => "Ins",
+        HotKey.Escape => "Esc", HotKey.Shift => "⇧", HotKey.Delete => "Del", HotKey.Insert => "Ins",
         HotKey.Pageup => "PgUp", HotKey.Pagedown => "PgDn", HotKey.Question => "?", HotKey.Slash => "/",
         HotKey.Left => "←", HotKey.Right => "→", HotKey.Up => "↑", HotKey.Down => "↓",
         HotKey.Comma => ",", HotKey.Period => ".", HotKey.Minus => "-", HotKey.Equal => "=", HotKey.Semicolon => ";", HotKey.Apostrophe => "'",

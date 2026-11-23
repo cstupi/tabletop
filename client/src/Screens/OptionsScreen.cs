@@ -166,7 +166,9 @@ public partial class OptionsScreen : CanvasLayer
         HudBits.Clear(_rows); _rowList.Clear(); _focused = -1;
         if (c == OptionCategory.Controls) ControlsRows(); else foreach (var row in _model.In(c)) _rows.AddChild(Row(row));
         _reset.TooltipText = $"{OptionsModel.Title(c)} back to its defaults";
-        Describe(OptionsModel.Title(c), c == OptionCategory.Controls ? "Click a key, then press the new key. Esc cancels." : "");
+        // The tab's first row until the pointer or focus names another, so the box never stands as a bare title.
+        if (c == OptionCategory.Controls) Describe(OptionsModel.Title(c), "Click a key, then press the new key. Esc cancels.");
+        else if (_model.In(c).FirstOrDefault() is { } first) Describe(first.Label, _model.Description(first));
         Footer();
         if (changed) _scroll.ScrollVertical = 0;
     }

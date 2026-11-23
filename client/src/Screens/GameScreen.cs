@@ -102,7 +102,13 @@ public partial class GameScreen : Control
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) { ShowStatus(); if (_wasWaiting != _session.WaitingTeams.Count > 0) Rebuild(); else { _waiting?.Refresh(); Callable.From(ShowSelection).CallDeferred(); } } };
         _onRefused = r => { if (Feedback.Refusal(r, IsInstanceValid(_decision) ? _decision!.LastCommand : null) is { } text) Toast(text); };
         // The status line once the session has counted this attempt: the phase stays Reconnecting, so Rebuild does not run for it.
-        _onLost = (c, will) => { Toast(Feedback.Closed(c, will)); Callable.From(() => { if (IsInstanceValid(_status)) ShowStatus(); }).CallDeferred(); };
+        // Each failed attempt of a reconnect closes again: the first says so, the corner and the strip carry the rest.
+        _onLost = (c, will) =>
+        {
+            GD.Print($"Game socket closed: code {c.Code?.ToString() ?? "none"}, {c.Reason ?? c.Error?.Message ?? "no reason"}");
+            if (!(will && _session.Phase == SessionPhase.Reconnecting)) Toast(Feedback.Closed(c, will));
+            Callable.From(() => { if (IsInstanceValid(_status)) ShowStatus(); }).CallDeferred();
+        };
         _session.GameChanged += Rebuild; _session.PhaseChanged += Rebuild; _session.Frame.Render += _onFrame;
         _session.RefusedReceived += _onRefused; _session.ConnectionLost += _onLost;
         _onTheme = OnTheme; Ui.Changed += _onTheme;

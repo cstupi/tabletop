@@ -9,7 +9,7 @@ import type { EventPayload, GameEvent, IgnoredEffect, SequenceContext, SequenceS
 import { attackLines } from './workedLines';
 import { FrameTree } from './combatLogAttacks';
 import { Aftermath, Draft, WoundsBefore, changeEntries, deployed } from './combatLogWords';
-import { describe, roundChange } from './logText';
+import { describe, handEdit, roundChange } from './logText';
 import type { Names } from './names';
 import { type LineEntry, type LogEntry, type RollEntry, rollEntryOf } from './rollEntry';
 import { chain as rollChain } from './rollEntry';
@@ -147,7 +147,7 @@ export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
       here.push(...deployed(p, n).map((t) => line(t)));
     else if (dropped(p)) { /* not drawn */ }
     else if (p.kind === 'action_recorded' && e.actor == null) { /* the engine's record as the action starts: the block's header says it */ }
-    else if (STATE_CHANGES.has(p.kind) && e.actor != null) here.push(line(`${describe(e, n)} · by hand`));
+    else if (STATE_CHANGES.has(p.kind) && e.actor != null) here.push(line(handEdit(e, n)));
     else here.push(line(describe(e, n)));
   }
   closeFrom(Number.MIN_SAFE_INTEGER);

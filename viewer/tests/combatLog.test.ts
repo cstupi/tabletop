@@ -147,12 +147,21 @@ describe('CombatLog', () => {
     expect(lines(blocks(loose.entries)[0]!.entries).map((l) => l.text)).toEqual(['Battle Brothers Fled!']);
   });
 
-  it('an undo reads undone to the header it took back and a menu edit is by hand', () => {
+  it('an undo reads undone to the header it took back and a menu edit reads what changed', () => {
     const { entries } = buildSample(Round1, started(Frame, 'advance', ctx(Unit, [], [], 'Advance')), step(Frame, 'roll-to-hit', [hit()]), finished(Frame),
       undone(1), { kind: 'wounds_set', modelId: Model, wounds: 1 });
     const ls = lines(entries).map((l) => l.text);
     expect(ls).toContain('Undone to: R1 · Team 1 · Battle Brothers · Advance');
-    expect(ls.some((l) => l.startsWith('Clay set ') && l.endsWith(' to 1 wound · by hand'))).toBe(true);
+    expect(ls.some((l) => l.startsWith('Battle Brothers (') && l.endsWith(' set to 1 wound · by Clay'))).toBe(true);
+  });
+
+  it('a hand edit reads what changed and names only another player', () => {
+    const set = (present: boolean) => ({ kind: 'condition_set' as const, subject: { kind: 'unit' as const, id: Unit }, condition: 'set-aside', present });
+    const { applier } = buildOn(BoardSample, GameSample, [set(true), set(false)]);
+    const of = (game: typeof GameSample, me: string) => lines(flatten(buildFrom(applier.log, new Names(game, applier.projection, me)))).map((l) => l.text);
+    expect(of(GameSample, P1)).toEqual(['Battle Brothers set aside', 'Battle Brothers returned to deployment']);
+    const ann = { id: newId(), accountId: newId(), name: 'Ann', teamId: TEAM2 };
+    expect(of({ ...GameSample, participants: [...GameSample.participants, ann] }, ann.id)[0]).toBe('Battle Brothers set aside · by Clay');
   });
 
   it('a second roll-to-hit in the frame (extra attacks taken on an Ask) reads the attack once, on the pool', () => {
@@ -269,6 +278,6 @@ describe('CombatLog', () => {
     const n = new Names(GameSample, a.projection);
     const ls = lines(flatten(buildFrom(a.log, n))).map((l) => l.text);
     expect(ls.some((l) => l.includes('recorded Hold'))).toBe(false);
-    expect(ls.some((l) => l.includes('recorded Advance') && l.endsWith('· by hand'))).toBe(true);
+    expect(ls).toContain('Battle Brothers recorded as Advance · by Clay');
   });
 });

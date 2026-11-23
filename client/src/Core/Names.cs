@@ -3,10 +3,19 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>Ids to words. Falls back to the id's first eight characters rather than throwing: a name is presentation.</summary>
-public sealed class Names(GameInfo game, Projection? projection)
+/// <summary>Ids to words. Falls back to the id's first eight characters rather than throwing: a name is presentation. <c>me</c>: the
+/// reader's participant row, whose account's own rows <see cref="Other"/> leaves unnamed; null names every participant (a replay, a fixture).</summary>
+public sealed class Names(GameInfo game, Projection? projection, Guid? me = null)
 {
     public string Participant(Guid? id) => id is null ? "the game" : game.Participants.FirstOrDefault(p => p.Id == id)?.Name ?? Short(id.Value);
+    /// <summary>The participant's name when it is another player than the reader (another account), else null.</summary>
+    public string? Other(Guid? id)
+    {
+        if (id is null) return null;
+        var mine = me is { } m ? game.Participants.FirstOrDefault(p => p.Id == m)?.AccountId : null;
+        var row = game.Participants.FirstOrDefault(p => p.Id == id);
+        return mine is not null && row?.AccountId == mine ? null : Participant(id);
+    }
     /// <summary>The game's teams by ordinal.</summary>
     public IReadOnlyList<Team> Teams => [.. game.Teams.OrderBy(t => t.Ordinal)];
     public string Team(Guid id) => game.Teams.FirstOrDefault(t => t.Id == id) is { } t ? $"Team {t.Ordinal}" : Short(id);

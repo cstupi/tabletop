@@ -45,17 +45,16 @@ public sealed record ModelGroup(string Label, string Loadout, bool Hero, int Ali
 }
 
 /// <summary>
-/// What the unit card draws: the sheet, the team's ordinal for its colour bar, the limited-choice note, the model groups and the unit's
-/// wound total, and the picked models (the selection's model ids), whose groups' rows are marked. InCover: the server's ModelFacts names the
+/// What the unit card draws: the sheet, the team's ordinal for its colour bar, the model groups and the unit's wound total, and the picked models (the selection's model ids), whose groups' rows are marked. InCover: the server's ModelFacts names the
 /// unit in cover where it stands, and the Quality / Defense line ends in a shield. Equal by value, lists element by element, so the card
 /// rebuilds only when what it shows changed and otherwise keeps its scroll and tooltip.
 /// </summary>
-public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Note, IReadOnlyList<Guid>? Picked = null, bool InCover = false)
+public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, IReadOnlyList<Guid>? Picked = null, bool InCover = false)
 {
     /// <summary>The cover shield's tooltip, its only words; null when the unit is not in cover and no shield shows.</summary>
     public string? CoverTip => InCover ? "In cover" : null;
 
-    public IReadOnlyList<ModelGroup> Groups { get; } = Group(Sheet.Models);
+    public IReadOnlyList<ModelGroup> Groups { get; } = Group(Sheet.Models, Sheet.Name);
     public int WoundsLeft => Groups.Sum(g => g.WoundsLeft);
     public int WoundsMax => Groups.Sum(g => g.WoundsMax);
 
@@ -94,23 +93,28 @@ public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Not
     /// <summary>The group holds a picked model: its row is marked.</summary>
     public bool Marked(ModelGroup group) => Picked is { Count: > 0 } picked && group.Standing.Any(picked.Contains);
 
-    static IReadOnlyList<ModelGroup> Group(IReadOnlyList<SheetModel> models)
+    /// <summary>A model named after its unit with a part in brackets ("Infantry Squad (Weapon Team)" in Infantry Squad) reads the part:
+    /// the card's heading already names the unit.</summary>
+    static string Short(string label, string unit) =>
+        label.Length > unit.Length + 3 && label.StartsWith(unit + " (", StringComparison.Ordinal) && label.EndsWith(')') ? label[(unit.Length + 2)..^1] : label;
+
+    static IReadOnlyList<ModelGroup> Group(IReadOnlyList<SheetModel> models, string unit)
     {
         var kinds = models.GroupBy(m => m.Kind, StringComparer.Ordinal).Select(g => g.ToList()).ToList();
         if (kinds.Count == 0) return [];
         var main = kinds.OrderByDescending(k => k.Count).First();   // stable: the first on a tie
         var common = main[0].Loadout.ToHashSet(StringComparer.Ordinal);
-        return kinds.Select(k => new ModelGroup(k[0].Label,
+        return kinds.Select(k => new ModelGroup(Short(k[0].Label, unit),
             k == main ? "" : string.Join(", ", k[0].Loadout.Where(i => !common.Contains(i))), k[0].Hero,
             k.Count(m => !m.Removed), k.Count, k.Sum(m => m.Left), k.Sum(m => m.Max),
             k.Where(m => !m.Removed).Select(m => m.Id).ToList())).ToList();
     }
 
     public bool Equals(UnitCardContent? other) =>
-        other is not null && Team == other.Team && Note == other.Note && InCover == other.InCover && Same(Sheet, other.Sheet) && Groups.SequenceEqual(other.Groups)
+        other is not null && Team == other.Team && InCover == other.InCover && Same(Sheet, other.Sheet) && Groups.SequenceEqual(other.Groups)
         && (Picked ?? []).SequenceEqual(other.Picked ?? []);
 
-    public override int GetHashCode() => HashCode.Combine(Sheet.UnitId, Sheet.Alive, Team, Note);
+    public override int GetHashCode() => HashCode.Combine(Sheet.UnitId, Sheet.Alive, Team);
 
     static bool Same(UnitSheetModel a, UnitSheetModel b) =>
         a.UnitId == b.UnitId && a.Team == b.Team && a.Name == b.Name && a.Alive == b.Alive && a.Size == b.Size
