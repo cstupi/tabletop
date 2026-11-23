@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CasualtyPick } from '../src/lib/play/casualtyPick';
-import type { Allocated, Allocation } from '../src/lib/protocol/wire.generated';
+import type { Allocated, Allocation, Ask } from '../src/lib/protocol/wire.generated';
+import type { Projection } from '../src/lib/live/apply';
 
 const M1 = '0198b7ac-0011-7000-8000-000000000011', M2 = '0198b7ac-0012-7000-8000-000000000012', M3 = '0198b7ac-0013-7000-8000-000000000013';
 const ELSEWHERE = '0198b7ac-0019-7000-8000-000000000019';
@@ -97,5 +98,16 @@ describe('CasualtyPick', () => {
     expect([c.oneEach, c.title, c.status]).toEqual([true, 'Remove 3 models', '0 of 3 chosen']);
     const tough = new CasualtyPick(legal([M1, M2], 2), left({ [M1]: 1, [M2]: 3 }));
     expect([tough.oneEach, tough.title]).toEqual([false, 'Assign 2 wounds']);
+  });
+
+  it('a later segment says how many of the frame\'s wounds are assigned (wounds_total)', () => {
+    const frameId = 'f1';
+    const ask = { id: 'a', question: 'remove_casualties', prompt: '', teams: [], legal: legal([M1, M2], 1, 1), allowPass: false, sealed: false, frameId } as unknown as Ask;
+    const p = (values?: Record<string, number>) => ({ stack: [{ id: frameId, sequence: 'deal-wounds', steps: values === undefined ? [] : [{ step: 'assign', values }] }] }) as unknown as Projection;
+    expect(CasualtyPick.totalOf(p(), ask)).toBeNull();
+    expect(CasualtyPick.totalOf(p({ wounds_total: 2, wounds_left: 1 }), ask)).toBe(2);
+    const later = new CasualtyPick(legal([M1, M2], 1, 1), left({ [M1]: 3, [M2]: 3 }), 2);
+    expect([later.title, later.assigned]).toEqual(['Assign 1 wound to one model', '1 of 2 wounds assigned']);
+    expect(new CasualtyPick(legal([M1, M2], 1, 1), left({ [M1]: 3, [M2]: 3 })).assigned).toBeNull();
   });
 });

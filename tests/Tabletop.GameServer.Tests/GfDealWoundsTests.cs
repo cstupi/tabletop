@@ -270,6 +270,22 @@ public class GfDealWoundsTests
         Assert.Empty(sim.State.Projection.Stack);
     }
 
+    /// <summary>The wounds the frame started with, on every segment: a later Ask asks for what is left of them, which the card shows as `1 of 2 wounds assigned`.</summary>
+    [Fact]
+    public void Each_segment_records_the_wounds_the_frame_started_with()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, []);
+        var t = Unit("T", "4+", "4+", [], 3, [P("Tough", 3)]);
+        var (x, y, z) = (t.Models[0].Id, t.Models[1].Id, t.Models[2].Id);
+        var sim = StartWith(a, t, 2, [1], null, Enforcement.Warn, [(x, 2)], []);
+        Assert.IsType<OnShelf>(sim.Model(x).Location);                                                                 // the most wounded takes the first and dies
+        Assert.Equal(1, Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal).Amount);
+        Assert.Equal([2], sim.Steps("assign").Select(s => s.Values!["wounds_total"]));
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [y] = 1 }));
+        Assert.Equal([2, 2], sim.Steps("assign").Select(s => s.Values!["wounds_total"]));
+        Assert.Equal(0, sim.Model(z).Wounds);
+    }
+
     [Fact]
     public void Zero_wounds_finishes_without_asking()
     {

@@ -114,7 +114,8 @@
   // page's: they outlive a box, and each change of them redraws the board through `version`.
   let version = $state(0);
   const bump = (): void => { version++; };
-  const violations = new Violations((id) => connection.state.projection?.models.get(id)?.slot.name ?? null);   // the box names the model, as the server does
+  const violations = new Violations((id) => connection.state.projection?.models.get(id)?.slot.name ?? null,
+    (id) => { const p = connection.state.projection; const m = p?.models.get(id); return m === undefined ? null : p?.units.get(m.unitId)?.definition.name ?? null; });   // the box names the model, as the server does
   const drops = new PendingDrops();
   const locks = new MarkerLocks();
   // A move Ask's areas, routes and contacts in Web Workers, started with the first move Ask (moveWorkers.ts); inline where there are none.

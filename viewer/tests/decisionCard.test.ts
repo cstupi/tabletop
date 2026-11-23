@@ -71,6 +71,24 @@ describe('DecisionCard', () => {
     expect(headOf(move, bare, new Names(s.game, bare))).toEqual({ icon: 'advance', title: 'Move', subject: 'Battle Brothers', prompt: null });
   });
 
+  it('a move of another unit or in a nested frame is titled by the frame\'s current step (p.9 the target moves, p.10 consolidation)', () => {
+    const charge = 'f-charge', melee = 'f-melee';
+    const ctx = { actorUnitId: s.squad.id, targetUnitIds: [s.rivals.id], weaponIds: [], action: 'Charge' };
+    const chargeOutline = [{ step: 'charge-target', label: 'Pick target' }, { step: 'charge', label: 'Charge move' }, { step: 'defender-closes', label: 'Target moves' }, { step: 'fight', label: 'Melee' }];
+    const done = (frameId: string, step: string) => ({ kind: 'step_completed', frameId, step, rolls: [], changes: [] }) as never;
+    const start = [{ kind: 'round_started', round: 1, order: [TEAM1, TEAM2], changes: [] } as never,
+      { kind: 'sequence_started', frameId: charge, sequence: 'charge', context: ctx, outline: chargeOutline } as never, done(charge, 'charge-target')];
+    const moveOf = (modelId: string, frameId: string) => askOf({ ...region, modelIds: [modelId] }, { question: 'move', frameId } as never);
+    const own = projectionOf(s.game, s.board, start).projection;
+    expect(headOf(moveOf(s.model.id, charge), own, new Names(s.game, own)).title).toBe('Charge');
+    const closing = projectionOf(s.game, s.board, [...start, done(charge, 'charge')]).projection;
+    expect(headOf(moveOf(s.rival.id, charge), closing, new Names(s.game, closing))).toEqual({ icon: 'advance', title: 'Target moves', subject: s.rivals.name, prompt: null });
+    const after = projectionOf(s.game, s.board, [...start,
+      { kind: 'sequence_started', frameId: melee, sequence: 'melee', context: { ...ctx, action: undefined }, outline: [{ step: 'compare', label: 'Melee resolution' }, { step: 'consolidate', label: 'Consolidation' }] } as never,
+      done(melee, 'compare')]).projection;
+    for (const m of [s.model.id, s.rival.id]) expect(headOf(moveOf(m, melee), after, new Names(s.game, after)).title).toBe('Consolidation');
+  });
+
   it('the bar reads the farthest model over the allowance', () => {
     const bar = barOf([at(3), at(7.5)], 12, null);
     expect([bar.text, bar.fraction, bar.over]).toEqual(['7.5" of 12"', 0.625, false]);

@@ -54,6 +54,17 @@ public class CombatLogTests
     }
 
     [Fact]
+    public void A_die_is_drawn_at_its_raw_face_where_the_target_holds_the_modifiers_and_at_its_total_where_the_roll_adds_them()
+    {
+        // `Defense 5+ (cover +1, AP(2)) → needs 6`: the modifiers are in the target, so the 5 is drawn as a 5 (not 5 → 4 as well).
+        var block = Line(Roll("defense", 5, [new RollModifier("cover", 1), new RollModifier("AP", -2)], [D(5, 4, false)], Defense5));
+        Assert.Equal(5, block.Face(block.Dice[0]));
+        // `Cast Hex · needs 4+ (+1 token)`: the target stays as printed, so the die shows its total.
+        var cast = Line(Roll("casting", 4, [new RollModifier("tokens", 1)], [D(3, 4, true)]));
+        Assert.Equal(4, cast.Face(cast.Dice[0]));
+    }
+
+    [Fact]
     public void A_block_out_of_cover_says_nothing_of_cover()
     {
         var r = Line(Roll("defense", 5, [new RollModifier("AP", -1)], [D(1, 0, false)], Defense5, new CoverVerdict(false, 2, 6)));

@@ -159,9 +159,9 @@ public partial class DecisionBox
     void RenderCasualties(Ask ask, Allocation legal, Projection p, Names names)
     {
         var left = legal.Targets.ToDictionary(id => id, id => Math.Max(0, _s.MaxWounds.GetValueOrDefault(id, 1) - (p.Models.GetValueOrDefault(id)?.Wounds ?? 0)));
-        var pick = new CasualtyPick(legal, left);
+        var pick = new CasualtyPick(legal, left, CasualtyPick.TotalOf(p, ask));
         var unit = legal.Targets.Select(id => p.Models.GetValueOrDefault(id)?.UnitId).FirstOrDefault(u => u is not null);
-        Head(new CardHead("wound", pick.Title, unit is { } u ? names.Unit(u) : null), MyOrdinal);
+        Head(new CardHead("wound", pick.Title, unit is { } u ? names.Unit(u) : null, pick.Assigned), MyOrdinal);
         var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.M); Add(row);
         var count = new Label { ThemeTypeVariation = Variation.Display, VerticalAlignment = VerticalAlignment.Center }; row.AddChild(count);
         var pips = new Label { VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.Arbitrary, CustomMinimumSize = HudBits.WrapMin, SizeFlagsHorizontal = SizeFlags.ExpandFill };

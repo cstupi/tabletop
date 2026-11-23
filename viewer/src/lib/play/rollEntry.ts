@@ -87,6 +87,9 @@ export function result(r: RollEntry): string {
 
 export const chain = (r: RollEntry): string => (!judged(r) ? r.label : `${r.label} ${r.dice.length === 1 ? result(r) : successes(r).toString()}`);
 
+/** RollEntry.Face: the value a die is drawn at, so the modifiers show once: its total on a roll its modifiers add to, else its face as rolled. */
+export const face = (r: RollEntry, d: DieView): number => (RollWords.addsToRoll(r.record) ? d.modified : d.raw);
+
 /** A roll its modifiers add to (RollWords.addsToRoll) of one die: `rolled 1 +1 token = 2`, `rolled 5` with none; else null. */
 export const sum = (r: RollEntry): string | null => {
   if (!RollWords.addsToRoll(r.record) || r.dice.length !== 1) return null;

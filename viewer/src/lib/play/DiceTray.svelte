@@ -5,6 +5,7 @@
 <script lang="ts">
   import { pip } from './combatLog';
   import { trayLines } from './logRows';
+  import { face } from './rollEntry';
   import type { RollEntry } from './rollEntry';
   import HudIcon from './HudIcon.svelte';
 
@@ -17,7 +18,7 @@
   <button type="button" class="tray" tabindex="-1" title={lines.tooltip} onmousedown={(e) => e.preventDefault()} onclick={() => onClick(roll.record.id)}>
     <span class="title"><HudIcon name="dice" size={16} />{lines.title}</span>
     {#each lines.faces as d, i (i)}
-      <span class="die" class:pass={d.judged && d.success} class:fail={d.judged && !d.success}>{pip(d.raw)}</span>
+      <span class="die" class:pass={d.judged && d.success} class:fail={d.judged && !d.success}>{pip(d.raw)}{face(roll, d) === d.raw ? '' : `→${face(roll, d)}`}</span>
     {/each}
     {#if lines.result !== null}<span class:ok={lines.success} class:bad={!lines.success}>{lines.result}</span>{/if}
   </button>
