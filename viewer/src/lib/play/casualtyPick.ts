@@ -5,16 +5,34 @@
 // outnumber the models still completes. Under the Ask's maxTargets of one, a click on another model moves the pick there. The answer is
 // Allocated, summing to the amount, any surplus on the last model counted for the server to carry over (p.8).
 
-import type { Allocated, Allocation } from '../protocol/wire.generated';
+import type { Allocated, Allocation, Ask } from '../protocol/wire.generated';
+import type { Projection } from '../live/apply';
 
 export class CasualtyPick {
   readonly #legal: Allocation;
   readonly #woundsLeft: ReadonlyMap<string, number>;
   readonly #counts = new Map<string, number>();
+  readonly #total: number | null;
 
-  constructor(legal: Allocation, woundsLeft: ReadonlyMap<string, number>) {
+  /** `total`: the wounds the Ask's frame started with (`totalOf`), when the Ask asks for what an earlier segment left of them. */
+  constructor(legal: Allocation, woundsLeft: ReadonlyMap<string, number>, total: number | null = null) {
     this.#legal = legal;
     this.#woundsLeft = woundsLeft;
+    this.#total = total;
+  }
+
+  /** The wounds the Ask's deal-wounds frame started with (`wounds_total`, which the server writes on each segment it completed); null on its
+   *  first segment, which asks for them all. */
+  static totalOf(p: Projection, ask: Ask): number | null {
+    const frame = p.stack.find((f) => f.id === ask.frameId);
+    const step = frame === undefined ? undefined : [...frame.steps].reverse().find((s) => s.values?.['wounds_total'] !== undefined);
+    return step?.values?.['wounds_total'] ?? null;
+  }
+
+  /** `1 of 2 wounds assigned`: the frame's wounds an earlier segment already placed, so the card agrees with the block's count; null when none. */
+  get assigned(): string | null {
+    const t = this.#total;
+    return t !== null && t > this.#legal.amount ? `${t - this.#legal.amount} of ${t} wounds assigned` : null;
   }
 
   get counts(): ReadonlyMap<string, number> { return this.#counts; }

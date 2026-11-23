@@ -12,6 +12,7 @@ public class KeyBindingsTests
         (HotKey.H, _, _) => Intent.MeasureMode,
         (_, _, true) => null,
         (>= HotKey.Key1 and <= HotKey.Key9, _, _) => Intent.Option1 + (key - HotKey.Key1),
+        (HotKey.Key0, _, _) => Intent.Option10,
         (HotKey.Enter or HotKey.KpEnter, _, _) => Intent.Confirm,
         (HotKey.Escape, _, _) => Intent.Cancel,
         (HotKey.Shift, _, _) => Intent.SingleModel,

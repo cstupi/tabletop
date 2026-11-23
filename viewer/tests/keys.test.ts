@@ -7,7 +7,7 @@ const ctrl = { ...NO_MODIFIERS, ctrl: true };
 describe('Hotkeys', () => {
   it('digits are options', () => {
     for (let i = 1; i <= 9; i++) expect(intentOf(String(i), NO_MODIFIERS)).toEqual({ kind: 'option', key: i });
-    expect(intentOf('0', NO_MODIFIERS)).toBeNull();
+    expect(intentOf('0', NO_MODIFIERS)).toEqual({ kind: 'option', key: 10 });
   });
 
   it('Enter, Escape, Q, E, C map', () => {

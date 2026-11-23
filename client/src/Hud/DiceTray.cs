@@ -107,7 +107,7 @@ public partial class DiceTray : PanelContainer
         {
             var face = settled ? d.Raw : _faces.Next(1, 7);
             // An unjudged die shows neither pass nor fail, so it is drawn as a plain (unfaded) face; a judged one framed pass or fail.
-            var c = DiceFaces.Of(!settled ? new Die(face, face, true) : new Die(d.Raw, d.Modified, !(r.Judged && d.Judged) || d.Success), 48, settled && r.Judged && d.Judged);
+            var c = DiceFaces.Of(!settled ? new Die(face, face, true) : new Die(d.Raw, r.Face(d), !(r.Judged && d.Judged) || d.Success), 48, settled && r.Judged && d.Judged);
             Face(c);
             if (!settled) _tumbling.Add(c);
         }

@@ -79,6 +79,18 @@ public class ViolationsTests
     }
 
     [Fact]
+    public void A_reason_several_models_share_names_their_unit_and_one_model_alone_names_the_model()
+    {
+        var v = new Violations { Subject = id => id == A ? "Veterans 1" : id == B ? "Veterans 2" : "Veterans 3", UnitSubject = _ => "Veterans" };
+        v.Measure([A, B, C], new Dictionary<Guid, string> { [A] = "beyond 9\" of its deployment zone", [B] = "beyond 9\" of its deployment zone", [C] = "overlaps a base" });
+        Assert.Equal("Veterans would be placed beyond 9\" of its deployment zone", v.Marked[A]);
+        Assert.Equal("Veterans would be placed beyond 9\" of its deployment zone", v.Marked[B]);
+        Assert.Equal("Veterans 3 would be placed on another model's base", v.Marked[C]);
+        Assert.Equal("Veterans would be placed beyond 9\" of its deployment zone (2 models) · Veterans 3 would be placed on another model's base.",
+            MoveRuler.Gate([], Enforcement.Warn, v.Marked).Reason);
+    }
+
+    [Fact]
     public void Labels_name_each_reason_once_over_its_first_model()
     {
         var v = new Violations();

@@ -68,7 +68,7 @@ public static class KeyOverlayView
 
     static IReadOnlyList<KeyRow> Now(AskMode mode, KeyBindings k) => mode switch
     {
-        AskMode.Choose => [R("pick an option", "1–9")],
+        AskMode.Choose => [R("pick an option", "1–9, 0")],
         AskMode.Move =>
         [
             R("reset", "Esc"),
@@ -78,7 +78,7 @@ public static class KeyOverlayView
         ],
         AskMode.Assign => [R("aim at a target", "Click")],
         AskMode.Allocate => [R("pick a model", "Click")],
-        AskMode.PickPieces => [R("pick a unit", "Click"), R("pick by number", "1–9"), R("place freely", "Alt")],
+        AskMode.PickPieces => [R("pick a unit", "Click"), R("pick by number", "1–9, 0"), R("place freely", "Alt")],
         _ => [],
     };
 }

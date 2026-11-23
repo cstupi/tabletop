@@ -1,7 +1,7 @@
 // Godot's MarkWords and MarkLabels (client/src/Core/MarkLabels.cs, tests/Tabletop.Client.Tests/MarkLabelsTests.cs): the short words a label over
 // the board reads, and a model's labels stacked a step apart, none overlapping.
 import { describe, expect, it } from 'vitest';
-import { MARK_GAP, placeMarkLabels, shortWords } from '../src/lib/play/markLabels';
+import { MARK_GAP, placeMarkLabels, placeTableLabels, shortWords } from '../src/lib/play/markLabels';
 import type { Rect } from '../src/lib/play/ringShape';
 
 describe('mark words', () => {
@@ -50,5 +50,23 @@ describe('mark labels', () => {
     const panel: Rect = { x: 300, y: 200, w: 300, h: 120 };
     const placed = placeMarkLabels([{ modelId: 'a', anchor: { x: 400, y: 300 }, w: 120, h: 20 }, { modelId: 'a', anchor: { x: 400, y: 300 }, w: 120, h: 20 }], view, [panel]);
     for (const r of placed) expect(overlap(r, panel)).toBe(false);
+  });
+
+  it('gap labels and mark labels share one placement, off the panels and the bar over the unit', () => {
+    const bar: Rect = { x: 360, y: 250, w: 92, h: 42 }, panel: Rect = { x: 0, y: 0, w: 200, h: 720 };
+    const { marks, gaps } = placeTableLabels([{ modelId: 'a', anchor: { x: 405, y: 300 }, w: 150, h: 22 }],
+      [{ anchor: { x: 400, y: 320 }, w: 160, h: 20 }, { anchor: { x: 402, y: 322 }, w: 160, h: 20 }], view, [panel], bar);
+    expect([marks.length, gaps.length]).toEqual([1, 2]);
+    const all = [...marks, ...gaps];
+    for (let i = 0; i < all.length; i++) {
+      expect(overlap(all[i]!, bar)).toBe(false);
+      expect(overlap(all[i]!, panel)).toBe(false);
+      for (let j = i + 1; j < all.length; j++) expect(overlap(all[i]!, all[j]!)).toBe(false);
+    }
+  });
+
+  it("a gap label hangs a step over its line's middle when nothing is in the way", () => {
+    const { gaps } = placeTableLabels([], [{ anchor: { x: 400, y: 320 }, w: 160, h: 20 }], view, [], null);
+    expect(gaps[0]).toEqual({ x: 320, y: 320 - MARK_GAP - 20, w: 160, h: 20 });
   });
 });

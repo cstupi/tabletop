@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ActivationBlock } from '../src/lib/play/combatLog';
 import { FILTER_LABELS, bandOf, faded, trayLines, undoHere } from '../src/lib/play/logRows';
-import { type LineEntry, type RollEntry } from '../src/lib/play/rollEntry';
+import { type LineEntry, type RollEntry, face } from '../src/lib/play/rollEntry';
 import { Enemy, Frame, GameSample, Round1, Unit, buildSample, ctx, finished, hit, started, step, undone } from './logSamples';
 import type { LogEntry } from '../src/lib/play/rollEntry';
 
@@ -63,5 +63,12 @@ describe('logRows', () => {
     const labelled = trayLines({ ...roll, dieLabels: ['Team 1', 'Team 2'], consequence: 'Team 1 wins' })!;
     expect(labelled.faces).toEqual([]);                  // a roll-off: the team words go between the faces, so the tray shows the line
     expect(labelled.title).toBe(labelled.tooltip);
+  });
+
+  it('a die is drawn at its raw face where the target holds the modifiers, at its total where the roll adds them (RollEntry.Face)', () => {
+    const { roll } = rolled();
+    const d = { ...roll.dice[0]!, raw: 5, modified: 4 };
+    expect(face({ ...roll, record: { ...roll.record, roll: 'defense' } }, d)).toBe(5);
+    expect(face({ ...roll, record: { ...roll.record, roll: 'casting', threshold: 4 } }, d)).toBe(4);
   });
 });

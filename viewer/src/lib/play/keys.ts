@@ -1,5 +1,5 @@
 // viewer/src/lib/play/keys.ts
-// Hotkeys.Of (client/src/Core/Hotkeys.cs), the keys the browser binds: digits are options, Enter and Escape confirm and cancel, Q and E
+// Hotkeys.Of (client/src/Core/Hotkeys.cs), the keys the browser binds: digits are options (0 the tenth), Enter and Escape confirm and cancel, Q and E
 // turn, C stops, Ctrl+Z undoes, G, R and V toggle the log, the roster and the range rings, T every enemy unit's threat, Shift picks models (click picks a model, drag boxes models), L is the sight check, Delete removes.
 // Camera and measuring keys belong to Godot's 3D table and have no key here.
 
@@ -14,6 +14,7 @@ export function intentOf(key: string, mods: Modifiers): Intent | null {
   const k = key.length === 1 ? key.toLowerCase() : key;
   if (mods.ctrl) return k === 'z' ? { kind: 'undo' } : null;
   if (k >= '1' && k <= '9' && k.length === 1) return { kind: 'option', key: Number(k) };
+  if (k === '0') return { kind: 'option', key: 10 };               // the tenth number (keyCap: 0)
   switch (k) {
     case 'Enter': return { kind: 'confirm' };
     case 'Escape': return { kind: 'cancel' };

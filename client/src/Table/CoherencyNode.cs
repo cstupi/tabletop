@@ -8,7 +8,8 @@ namespace Tabletop.Client.Table;
 /// <summary>
 /// A placement's unit coherency on the table (CoherencyView): each ghost's ring at the coherency distance from its base edge, faint in the team's
 /// colour, and for each model out of coherency a dashed line in the warning colour from its base to the model it is measured to, with its words
-/// (`1.4" apart, needs 1"`) over the line's middle, a control in the node's own canvas layer placed each frame. Drawn by the decision box.
+/// (`1.4" apart, needs 1"`) over the line's middle, a control in the node's own canvas layer, placed each frame by ViolationMarks with the mark
+/// labels in one placement (MarkLabels.Place), off each other, the Hud's panels and the bar over the unit. Drawn by the decision box.
 /// </summary>
 public partial class CoherencyNode : Node3D
 {
@@ -71,16 +72,17 @@ public partial class CoherencyNode : Node3D
 
     public new void Hide() => Show(CoherencyPicture.None, _team);
 
-    public override void _Process(double delta)
+    /// <summary>Each shown gap label's wanted place (its line's middle on the screen and its size), into `wanted`, its control into `order`;
+    /// every label hidden first, so one behind the camera stays hidden. ViolationMarks places them.</summary>
+    public void Wanted(Camera3D cam, List<GapLabel> wanted, List<Label> order)
     {
-        if (_anchors.Count == 0 || GetViewport().GetCamera3D() is not { } cam) return;
+        for (var i = 0; i < _labels.Count; i++) _labels[i].Visible = false;
+        if (!Visible) return;
         for (var i = 0; i < _anchors.Count; i++)
         {
-            var label = _labels[i];
-            if (cam.IsPositionBehind(_anchors[i])) { label.Visible = false; continue; }
-            var at = cam.UnprojectPosition(_anchors[i]); var box = label.GetCombinedMinimumSize();
-            label.Position = new Vector2(at.X - box.X / 2, at.Y - box.Y - Space.XS);
-            label.Visible = true;
+            if (cam.IsPositionBehind(_anchors[i])) continue;
+            var at = cam.UnprojectPosition(_anchors[i]); var box = _labels[i].GetCombinedMinimumSize();
+            wanted.Add(new GapLabel((at.X, at.Y), box.X, box.Y)); order.Add(_labels[i]);
         }
     }
 

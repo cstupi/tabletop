@@ -28,11 +28,11 @@ public class DecisionViewTests
     }
 
     [Fact]
-    public void Past_nine_an_entry_has_no_key()
+    public void The_tenth_entry_is_keyed_0_and_past_ten_none()
     {
         var many = new Options(Enumerable.Range(1, 11).Select(i => new AskOption($"o{i}", $"Option {i}", [])).ToList());
         var d = Of(AskOf(AskQuestions.Activate, many), Samples.Team1);
-        Assert.Equal([1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0], d.Numbered.Select(x => x.Key));
+        Assert.Equal([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0], d.Numbered.Select(x => x.Key));
     }
 
     [Fact]

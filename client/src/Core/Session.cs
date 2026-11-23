@@ -111,6 +111,10 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     public HudFrame Hud { get; private set; } = HudFrame.Empty;
     public event Action? HudChanged;
 
+    /// <summary>The bar over the acting unit where it last drew on the screen (UnitActionsNode), null while it is hidden: the labels over the
+    /// table keep off it as off the Hud's panels (MarkLabels.Place).</summary>
+    public HudRect? UnitBar { get; set; }
+
     public void PublishHud(HudFrame frame)
     {
         if (frame.SameAs(Hud)) return;

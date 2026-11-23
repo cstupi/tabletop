@@ -11,7 +11,7 @@ namespace Tabletop.Client.Hud;
 
 /// <summary>The right column, above the undo and log buttons: the first open Ask addressed to my team (AskViewModel.Mine) as a card (UX redesign
 /// part 2 → Decision box): a title band in my team's colour with the Ask's icon, the body per mode, the actions at the foot with their key caps;
-/// or, with nothing of mine open, a quiet band per team the game waits on. Buttons, Enter, Esc, 1–9 and table clicks answer it. The body's
+/// or, with nothing of mine open, a quiet band per team the game waits on. Buttons, Enter, Esc, 1–9 and 0 and table clicks answer it. The body's
 /// controls scroll once the card reaches the top of its slot; the band, the notes and the foot stay in view.</summary>
 public partial class DecisionBox : PanelContainer
 {
@@ -412,7 +412,7 @@ public partial class DecisionBox : PanelContainer
         var dragging = _input.Holding || Godot.Input.IsMouseButtonPressed(MouseButton.Left);   // a drag in hand owns the digits (rows) and Esc, and holds off Enter
         var used = intent switch
         {
-            >= Intent.Option1 and <= Intent.Option9 when !dragging => Number(intent - Intent.Option1 + 1),
+            >= Intent.Option1 and <= Intent.Option10 when !dragging => Number(intent - Intent.Option1 + 1),
             Intent.Confirm when !dragging && _onEnter is { } enter => Run(enter),   // a commit mid-drag would race the drop's own send
             Intent.Cancel when !dragging && !_input.HasPicks => _onCancel?.Invoke() == true,   // Esc clears picked models first (TableInput.Cancel)
             Intent.StopHere when !dragging && _onStop is { } stop => Run(stop),

@@ -23,10 +23,10 @@ describe('DecisionView', () => {
     expect(d.numbered).toEqual([{ key: 1, label: 'Advance', optionId: 'a' }, { key: 2, label: 'Hold', optionId: 'h' }]);
   });
 
-  it('past nine an entry has no key', () => {
+  it('the tenth entry is keyed 0 and past ten none', () => {
     const many: LegalSet = { kind: 'options', choices: Array.from({ length: 11 }, (_, i) => option(`o${i + 1}`, `Option ${i + 1}`)) };
     const d = of(ask('activate', many), TEAM1);
-    expect(d.numbered.map((x) => x.key)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0]);
+    expect(d.numbered.map((x) => x.key)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0]);
   });
 
   it('a deploy ask numbers the shelved units and a target pick numbers nothing', () => {

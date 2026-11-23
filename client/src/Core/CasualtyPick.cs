@@ -13,8 +13,18 @@ public sealed class CasualtyPick
     readonly Allocation _legal;
     readonly IReadOnlyDictionary<Guid, int> _woundsLeft;
     readonly Dictionary<Guid, int> _counts = new();
+    readonly int? _total;
 
-    public CasualtyPick(Allocation legal, IReadOnlyDictionary<Guid, int> woundsLeft) { _legal = legal; _woundsLeft = woundsLeft; }
+    /// <summary>`total`: the wounds the Ask's frame started with (TotalOf), when the Ask asks for what an earlier segment left of them.</summary>
+    public CasualtyPick(Allocation legal, IReadOnlyDictionary<Guid, int> woundsLeft, int? total = null) { _legal = legal; _woundsLeft = woundsLeft; _total = total; }
+
+    /// <summary>The wounds the Ask's deal-wounds frame started with (`wounds_total`, which the server writes on each segment it completed); null on
+    /// its first segment, which asks for them all.</summary>
+    public static int? TotalOf(Projection p, Ask ask) =>
+        p.Stack.FirstOrDefault(f => f.Id == ask.FrameId)?.Steps.LastOrDefault(s => s.Values?.ContainsKey("wounds_total") == true)?.Values!["wounds_total"];
+
+    /// <summary>`1 of 2 wounds assigned`: the frame's wounds an earlier segment already placed, so the card agrees with the block's count; null when none.</summary>
+    public string? Assigned => _total is { } t && t > _legal.Amount ? $"{t - _legal.Amount} of {t} wounds assigned" : null;
 
     public IReadOnlyDictionary<Guid, int> Counts => _counts;
     public int Chosen => _counts.Values.Sum();

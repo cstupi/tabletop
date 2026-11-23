@@ -17,7 +17,7 @@ export const TEST_WORDS = 'Dangerous terrain test';
 export const DANGEROUS_ALPHA = 0.9;
 /** The marks' look: Fantasy stamps them in an ink of the team colour, Sci-fi traces them in the team colour lifted halfway to white, at these
  *  opacities; the kept last move's marks at KEPT_FADE of those. */
-export const INK_ALPHA = 0.7, TRACE_ALPHA = 0.75, INK_SHADE = 0.4, KEPT_FADE = 0.6;
+export const INK_ALPHA = 0.7, TRACE_ALPHA = 0.75, INK_SHADE = 0.4, KEPT_FADE = 0.42;
 /** Under every mark a dark rim (the shape at RIM_SCALE, RIM_ALPHA black), so a light trace reads on a light board and a dangerous mark on the
  *  dangerous band. */
 export const RIM_SCALE = 1.45, RIM_ALPHA = 0.35;

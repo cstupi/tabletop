@@ -22,7 +22,7 @@
   import Banner from './Banner.svelte';
   import { WoundFloats, WoundNumbers } from './woundNumbers';
   import UnitActions from './UnitActions.svelte';
-  import { targetsOf, unitActionsOf } from './unitActionsView';
+  import { targetsOf, unitActionsOf, type Rect } from './unitActionsView';
   import { hoverOf, woundsLine } from './hoverView';
   import HeaderBar from './HeaderBar.svelte';
   import InfoColumn from './InfoColumn.svelte';
@@ -114,7 +114,8 @@
   // page's: they outlive a box, and each change of them redraws the board through `version`.
   let version = $state(0);
   const bump = (): void => { version++; };
-  const violations = new Violations((id) => connection.state.projection?.models.get(id)?.slot.name ?? null);   // the box names the model, as the server does
+  const violations = new Violations((id) => connection.state.projection?.models.get(id)?.slot.name ?? null,
+    (id) => { const p = connection.state.projection; const m = p?.models.get(id); return m === undefined ? null : p?.units.get(m.unitId)?.definition.name ?? null; });   // the box names the model, as the server does
   const drops = new PendingDrops();
   const locks = new MarkerLocks();
   // A move Ask's areas, routes and contacts in Web Workers, started with the first move Ask (moveWorkers.ts); inline where there are none.
@@ -243,12 +244,14 @@
 
   // D2: the board's overlays (allowance rings, rulers, landing rings, violation labels) and the models in breach.
   const warned = $derived.by(() => { void version; return new Set([...violations.marked.keys(), ...violations.warned.keys()]); });
+  /** The bar over the acting unit where it stands (UnitActions), which the labels over the board keep off. */
+  let unitBar = $state<Rect | null>(null);
   const overlays = $derived.by(() => {
     void panel; void version;
     if (scene === null) return [];
     const ordinal = snap?.game?.teams.find((t) => t.id === actingTeam)?.ordinal ?? 1;
     const centreOf = (id: string) => scene.models.find((m) => m.id === id)?.centre ?? null;
-    return drags.overlays(centreOf, ordinal, frame.obstacles);
+    return drags.overlays(centreOf, ordinal, frame.obstacles, unitActions === null ? null : unitBar);
   });
 
   /** TableInput.OnLeftDown: a click on a model the open Ask offers answers (the model or its unit); any other model click selects its unit. */
@@ -569,7 +572,7 @@
       <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...(keptDrawn === null ? [] : [keptDrawn]), ...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="bases" {glow} {marks} floating={woundFloats} {resetAt}>
         {#snippet above(project, scale, size)}
           {#if unitActions !== null && box !== null}<UnitActions actions={unitActions} targets={unitTargets} {box} {panel} {scene} woundLine={actionWoundLine} {project} {scale} {size}
-            names={unitName} onHoverUnit={(u) => { pointedUnit = u; }} obstacles={frame.obstacles} />{/if}
+            names={unitName} onHoverUnit={(u) => { pointedUnit = u; }} obstacles={frame.obstacles} onPlaced={(r) => { unitBar = r; }} />{/if}
         {/snippet}
       </Board>
     {/if}

@@ -6,7 +6,7 @@ using Tabletop.Client.Theming;
 namespace Tabletop.Client.Screens;
 
 /// <summary>Options → Controls: every intent with a key, grouped, each row its name and two key cells. Click a cell and press a key to bind
-/// it (Esc cancels, right-click clears); a key bound elsewhere shows the conflict and offers Swap. Options 1–9, Confirm and Cancel are
+/// it (Esc cancels, right-click clears); a key bound elsewhere shows the conflict and offers Swap. Options 1–9 and 0, Confirm and Cancel are
 /// listed but keep their keys.</summary>
 public partial class OptionsScreen
 {
@@ -23,8 +23,8 @@ public partial class OptionsScreen
         {
             var head = new Label { Text = group.Title.ToUpperInvariant(), ThemeTypeVariation = Variation.Dim, CustomMinimumSize = new Vector2(0, Space.XL), VerticalAlignment = VerticalAlignment.Bottom };
             _rows.AddChild(head);
-            var options = group.Intents.Where(i => i is >= Intent.Option1 and <= Intent.Option9).ToList();
-            if (options.Count > 0) _rows.AddChild(Fixed("Options 1–9", "1–9", "Pick an option of the open decision."));
+            var options = group.Intents.Where(i => i is >= Intent.Option1 and <= Intent.Option10).ToList();
+            if (options.Count > 0) _rows.AddChild(Fixed("Options 1–9, 0", "1–9, 0", "Pick an option of the open decision."));
             foreach (var intent in group.Intents.Except(options))
                 _rows.AddChild(KeyBindings.Rebindable(intent) ? KeyRow(intent, keys) : Fixed(KeyBindings.Name(intent), string.Join(" ", keys.Of(intent).Select(b => string.Join(" + ", KeyBindings.Caps(b))).Distinct()), "This key is fixed."));
         }

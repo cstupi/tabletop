@@ -57,5 +57,29 @@ public class MarkLabelsTests
         Assert.Equal(MarkLabels.Gap, placed[1].Y - placed[0].Bottom, 3);
     }
 
+    [Fact]
+    public void Gap_labels_and_mark_labels_share_one_placement_off_the_panels_and_the_bar_over_the_unit()
+    {
+        // Two coherency gaps whose lines' middles nearly meet, the moved model's "Out of coherency" over them, the bar over the unit on the mark.
+        var bar = new HudRect(360, 250, 92, 42);
+        var panel = new HudRect(0, 0, 200, 720);
+        var (marks, gaps) = MarkLabels.Place([new(A, (405, 300), 150, 22)], [new((400, 320), 160, 20), new((402, 322), 160, 20)], View, [panel], bar);
+        Assert.Single(marks); Assert.Equal(2, gaps.Count);
+        var all = marks.Concat(gaps).ToList();
+        for (var i = 0; i < all.Count; i++)
+        {
+            Assert.False(Overlap(all[i], bar), $"{all[i]} under the bar");
+            Assert.False(Overlap(all[i], panel), $"{all[i]} under the panel");
+            for (var j = i + 1; j < all.Count; j++) Assert.False(Overlap(all[i], all[j]), $"{all[i]} meets {all[j]}");
+        }
+    }
+
+    [Fact]
+    public void A_gap_label_hangs_a_step_over_its_lines_middle_when_nothing_is_in_the_way()
+    {
+        var (_, gaps) = MarkLabels.Place([], [new((400, 320), 160, 20)], View, [], null);
+        Assert.Equal(new HudRect(320, 320 - MarkLabels.Gap - 20, 160, 20), gaps[0]);
+    }
+
     static bool Overlap(HudRect a, HudRect b) => a.X < b.Right && b.X < a.Right && a.Y < b.Bottom && b.Y < a.Bottom;
 }

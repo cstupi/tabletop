@@ -3,7 +3,7 @@ namespace Tabletop.Client.Core;
 /// <summary>What a key asks for (in-game UX spec → Hotkeys). The caller reads it in context: options or rows, Q/E turn the held models (as one body about their centre, or the rows; with Shift each where it stands) and otherwise orbit the camera.</summary>
 public enum Intent
 {
-    Option1, Option2, Option3, Option4, Option5, Option6, Option7, Option8, Option9, Confirm, Cancel, SingleModel, Sight,
+    Option1, Option2, Option3, Option4, Option5, Option6, Option7, Option8, Option9, Option10, Confirm, Cancel, SingleModel, Sight,
     Measure, MeasureHeld, Ping, NextUnit, PreviousUnit, FocusCamera, Undo, ToggleLog, CameraTop, CameraLevel, KeyOverlay, TurnLeft, TurnRight, StopHere,
     CameraForward, CameraBack, CameraLeft, CameraRight, ToggleRoster, ToggleRangeRings, ToggleAllThreats, Remove, MeasureMode, ToggleHitboxes, ToggleTerrainHitboxes, Lower, Raise,
 }
