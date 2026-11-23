@@ -199,5 +199,38 @@ public static class Facade
         }).ToArray());
     }
 
+    /// <summary>Keeps a move Ask's reaches under its key (MoveAsks) for MoveAskArea and MoveAskFrame; reopening a key starts it afresh.</summary>
+    public static string MoveAskOpen(string json)
+    {
+        var r = Read<MoveAskRequest>(json);
+        MoveAsks.Put(r.Key, new MoveAsk(r));
+        return Write(true);
+    }
+
+    /// <summary>A kept Ask's area for one model (MoveReach.Bands as MoveBands composes it), or one share of its walk, as flat coordinates.</summary>
+    public static string MoveAskArea(string json)
+    {
+        var r = Read<MoveAreaRequest>(json);
+        var bands = MoveAsks.Get(r.Key).Area(r.Id, r.Part, r.Parts);
+        return Write(new FlatBands(Flat(bands.Clear), Flat(bands.Difficult), Flat(bands.Dangerous)));
+    }
+
+    static double[] Flat(IReadOnlyList<Point2> points)
+    {
+        var flat = new double[points.Count * 2];
+        for (var i = 0; i < points.Count; i++) { flat[2 * i] = points[i].X; flat[2 * i + 1] = points[i].Y; }
+        return flat;
+    }
+
+    /// <summary>A kept Ask's drag frame (MoveAsk.Frame): the unit's allowance, each moved model's route and the landings' contacts.</summary>
+    public static string MoveAskFrame(string json)
+    {
+        var r = Read<MoveFrameRequest>(json);
+        return Write(MoveAsks.Get(r.Key).Frame(r.Proposed, r.Contacts));
+    }
+
+    /// <summary>Drops a kept Ask; false when none was kept under the key.</summary>
+    public static string MoveAskClose(string json) => Write(MoveAsks.Remove(Read<MoveKeyRequest>(json).Key));
+
     public static string TableHoldsBase(string json) { var r = Read<TableRequest>(json); return Write(Table.ContainsBase(r.Size, r.Model)); }
 }

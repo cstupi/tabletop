@@ -54,3 +54,23 @@ public sealed record RoutesRequest(IReadOnlyList<RouteModel> Models, double Allo
     IReadOnlyList<Guid>? Dangerous = null, IReadOnlyList<Guid>? Unstable = null, double? UnstableOver = null, bool Capped = false);
 /// <summary>Footprints, Dangerous and Stretches: the base swept along the path (SweptPath.Of).</summary>
 public sealed record RouteFound(Guid Id, Point2[] Points, double Distance, bool EntersDifficult, PathFootprint[] Footprints, Guid[] Dangerous, PathStretch[] Stretches);
+
+/// <summary>One model a move Ask moves, where it stands.</summary>
+public sealed record AskModel(Guid Id, PlacedModel Start);
+/// <summary>A move Ask kept under `Key` (MoveAsks): its models, its parameters (MoveRegion's volume ids, cap, MinDistance, Separation, PassesModels,
+/// whether a landing in impassable terrain counts), the board's terrain, the table, the standing models that stop a path (none when the Ask
+/// PassesModels) and every model as a contact body. `Prepare`: every model's reach is built at once, with the fields its route reads (the worker that
+/// answers drag frames), rather than on first use.</summary>
+public sealed record MoveAskRequest(string Key, IReadOnlyList<AskModel> Models, double Allowance, IReadOnlyList<Guid> Impassable, IReadOnlyList<Guid> Difficult,
+    double? DifficultCap, IReadOnlyList<Piece> Terrain, TableSize Size, IReadOnlyList<PlacedModel> Stationary, IReadOnlyList<ContactBody> Bodies,
+    double? Separation = null, bool PassesModels = false, bool Landing = true, IReadOnlyList<Guid>? Steep = null, IReadOnlyList<Guid>? Dangerous = null,
+    IReadOnlyList<Guid>? Unstable = null, double? UnstableOver = null, double? MinDistance = null, bool Prepare = false);
+/// <summary>A kept Ask's area for one model, or the share Part of Parts of it.</summary>
+public sealed record MoveAreaRequest(string Key, Guid Id, int Part = 0, int Parts = 1);
+/// <summary>The area's bands as flat coordinates, x then y, three points a triangle.</summary>
+public sealed record FlatBands(double[] Clear, double[] Difficult, double[] Dangerous);
+/// <summary>A kept Ask's drag frame: where each of its models is proposed; `Contacts` false asks routes only.</summary>
+public sealed record MoveFrameRequest(string Key, IReadOnlyDictionary<Guid, Placement> Proposed, bool Contacts = true);
+/// <summary>The unit's allowance, each moved model's route and the landings' contacts.</summary>
+public sealed record MoveFrame(double Allowance, RouteFound[] Routes, ContactFound[] Contacts);
+public sealed record MoveKeyRequest(string Key);
