@@ -12,7 +12,7 @@ import type { Held } from './modelDrag';
 import { markColour, RIM_SCALE, rimColour, type ModelPath } from './movePaths';
 import { marksOf, placed, type PathMark } from './pathMarks';
 import type { Violations } from './violations';
-import { MARK_GAP, placeMarkLabels } from './markLabels';
+import { MARK_GAP, placeTableLabels } from './markLabels';
 import type { CoherencyPicture } from './coherencyView';
 
 /** `path`: the bent path the move is measured along (from `from` to `to`), drawn instead of the straight line. */
@@ -177,7 +177,7 @@ export const pathsOverlay = (paths: readonly ModelPath[], team: string, vehicle:
 };
 
 /** CoherencyNode: each ghost's ring at the coherency distance from its base edge, faint in the team's colour, and per model out of coherency a
- *  dashed line in the warning colour from its base to the model it is measured to, with its words over the line's middle. */
+ *  dashed line in the warning colour from its base to the model it is measured to; its words over the line's middle are labelOverlay's. */
 export const coherencyOverlay = (picture: CoherencyPicture, team: string, warning: string): Overlay => (ctx, project) => {
   if (picture.rings.length + picture.lines.length === 0) return;
   ctx.save();
@@ -189,12 +189,6 @@ export const coherencyOverlay = (picture: CoherencyPicture, team: string, warnin
   for (const line of picture.lines) {
     const a = project(line.from), b = project(line.to);
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-  }
-  ctx.setLineDash([]); ctx.font = 'bold 11px ui-monospace, monospace'; ctx.textAlign = 'center';
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)'; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.fillStyle = warning;
-  for (const line of picture.lines) {
-    const a = project(line.from), b = project(line.to), at = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 6 };
-    ctx.strokeText(line.text, at.x, at.y); ctx.fillText(line.text, at.x, at.y);
   }
   ctx.restore();
 };
@@ -233,9 +227,11 @@ export const boxOverlay = (from: XY, to: XY, colour = '#ffffff'): Overlay => (ct
 };
 
 /** ViolationMarks' labels: short words by each model, a model's stacked MARK_GAP apart under its base (the unit's name label stands over it),
- *  no two meeting, none leaving the board's canvas and all off the HUD frame's obstacles (placeMarkLabels). */
-export const labelOverlay = (labels: readonly Label[], colour: string, obstacles: readonly Rect[] = []): Overlay => (ctx, project, ppi) => {
-  if (labels.length === 0) return;
+ *  and each coherency gap's words over its line's middle, in one placement: no two meeting, none leaving the board's canvas and all off the HUD
+ *  frame's obstacles and the bar over the acting unit (placeTableLabels). */
+export const labelOverlay = (labels: readonly Label[], colour: string, obstacles: readonly Rect[] = [], gaps: readonly { from: XY; to: XY; text: string }[] = [],
+  bar: Rect | null = null): Overlay => (ctx, project, ppi) => {
+  if (labels.length + gaps.length === 0) return;
   ctx.fillStyle = colour; ctx.font = 'bold 11px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   const lineHeight = 13, measure = measureOf(ctx);
   const ids = labels.map((l, i) => l.modelId ?? `#${i}`);
@@ -249,8 +245,14 @@ export const labelOverlay = (labels: readonly Label[], colour: string, obstacles
   const scale = typeof ctx.getTransform === 'function' ? ctx.getTransform()?.d : undefined;
   const w = viewportWidthOf(ctx), h = typeof canvas?.height === 'number' ? canvas.height / (typeof scale === 'number' && scale > 0 ? scale : 1) : Infinity;
   const view = Number.isFinite(w) && Number.isFinite(h) ? { x: 0, y: 0, w, h } : { x: -1e6, y: -1e6, w: 2e6, h: 2e6 };
-  const placed = placeMarkLabels(wanted, view, obstacles);
+  const gapWanted = gaps.map((g) => {
+    const a = project(g.from), b = project(g.to);
+    return { anchor: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, w: measure(g.text) + 4, h: lineHeight };
+  });
+  const placed = placeTableLabels(wanted, gapWanted, view, obstacles, bar);
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)'; ctx.lineWidth = 3; ctx.lineJoin = 'round';     // a halo, so the words read over the bands and paths
-  labels.forEach((l, i) => { const r = placed[i]!; ctx.strokeText(l.text, r.x + r.w / 2, r.y); ctx.fillText(l.text, r.x + r.w / 2, r.y); });
+  const draw = (text: string, r: Rect): void => { ctx.strokeText(text, r.x + r.w / 2, r.y); ctx.fillText(text, r.x + r.w / 2, r.y); };
+  labels.forEach((l, i) => draw(l.text, placed.marks[i]!));
+  gaps.forEach((g, i) => draw(g.text, placed.gaps[i]!));
   ctx.textBaseline = 'alphabetic';
 };

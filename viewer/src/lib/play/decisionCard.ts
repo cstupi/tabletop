@@ -37,7 +37,8 @@ const DEPLOYS: ReadonlySet<string> = new Set(['deploy', 'deploy_scouts', 'deploy
 const SHORT_TITLE = 36;
 
 export const inches = (d: number): string => `${Number((Math.round(d * 10) / 10).toFixed(1))}"`;
-export const keyCap = (key: number): string => (key > 0 ? String(key) : '');
+/** A number key's cap: 1 to 9, the tenth 0, none for 0 (no key). */
+export const keyCap = (key: number): string => (key === 10 ? '0' : key > 0 ? String(key) : '');
 
 /** The icon of an action word the rulebook uses; null for any other. */
 export function actionIcon(word: string | null | undefined): string | null {

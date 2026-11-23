@@ -27,7 +27,7 @@ public sealed class KeyBindings
     {
         [Intent.Option1] = [B(HotKey.Key1)], [Intent.Option2] = [B(HotKey.Key2)], [Intent.Option3] = [B(HotKey.Key3)],
         [Intent.Option4] = [B(HotKey.Key4)], [Intent.Option5] = [B(HotKey.Key5)], [Intent.Option6] = [B(HotKey.Key6)],
-        [Intent.Option7] = [B(HotKey.Key7)], [Intent.Option8] = [B(HotKey.Key8)], [Intent.Option9] = [B(HotKey.Key9)],
+        [Intent.Option7] = [B(HotKey.Key7)], [Intent.Option8] = [B(HotKey.Key8)], [Intent.Option9] = [B(HotKey.Key9)], [Intent.Option10] = [B(HotKey.Key0)],
         [Intent.Confirm] = [B(HotKey.Enter), B(HotKey.KpEnter)],
         [Intent.Cancel] = [B(HotKey.Escape)],
         [Intent.SingleModel] = [B(HotKey.Shift)],
@@ -123,8 +123,8 @@ public sealed class KeyBindings
         return new(key, shift ? true : null, ctrl ? true : ctrlAny ? null : false);
     }
 
-    /// <summary>Option1–9, Confirm and Cancel are listed in the Controls tab but keep their keys.</summary>
-    public static bool Rebindable(Intent intent) => intent is not ((>= Intent.Option1 and <= Intent.Option9) or Intent.Confirm or Intent.Cancel);
+    /// <summary>Option1–10, Confirm and Cancel are listed in the Controls tab but keep their keys.</summary>
+    public static bool Rebindable(Intent intent) => intent is not ((>= Intent.Option1 and <= Intent.Option10) or Intent.Confirm or Intent.Cancel);
 
     /// <summary>A binding as caps: Ctrl, ⇧, then the key.</summary>
     public static IReadOnlyList<string> Caps(KeyBinding b)
@@ -158,7 +158,7 @@ public sealed class KeyBindings
     /// <summary>The Controls tab's groups, every intent once.</summary>
     public static IReadOnlyList<BindingGroup> Groups { get; } =
     [
-        new("Decisions", [Intent.Option1, Intent.Option2, Intent.Option3, Intent.Option4, Intent.Option5, Intent.Option6, Intent.Option7, Intent.Option8, Intent.Option9,
+        new("Decisions", [Intent.Option1, Intent.Option2, Intent.Option3, Intent.Option4, Intent.Option5, Intent.Option6, Intent.Option7, Intent.Option8, Intent.Option9, Intent.Option10,
             Intent.Confirm, Intent.Cancel, Intent.StopHere]),
         new("Units", [Intent.NextUnit, Intent.PreviousUnit, Intent.SingleModel, Intent.TurnLeft, Intent.TurnRight, Intent.Lower, Intent.Raise]),
         new("Camera", [Intent.CameraForward, Intent.CameraBack, Intent.CameraLeft, Intent.CameraRight, Intent.CameraTop, Intent.CameraLevel, Intent.FocusCamera]),
@@ -170,7 +170,7 @@ public sealed class KeyBindings
     /// <summary>The Controls tab's name for an intent.</summary>
     public static string Name(Intent i) => i switch
     {
-        >= Intent.Option1 and <= Intent.Option9 => $"Option {i - Intent.Option1 + 1}",
+        >= Intent.Option1 and <= Intent.Option10 => $"Option {i - Intent.Option1 + 1}",
         Intent.Confirm => "Confirm", Intent.Cancel => "Cancel or clear", Intent.StopHere => "Stop here",
         Intent.NextUnit => "Next unit", Intent.PreviousUnit => "Previous unit", Intent.SingleModel => "Pick single models",
         Intent.TurnLeft => "Turn or orbit left", Intent.TurnRight => "Turn or orbit right", Intent.Lower => "Lower held pieces", Intent.Raise => "Raise held pieces",

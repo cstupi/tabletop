@@ -37,11 +37,12 @@ describe('cardActions', () => {
     expect([ids(activate), activate[0]!.word]).toEqual([['pass'], 'End phase']);
   });
 
-  it('keys follow the tiles, primary first; past nine none, never a duplicate', () => {
+  it('keys follow the tiles, primary first; the tenth keyed 0, past ten none, never a duplicate', () => {
     const a = actionsOf(ask({ kind: 'assignment', items: [], targets: [], maxDistinctTargets: 1 } as LegalSet, 'declare_targets', true), 'assign', p);
     expect(numberActions(a, 0).map((x) => x.key)).toEqual([1, 2, 3]);
     expect(numberActions(a, 3).map((x) => x.key)).toEqual([4, 5, 6]);
-    expect(numberActions(a, 7).map((x) => x.key)).toEqual([8, 9, 0]);
+    expect(numberActions(a, 7).map((x) => x.key)).toEqual([8, 9, 10]);
+    expect(numberActions(a, 9).map((x) => x.key)).toEqual([10, 0, 0]);
     expect(numberActions(a, 12).map((x) => x.key)).toEqual([0, 0, 0]);
     expect(numberActions(actionsOf(ask({ kind: 'confirmation' } as LegalSet), 'confirm', p), 0)[0]!.key).toBe(1);
   });

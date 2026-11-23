@@ -15,7 +15,7 @@ export interface CardAction {
   readonly key: number; readonly enabled: boolean; readonly reason: string | null;
 }
 
-const KEYED = 9;
+const KEYED = 10;
 const act = (id: string, word: string, icon: string | null, primary = false): CardAction => ({ id, word, icon, primary, key: 0, enabled: true, reason: null });
 
 /** The foot actions of an Ask's card, the primary first and Pass last, without keys or state. */

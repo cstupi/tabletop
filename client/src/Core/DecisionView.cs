@@ -4,7 +4,7 @@ namespace Tabletop.Client.Core;
 
 /// <summary>
 /// What the decision box shows (UX redesign part 2 → Decision box): the first open Ask addressed to my team and its numbered entries
-/// (keys 1–9, then 0 for entries past nine); with nothing addressed to me, no Ask, and the box draws DecisionCard.Quiet's bands.
+/// (keys 1–9, then 0 for the tenth; none past ten); with nothing addressed to me, no Ask, and the box draws DecisionCard.Quiet's bands.
 /// The keys are caps on the buttons; there is no hint line.
 /// </summary>
 public sealed record DecisionModel(Ask? Ask, AskMode? Mode, string Title, IReadOnlyList<(int Key, string Label, string OptionId)> Numbered);
@@ -14,7 +14,7 @@ public sealed record ChoiceRow(AskOption? Option, string? Note);
 
 public static class DecisionView
 {
-    const int Keyed = 9;
+    const int Keyed = 10;
     static readonly string[] DeployQuestions = [AskQuestions.Deploy, AskQuestions.DeployScouts, AskQuestions.DeployAmbusher, AskQuestions.DeployReinforcement];
 
     public static DecisionModel Of(Projection p, GameInfo game, Names n, Guid? myTeam)

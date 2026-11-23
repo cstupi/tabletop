@@ -13,12 +13,14 @@
   import { hoverLabelBox } from './hoverLabels';
   import { placeRect, tipOf, UnitActionsHold, type Rect, type UnitActions, type UnitTarget } from './unitActionsView';
 
-  let { actions, targets, box, panel, scene, woundLine, project, scale, size, names, onHoverUnit, obstacles = [] }: {
+  let { actions, targets, box, panel, scene, woundLine, project, scale, size, names, onHoverUnit, obstacles = [], onPlaced }: {
     actions: UnitActions; targets: readonly UnitTarget[]; box: DecisionBox; panel: DecisionPanel; scene: Scene; woundLine: boolean;
     project: (p: { x: number; y: number }) => { x: number; y: number }; scale: number; size: { width: number; height: number };
     names: (unitId: string) => string; onHoverUnit: (unitId: string | null) => void;
     /** The HUD frame's obstacles: the panels over the board, which the bar keeps off. */
     obstacles?: readonly Rect[];
+    /** Where the bar stands (null once it is gone): the labels over the board keep off it (placeTableLabels). */
+    onPlaced?: (bar: Rect | null) => void;
   } = $props();
 
   const BUTTON = 42, GAP = 4, SPACE = 8;   // a button's size (the tile's 26 px icon in an 8 px inset); --s1 between buttons, --s2 above the models
@@ -41,6 +43,8 @@
     // Above the unit's name label too, shown or not, so a button that brings it up never moves out from under the pointer.
     return placeRect(at.x, at.y, w, BUTTON, view, obstacles, SPACE, hoverLabelBox(scene, actions.unitId, woundLine, project, scale));
   });
+  $effect(() => { onPlaced?.(rect); });
+  $effect(() => () => onPlaced?.(null));
   // Where the bar is drawn: held while the pointer is over it or a button is down anywhere (a drag of the models moves the name label under
   // it, and a click aimed at Commit right after must land), else eased to rect each animation frame.
   const hold = new UnitActionsHold();

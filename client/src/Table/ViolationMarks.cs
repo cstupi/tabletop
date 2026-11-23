@@ -8,7 +8,8 @@ namespace Tabletop.Client.Table;
 /// The models in breach (TableInput.Violations) drawn in the theme's warning colour, and each reason once in a short label over its first model
 /// (`Too close 1"`, `Through a model`, `On a base`, `Out of coherency`, `Dangerous terrain test`: Violations.Labels, MarkWords); the full
 /// sentence is the decision box's. The labels are controls in the table viewport's own canvas layer, placed each frame by MarkLabels: a model's
-/// labels stacked Space.XS apart over it, no two overlapping, all off the Hud's panels (Session.Hud's Obstacles). A model in hand carries its labels with the cursor.
+/// labels stacked Space.XS apart over it, placed with the coherency gap labels (TableView.Coherency) in one placement, no two overlapping, all off
+/// the Hud's panels (Session.Hud's Obstacles) and the bar over the acting unit (Session.UnitBar). A model in hand carries its labels with the cursor.
 /// </summary>
 public partial class ViolationMarks : Node3D
 {
@@ -17,7 +18,8 @@ public partial class ViolationMarks : Node3D
     readonly CanvasLayer _layer = new();
     readonly List<(Guid ModelId, Label Label)> _labels = [];
     readonly List<MarkLabel> _wanted = [];
-    readonly List<Label> _order = [];
+    readonly List<Label> _order = [], _gapOrder = [];
+    readonly List<GapLabel> _gaps = [];
     LabelSettings? _look;
     bool _dirty = true;
     Action? _onChanged, _onTheme;
@@ -72,9 +74,10 @@ public partial class ViolationMarks : Node3D
 
     void Place()
     {
-        if (_labels.Count == 0) return;
         if (GetViewport().GetCamera3D() is not { } cam) return;
-        _wanted.Clear(); _order.Clear();
+        _wanted.Clear(); _order.Clear(); _gaps.Clear(); _gapOrder.Clear();
+        _view.Coherency.Wanted(cam, _gaps, _gapOrder);
+        if (_labels.Count == 0 && _gaps.Count == 0) return;
         foreach (var (id, label) in _labels)
         {
             label.Visible = false;
@@ -85,8 +88,9 @@ public partial class ViolationMarks : Node3D
             _wanted.Add(new MarkLabel(id, (at.X, at.Y), box.X, box.Y)); _order.Add(label);
         }
         var size = GetViewport().GetVisibleRect().Size;
-        var placed = MarkLabels.Place(_wanted, new HudRect(0, 0, size.X, size.Y), _s.Hud.Obstacles);
+        var (placed, gaps) = MarkLabels.Place(_wanted, _gaps, new HudRect(0, 0, size.X, size.Y), _s.Hud.Obstacles, _s.UnitBar);
         for (var i = 0; i < placed.Count; i++) { _order[i].Position = new Vector2(placed[i].X, placed[i].Y); _order[i].Visible = true; }
+        for (var i = 0; i < gaps.Count; i++) { _gapOrder[i].Position = new Vector2(gaps[i].X, gaps[i].Y); _gapOrder[i].Visible = true; }
     }
 
     /// <summary>Every label made once stands (hidden when not wanted) and is set in place: a pickup or drag frame that changes the marks makes no
