@@ -4,7 +4,7 @@
 
 import type { ModelInPlay, Projection } from '../live/apply';
 import { effectiveLog } from '../live/apply';
-import type { Ask, Base, GameEvent, KeepAway, ModelRelocation, Placement, Point3, TableSize } from '../protocol/wire.generated';
+import type { Ask, Base, GameEvent, KeepAway, ModelRelocation, Placement, Point3, TableSize, Yaw } from '../protocol/wire.generated';
 
 /** A deploy activation the server is waiting on: the unit picked at a deploy Ask, the models of it still on the shelf, and the distance from
  *  enemy units the pick carried for it (PieceSelection.keepAway: an Ambusher, a 3.6 Scout, a 3.6 Reinforcement copy), or null. */
@@ -69,9 +69,12 @@ export function layout(models: readonly ModelInPlay[], at: Point3, size: TableSi
 /**
  * Shelf models placed relative to a model on the table (a Spawn or Split reserve, placed "fully within 6\"" of its anchor): rings about the
  * anchor's centre, the first clear of its base by the separation, each as many models as fit a pitch apart, yaw 0; a spot whose base would
- * leave the table is skipped. A row of `layout` would reach past 6" for five wide bases; a ring keeps every model as close as it can go.
+ * leave the table is skipped. A row of `layout` would reach past 6" for five wide bases; a ring keeps every model as close as it can go. With
+ * `fit` a spot is taken only at the facing it gives (a disembark's exitYaw: within the exit reach, on the table, clear of impassable terrain),
+ * else skipped, and the rings stop at `farthest` from the anchor's centre.
  */
-export function around(models: readonly ModelInPlay[], anchor: Placement, anchorBase: Base, size: TableSize, clearance?: number): ModelRelocation[] {
+export function around(models: readonly ModelInPlay[], anchor: Placement, anchorBase: Base, size: TableSize, clearance?: number,
+  fit?: (m: ModelInPlay, at: { x: number; y: number }) => Yaw | null, farthest: number = Number.MAX_VALUE): ModelRelocation[] {
   if (models.length === 0) return [];
   const wide = widest(models);
   const pitch = wide + GAP;
@@ -81,7 +84,7 @@ export function around(models: readonly ModelInPlay[], anchor: Placement, anchor
   const placed: ModelRelocation[] = [];
   let next = 0;
   // Ring by ring outward: a spot whose base would leave the table is skipped (pulling it back on would bring it toward the anchor).
-  for (let rings = 0; next < models.length && rings < MAX_RINGS; rings++, radius += pitch) {
+  for (let rings = 0; next < models.length && rings < MAX_RINGS && radius <= farthest; rings++, radius += pitch) {
     const room = Math.max(1, Math.floor(2 * Math.PI * radius / pitch));
     for (let i = 0; i < room && next < models.length; i++) {
       const angle = 2 * Math.PI * i / room;
@@ -90,7 +93,9 @@ export function around(models: readonly ModelInPlay[], anchor: Placement, anchor
       const x = anchor.position.x + radius * Math.cos(angle);
       const y = anchor.position.y + radius * Math.sin(angle);
       if (x < half || x > size.width - half || y < half || y > size.length - half) continue;
-      placed.push({ modelId: m.id, from: m.location, to: { kind: 'table', placement: { position: { x, y, z: anchor.position.z }, yaw: { degrees: 0 } } } });
+      let yaw: Yaw = { degrees: 0 };
+      if (fit !== undefined) { const fits = fit(m, { x, y }); if (fits === null) continue; yaw = fits; }
+      placed.push({ modelId: m.id, from: m.location, to: { kind: 'table', placement: { position: { x, y, z: anchor.position.z }, yaw } } });
       next++;
     }
   }

@@ -4,7 +4,7 @@
 // Geometry.moveBands, in its bands), and each ghost's ruler reads the path the server measures (Geometry.moveRoutes: MoveRegions.Route, the unit
 // held to the cap once any path goes in or through difficult ground, MoveRegions.Allowance). The spec's cuts: a target is held only to the allowance
 // on a straight line (ModelDrag), the allowance is the Ask's and the difficult cap is the server's to judge; a disembark or a shelf placement
-// starts its ghosts in rings about the container (DeployView.around) and the server judges p.15. Every ghost is a Placement in
+// starts its ghosts in rings about the container (MoveRuler.exitStart) and the server judges p.15. Every ghost is a Placement in
 // `box.ghosts`: its position and the facing the player gave it, which the answer carries.
 
 import { placed, type Geometry, type MoveBands, type RouteFound, type RoutesRequest, type XY } from '../geometry';
@@ -19,11 +19,11 @@ import { button, dim, type Control, type DecisionBox, type MoveHooks } from './d
 import { barOf, inches } from './decisionCard';
 import { PLACING } from './cardActions';
 import { stopLabel } from './decisionView';
-import { around, layout, type MidDeploy } from './deployView';
+import { layout, type MidDeploy } from './deployView';
 import { stationary } from './modelDrag';
 import { GhostStash } from './ghostStash';
 import type { Held } from './modelDrag';
-import { gate as gateOf, isDisembark, isShelfPlacement, read, readDistance, type MoveGate, type RulerReadout } from './moveRuler';
+import { exitStart, exitWords, gate as gateOf, isDisembark, isShelfPlacement, read, readDistance, type MoveGate, type RulerReadout } from './moveRuler';
 import { lines as warningLines, marks as warningMarks, pathOf, type ModelPath } from './movePaths';
 import type { Names } from './names';
 import type { PendingDrops } from './pendingDrops';
@@ -193,10 +193,11 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       const unitName = n.unit(lead.unitId);
       box.setHead(fromShelf ? { icon: 'army', title: 'Place', subject: unitName, prompt: ask.prompt }   // the Ask's prompt says what is placed
         : { icon: 'advance', title: 'Disembark', subject: unitName, prompt: `Fully within ${inches(within)} of ${n.unit(container.unitId)}` });
+      box.pinned = new Set([containerId]);                                 // the transport (or the anchor) stays put: a drag over it takes a ghost or nothing
+      // The ghosts start around the container, clear of it and within the exit reach (MoveRuler.ExitStart): a commit as they stand leaves it.
       start = () => {
         box.ghosts.clear();
-        for (const r of around(legal.modelIds.map((id) => p.models.get(id)!), at, container.slot.base, size, legal.separation))
-          if (r.to.kind === 'table') box.ghosts.set(r.modelId, r.to.placement);
+        for (const r of exitStart(deps.geometry(), p, legal, size)) if (r.to.kind === 'table') box.ghosts.set(r.modelId, r.to.placement);
       };
     } else {
       if (lead.location.kind !== 'table') { box.proposing = new Set(); return; }
@@ -263,9 +264,12 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       }
       // p.7 unit coherency, as the server measures it (CoherencyView): a mark where the server refuses it, else a warning.
       coherency = g === null ? NO_COHERENCY : coherencyOf(g, p, new Map(box.ghosts), box.host.state().coherency, (id) => p.models.get(id)?.slot.name ?? n.model(id), true);
-      if (g !== null)
-        deps.violations.measure(legal.modelIds, withCoherency(withKeepAway(allWords(contactsOfMove(g, p, legal, new Map(box.ghosts), size), legal.separation, n.unit.bind(n)),
-          g, p, legal.keepAway ?? null, new Map(box.ghosts), n.unit.bind(n)), coherency));
+      if (g !== null) {
+        // A disembarking ghost the exit does not allow where it stands (p.15: beyond 6" of the transport) is marked as its contacts are.
+        const contacts = allWords(contactsOfMove(g, p, legal, new Map(box.ghosts), size), legal.separation, n.unit.bind(n));
+        for (const [id, words] of exitWords(g, p, legal, new Map(box.ghosts), size, (c) => n.unit(p.models.get(c)!.unitId))) if (!contacts.has(id)) contacts.set(id, words);
+        deps.violations.measure(legal.modelIds, withCoherency(withKeepAway(contacts, g, p, legal.keepAway ?? null, new Map(box.ghosts), n.unit.bind(n)), coherency));
+      }
       deps.violations.warn(legal.modelIds, coherencyWarnings(warningMarks(paths), coherency));
       const warnings = [...warningLines(paths, (id) => p.models.get(id)?.slot.name ?? n.model(id), (v) => deps.terrainName?.(v) ?? 'terrain'),
         ...(coherency.blocks ? [] : coherency.words.values())];

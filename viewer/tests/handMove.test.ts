@@ -25,6 +25,13 @@ describe('hand moves', () => {
     expect(mayDrag(models('a', 'b'), false, new Set(['a']), 'strict', 'playing', null, locks)).toBe(false);
   });
 
+  it('a model the open Ask holds still never drags: a disembark transport', () => {
+    const transport = new Set(['apc']);
+    expect(mayDrag(models('apc'), false, new Set(['p1']), 'warn', 'playing', null, locks, transport)).toBe(false);
+    expect(mayDrag(models('apc'), false, none, 'silent', 'playing', null, locks, transport)).toBe(false);
+    expect(mayDrag(models('p1'), false, new Set(['p1']), 'strict', 'playing', null, locks, transport)).toBe(true);
+  });
+
   it('a watcher drags nothing', () => {
     expect(mayDrag(models('a'), true, new Set(['a']), 'silent', 'playing', null, locks)).toBe(false);
     expect(mayDrag({ kind: 'marker', id: 'm' }, true, none, 'silent', 'playing', null, locks)).toBe(false);

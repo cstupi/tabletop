@@ -9,7 +9,8 @@ import type { Projection } from '../live/apply';
 import type { GameInfo, Marker, Placement, TerrainPlacement, ZoneLegs } from '../protocol/wire.generated';
 
 /**
- * Ghosts (a move's or a deploy's proposed placements) override where a model is drawn; shelf and inside models go to offTable; a moved
+ * Ghosts (a move's or a deploy's proposed placements) override where a model is drawn and are drawn after every other model, so a ghost over a
+ * model (a disembark's passenger over its transport) shows on top and is picked first; shelf and inside models go to offTable; a moved
  * setup marker is drawn once, at its new spot, after the unmoved ones, each objective coloured by its controller (projection.control).
  */
 export function sceneOfPlay(
@@ -67,5 +68,6 @@ export function sceneOfPlay(
       circle: { kind: 'circle', centre, radius: Math.max(a, b) / 2 },
     });
   }
-  return { ...base, markers, models, offTable };
+  const drawn = [...models.filter((m) => !ghosts.has(m.id)), ...models.filter((m) => ghosts.has(m.id))];
+  return { ...base, markers, models: drawn, offTable };
 }

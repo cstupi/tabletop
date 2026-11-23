@@ -192,22 +192,10 @@ public partial class TableView : Node3D
     }
 
     /// <summary>
-    /// A disembark's draggable stand-ins. An occupant has no placement and therefore no piece node (game flow → Inside a
-    /// container), so the decision box asks for one node per model, stacked on the container's own placement, in the ghost
-    /// colour. They live in their own child, which <see cref="Redraw"/> never diffs, so a board event arriving mid-answer
-    /// cannot delete them and their dragged positions survive until the player commits.
-    /// </summary>
-    public void ShowExitGhosts(IReadOnlyList<Guid> modelIds, Guid containerId)
-    {
-        ClearExitGhosts();
-        if (_session.Projection is not { } p) return;
-        foreach (var g in GhostLooks.Exiting(p, modelIds, containerId)) _ghosts.AddChild(Ghost(g, Palette.Ghost));
-    }
-
-    /// <summary>
-    /// The deployment placement's stand-ins (in-game UX spec → Deployment placement): one node per relocation at its OnTable
-    /// placement, in the ghost colour, for models still on the shelf. Same child as the exit ghosts, so Redraw never diffs
-    /// them and ClearExitGhosts clears them.
+    /// The placement ghosts (in-game UX spec → Deployment placement): one node per relocation at its OnTable placement, in the ghost
+    /// colour, for models on the shelf or inside a container (a disembark's passengers, MoveRuler.ExitStart). An occupant has no piece
+    /// node, so its ghost is its only node. They live in their own child, which Redraw never diffs, so a board event arriving mid-answer
+    /// cannot delete them and their dragged positions survive until the player commits; ClearExitGhosts clears them.
     /// </summary>
     public void ShowGhosts(IReadOnlyList<ModelRelocation> placements)
     {
