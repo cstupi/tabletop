@@ -124,7 +124,7 @@ public class DecisionCardTests
     [Fact]
     public void Key_caps()
     {
-        Assert.Equal(("3", ""), (DecisionCard.KeyCap(3), DecisionCard.KeyCap(0)));
+        Assert.Equal(("3", "0", ""), (DecisionCard.KeyCap(3), DecisionCard.KeyCap(10), DecisionCard.KeyCap(0)));
         Assert.Equal(("Hold", "Red unit 1"), (DecisionCard.Word("Red unit 1: Hold"), DecisionCard.Word("Red unit 1")));
     }
 }

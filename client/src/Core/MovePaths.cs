@@ -35,9 +35,9 @@ public static class MovePaths
 
     /// <summary>The marks' look (PathMarks): Fantasy stamps them in an ink of the team colour (`ink`), Sci-fi traces them in the team colour lifted
     /// halfway to white, both at these opacities; a mark where the base touches dangerous ground in the dangerous colour at DangerousAlpha; the kept
-    /// last move's marks at KeptFade of those. Under every mark a dark rim (the shape at RimScale, RimAlpha black), so a light trace reads on a light
+    /// last move's marks at KeptFade of those, so a mark over its rim draws at about half the live opacity. Under every mark a dark rim (the shape at RimScale, RimAlpha black), so a light trace reads on a light
     /// print and a dangerous mark on the dangerous band.</summary>
-    public const float InkAlpha = 0.7f, TraceAlpha = 0.75f, InkShade = 0.4f, KeptFade = 0.6f, RimScale = 1.45f, RimAlpha = 0.35f;
+    public const float InkAlpha = 0.7f, TraceAlpha = 0.75f, InkShade = 0.4f, KeptFade = 0.42f, RimScale = 1.45f, RimAlpha = 0.35f;
 
     /// <summary>A mark's colour for the moving team's colour, in the theme's look.</summary>
     public static Rgba MarkColour(PathMark m, Rgba team, bool ink, bool kept)

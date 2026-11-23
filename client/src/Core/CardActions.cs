@@ -12,14 +12,14 @@ public sealed record CardAction(string Id, string Word, string? Icon, bool Prima
 
 /// <summary>
 /// The decision card's foot actions and their keys (the owner, 2026-11-21: "if 1,2,3 decides then users should hit 1 not enter"). Every
-/// action on the card is numbered in one sequence: the option tiles first, then the foot's actions, the primary first; past 9 none has a key.
+/// action on the card is numbered in one sequence: the option tiles first, then the foot's actions, the primary first; the tenth is keyed 0 (DecisionCard.KeyCap), past ten none has a key.
 /// The box, the bar over the unit and the key overlay read these. Enter and Esc stay silent aliases for the primary and Clear or Cancel.
 /// </summary>
 public static class CardActions
 {
     public const string Confirm = "confirm", Spend = "spend", Commit = "commit", Stop = "stop", Fire = "fire", Clear = "clear", Auto = "auto",
         Done = "done", Place = "place", Pass = "pass";
-    const int Keyed = 9;
+    const int Keyed = 10;
 
     /// <summary>The foot actions of an Ask's card, the primary first and Pass last, without keys or state.</summary>
     public static IReadOnlyList<CardAction> Of(Ask ask, AskMode mode, Projection p)

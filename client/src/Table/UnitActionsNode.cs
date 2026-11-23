@@ -38,6 +38,7 @@ public partial class UnitActionsNode : Control
     public override void _ExitTree()
     {
         Ui.Changed -= _onTheme;
+        if (_s is not null) _s.UnitBar = null;
         if (_box is not null && IsInstanceValid(_box)) { _box.Rendered -= _onDirty; _box.TileHovered -= _onTile; _box.TargetsChanged -= _onTargets; }
         if (_input is not null && IsInstanceValid(_input)) { _input.SelectionChanged -= _onDirty; _input.UnitClicked -= _onUnit; }
     }
@@ -153,7 +154,7 @@ public partial class UnitActionsNode : Control
     {
         if (_dirty) Render();
         if (_targetsDirty) RenderTargets();
-        if (_shown is not { } v) { _hold.Reset(); foreach (var (b, _) in _targets) b.Visible = false; return; }
+        if (_shown is not { } v) { _hold.Reset(); _s.UnitBar = null; foreach (var (b, _) in _targets) b.Visible = false; return; }
         SyncActs();
         var cam = _view.Camera; var screen = GetViewportRect().Size; var view = new HudRect(0, 0, screen.X, screen.Y); var covered = _s.Hud.Obstacles;   // the Hud's panels (the play table fills the window)
         var top = WorldFrame.ToGodot(v.Anchor);
@@ -172,6 +173,7 @@ public partial class UnitActionsNode : Control
             at = _hold.Step(v.UnitId, at, held, (float)delta);
             _row.Position = new Vector2(at.X, at.Y); _row.Size = size; _row.Visible = true;
         }
+        _s.UnitBar = _row.Visible ? new HudRect(_row.Position.X, _row.Position.Y, _row.Size.X, _row.Size.Y) : null;   // the labels over the table keep off it
         foreach (var (b, t) in _targets)
         {
             var over = WorldFrame.ToGodot(t.Anchor);

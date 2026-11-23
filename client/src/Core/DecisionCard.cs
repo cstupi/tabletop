@@ -42,7 +42,7 @@ public static class DecisionCard
 
     public static string Inches(double d) => $"{Math.Round(d, 1):0.#}\"";
 
-    public static string KeyCap(int key) => key > 0 ? key.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
+    public static string KeyCap(int key) => key == 10 ? "0" : key > 0 ? key.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
 
     /// <summary>The icon of an action word the rulebook uses; null for any other.</summary>
     public static string? ActionIcon(string? word) => word?.Trim().ToLowerInvariant() switch

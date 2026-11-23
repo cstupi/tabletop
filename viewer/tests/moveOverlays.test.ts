@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Held } from '../src/lib/play/modelDrag';
-import { labelOverlay, landingOverlay, landingRings, pathsOverlay, rulerLines, rulerOverlay, violationLabels, allowanceOverlay } from '../src/lib/play/moveOverlays';
+import { coherencyOverlay, labelOverlay, landingOverlay, landingRings, pathsOverlay, rulerLines, rulerOverlay, violationLabels, allowanceOverlay } from '../src/lib/play/moveOverlays';
 import { markColour, rimColour } from '../src/lib/play/movePaths';
 import { read } from '../src/lib/play/moveRuler';
 import { Violations } from '../src/lib/play/violations';
@@ -77,6 +77,35 @@ describe('move overlays', () => {
     expect(second!.y - first!.y).toBe(13 + 4);
     expect(Math.abs(other!.y - first!.y) >= 13 || Math.abs(other!.y - second!.y) >= 13).toBe(true);
     expect([first, second].every((t) => Math.abs(other!.y - t!.y) >= 13 || Math.abs(other!.x - t!.x) * 2 >= (t!.text.length + other!.text.length) * 7)).toBe(true);
+  });
+
+  it("two gap labels and a model's label never meet, and the coherency lines draw no words of their own", () => {
+    const texts: { text: string; x: number; y: number }[] = [];
+    const ctx = new Proxy({}, {
+      get: (_t, k) => (k === 'fillText' ? (text: string, x: number, y: number) => texts.push({ text, x, y }) : k === 'measureText' ? (t: string) => ({ width: t.length * 7 }) : () => {}),
+      set: () => true,
+    }) as unknown as CanvasRenderingContext2D;
+    const project = (p: { x: number; y: number }) => ({ x: p.x * 10, y: p.y * 10 });
+    const lines = [{ from: { x: 18, y: 22, z: 0 }, to: { x: 24, y: 22, z: 0 }, text: '4.5" apart, needs 1"' }, { from: { x: 19, y: 22, z: 0 }, to: { x: 23, y: 22, z: 0 }, text: '3.5" apart, needs 1"' }];
+    coherencyOverlay({ rings: [], lines } as never, '#3366e6', '#fa0')(ctx, project, 10);
+    expect(texts).toEqual([]);
+    labelOverlay([{ modelId: 'a', at: { x: 21, y: 20 }, text: 'Out of coherency' }], '#fa0', [], lines)(ctx, project, 10);
+    expect(texts.map((t) => t.text).sort()).toEqual(['3.5" apart, needs 1"', '4.5" apart, needs 1"', 'Out of coherency']);
+    for (let i = 0; i < texts.length; i++) for (let j = i + 1; j < texts.length; j++) {
+      const a = texts[i]!, b = texts[j]!;
+      expect(Math.abs(a.y - b.y) >= 13 || Math.abs(a.x - b.x) * 2 >= (a.text.length + b.text.length) * 7).toBe(true);
+    }
+  });
+
+  it('the kept path draws at about half the live path\'s opacity in either look', () => {
+    const alpha = (css: string): number => Number(/,\s*([0-9.]+)\)$/.exec(css)![1]);
+    const over = (mark: string, rim: string): number => 1 - (1 - alpha(mark)) * (1 - alpha(rim));
+    for (const ink of [false, true]) {
+      const live = over(markColour({ dangerous: false }, '#3366e6', ink, false), rimColour(false));
+      const kept = over(markColour({ dangerous: false }, '#3366e6', ink, true), rimColour(true));
+      expect(kept / live).toBeGreaterThanOrEqual(0.45);
+      expect(kept / live).toBeLessThanOrEqual(0.55);
+    }
   });
 
   it('a path fills its marks over their rims, those on a dangerous stretch in the dangerous colour, the kept path fainter', () => {

@@ -1,7 +1,7 @@
 // viewer/src/lib/play/markLabels.ts
 // client/src/Core/MarkLabels.cs: the short noun phrase a mark's label over the board reads (MarkWords; the full sentence is the decision box's),
 // and where the labels stand: a model's labels stacked downward MARK_GAP apart, centred over its anchor with the stack's foot on it, each stack
-// placed as one block by placeRingLabels, so no two overlap and none leaves the view.
+// placed as one block by placeRingLabels with the coherency gap labels (placeTableLabels), so no two overlap and none leaves the view.
 
 import type { XY } from '../geometry';
 import { TEST_WORDS } from './movePaths';
@@ -35,8 +35,16 @@ export function shortWords(reason: string): string {
 export const MARK_GAP = 4;
 
 export interface MarkLabel { readonly modelId: string; readonly anchor: XY; readonly w: number; readonly h: number }
+/** A coherency gap's words: the middle of its line on the screen, and its size. */
+export interface GapLabel { readonly anchor: XY; readonly w: number; readonly h: number }
 
 export function placeMarkLabels(labels: readonly MarkLabel[], view: Rect, covered: readonly Rect[] = []): Rect[] {
+  return placeTableLabels(labels, [], view, covered, null).marks;
+}
+
+/** Mark labels and coherency gap labels in one placement: each model's stack and each gap label (MARK_GAP over its line's middle) one block for
+ *  placeRingLabels, so none meets another, the covered rectangles or the bar over the acting unit. */
+export function placeTableLabels(labels: readonly MarkLabel[], gaps: readonly GapLabel[], view: Rect, covered: readonly Rect[], bar: Rect | null): { marks: Rect[]; gaps: Rect[] } {
   const models = [...new Set(labels.map((l) => l.modelId))];
   const blocks = models.map((id): Rect => {
     const mine = labels.filter((l) => l.modelId === id);
@@ -44,7 +52,8 @@ export function placeMarkLabels(labels: readonly MarkLabel[], view: Rect, covere
     const at = mine[0]!.anchor;
     return { x: at.x - w / 2, y: at.y - h, w, h };
   });
-  const placed = placeRingLabels(blocks, view, covered);
+  for (const g of gaps) blocks.push({ x: g.anchor.x - g.w / 2, y: g.anchor.y - MARK_GAP - g.h, w: g.w, h: g.h });
+  const placed = placeRingLabels(blocks, view, bar === null ? covered : [...covered, bar]);
   const result: Rect[] = new Array(labels.length);
   models.forEach((id, b) => {
     const block = placed[b]!; let y = block.y; const cx = block.x + block.w / 2;
@@ -54,5 +63,5 @@ export function placeMarkLabels(labels: readonly MarkLabel[], view: Rect, covere
       y += l.h + MARK_GAP;
     });
   });
-  return result;
+  return { marks: result, gaps: placed.slice(models.length) };
 }

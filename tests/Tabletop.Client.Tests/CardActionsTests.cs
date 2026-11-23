@@ -58,14 +58,15 @@ public class CardActionsTests
         => Assert.Equal(1, CardActions.Numbered(CardActions.Of(AskOf(new Confirmation()), AskMode.Confirm, P), 0)[0].Key);
 
     [Fact]
-    public void Past_nine_no_key_and_never_a_duplicate()
+    public void The_tenth_is_keyed_0_past_ten_no_key_and_never_a_duplicate()
     {
         var ask = AskOf(new Assignment([], [], 1), "declare_targets", allowPass: true);
-        Assert.Equal([8, 9, 0], CardActions.Numbered(CardActions.Of(ask, AskMode.Assign, P), 7).Select(a => a.Key));
+        Assert.Equal([8, 9, 10], CardActions.Numbered(CardActions.Of(ask, AskMode.Assign, P), 7).Select(a => a.Key));
+        Assert.Equal([10, 0, 0], CardActions.Numbered(CardActions.Of(ask, AskMode.Assign, P), 9).Select(a => a.Key));
         Assert.Equal([0, 0, 0], CardActions.Numbered(CardActions.Of(ask, AskMode.Assign, P), 12).Select(a => a.Key));
-        for (var tiles = 0; tiles <= 10; tiles++)
+        for (var tiles = 0; tiles <= 11; tiles++)
         {
-            var keys = Enumerable.Range(1, Math.Min(tiles, 9)).Concat(CardActions.Numbered(CardActions.Of(ask, AskMode.Assign, P), tiles).Select(a => a.Key)).Where(k => k > 0).ToList();
+            var keys = Enumerable.Range(1, Math.Min(tiles, 10)).Concat(CardActions.Numbered(CardActions.Of(ask, AskMode.Assign, P), tiles).Select(a => a.Key)).Where(k => k > 0).ToList();
             Assert.Equal(keys.Count, keys.Distinct().Count());
         }
     }

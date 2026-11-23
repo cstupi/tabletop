@@ -91,7 +91,7 @@ describe('DecisionCard', () => {
   });
 
   it('key caps and words', () => {
-    expect([keyCap(3), keyCap(0)]).toEqual(['3', '']);
+    expect([keyCap(3), keyCap(10), keyCap(0)]).toEqual(['3', '0', '']);
     expect([word('Red unit 1: Hold'), word('Red unit 1')]).toEqual(['Hold', 'Red unit 1']);
   });
 });

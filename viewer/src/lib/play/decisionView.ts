@@ -1,6 +1,6 @@
 // viewer/src/lib/play/decisionView.ts
 // client/src/Core/DecisionView.cs: what the decision box shows (UX redesign part 2 → Decision box): the first open Ask addressed to my
-// team and its numbered entries (keys 1–9, then 0 for entries past nine); with nothing addressed to me, no Ask, and the box draws
+// team and its numbered entries (keys 1–9, then 0 for the tenth; none past ten); with nothing addressed to me, no Ask, and the box draws
 // decisionCard's quiet bands. The keys are caps on the buttons; there is no hint line.
 
 import type { Projection } from '../live/apply';
@@ -10,7 +10,7 @@ import { DEPLOY_QUESTIONS } from './deployView';
 import type { Names } from './names';
 import { teamOf } from './sheetFocus';
 
-const KEYED = 9;
+const KEYED = 10;
 
 export interface Numbered { readonly key: number; readonly label: string; readonly optionId: string }   // key 0: past nine
 export interface DecisionModel {

@@ -175,6 +175,20 @@ public class PathMarksTests
     }
 
     [Fact]
+    public void The_kept_path_draws_at_about_half_the_live_path_s_opacity_in_either_look()
+    {
+        // A mark over its rim: the opacity the two make together, live against kept.
+        static float Over(Rgba mark, Rgba rim) => 1 - (1 - mark.A) * (1 - rim.A);
+        var plain = new PathMark(MarkKind.Foot, O, new Yaw(0), true, false, 0);
+        foreach (var ink in new[] { false, true })
+        {
+            var live = Over(MovePaths.MarkColour(plain, new Rgba(0.2f, 0.4f, 0.9f), ink, kept: false), MovePaths.RimColour(false));
+            var kept = Over(MovePaths.MarkColour(plain, new Rgba(0.2f, 0.4f, 0.9f), ink, kept: true), MovePaths.RimColour(true));
+            Assert.InRange(kept / live, 0.45f, 0.55f);
+        }
+    }
+
+    [Fact]
     public void A_dangerous_mark_takes_the_dangerous_colour_and_the_kept_path_is_fainter()
     {
         var team = new Rgba(0.2f, 0.4f, 0.9f);

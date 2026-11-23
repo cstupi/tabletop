@@ -298,9 +298,9 @@ export class PlayDrags {
     if (token !== undefined) this.#refuseHand(token, refusalText(refused) ?? refused.detail ?? 'refused');
   }
 
-  /** The move's area in bands (else its allowance rings), rulers, landing rings, violation labels (off the HUD frame's obstacles) and the marker
+  /** The move's area in bands (else its allowance rings), rulers, landing rings, violation and coherency gap labels (off the HUD frame's obstacles and the bar over the unit) and the marker
    *  in hand, in the order the plan draws them. */
-  overlays(centreOf: (id: string) => XY | null, colour: number, obstacles: readonly Rect[] = []): Overlay[] {
+  overlays(centreOf: (id: string) => XY | null, colour: number, obstacles: readonly Rect[] = [], bar: Rect | null = null): Overlay[] {
     const out: Overlay[] = [];
     const hooks = this.#deps.hooks(), p = this.#deps.state().projection, held = this.#held;
     const bands = hooks?.bands() ?? [];
@@ -324,7 +324,8 @@ export class PlayDrags {
     }
     const order = [...(held?.ids ?? []), ...this.#deps.violations.marked.keys(), ...this.#deps.violations.warned.keys()];
     const labels = violationLabels(this.#deps.violations, order, centreOf);
-    if (labels.length > 0) out.push(labelOverlay(labels, WARNING, obstacles));
+    const gaps = coherency?.lines ?? [];
+    if (labels.length + gaps.length > 0) out.push(labelOverlay(labels, WARNING, obstacles, gaps, bar));   // mark and gap labels in one placement
     if (this.#box !== null) out.push(boxOverlay(this.#box.from, this.#box.to));
     const marker = this.#marker;
     if (marker !== null) out.push(landingOverlay([{ centre: { x: marker.at.x, y: marker.at.y }, radius: Math.max(0.5, marker.radius) }]));

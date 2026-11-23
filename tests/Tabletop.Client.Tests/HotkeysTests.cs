@@ -9,7 +9,7 @@ public class HotkeysTests
     {
         var table = new (HotKey Key, bool Shift, bool Ctrl, Intent? Intent)[]
         {
-            (HotKey.Key1, false, false, Intent.Option1), (HotKey.Key5, false, false, Intent.Option5), (HotKey.Key9, false, false, Intent.Option9),
+            (HotKey.Key1, false, false, Intent.Option1), (HotKey.Key5, false, false, Intent.Option5), (HotKey.Key9, false, false, Intent.Option9), (HotKey.Key0, false, false, Intent.Option10),
             (HotKey.Enter, false, false, Intent.Confirm), (HotKey.KpEnter, false, false, Intent.Confirm), (HotKey.Escape, false, false, Intent.Cancel),
             (HotKey.Shift, true, false, Intent.SingleModel), (HotKey.L, false, false, Intent.Sight), (HotKey.M, false, false, Intent.Measure),
             (HotKey.P, false, false, Intent.Ping), (HotKey.Tab, false, false, Intent.NextUnit), (HotKey.Tab, true, false, Intent.PreviousUnit),
