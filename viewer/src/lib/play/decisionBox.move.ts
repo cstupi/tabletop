@@ -224,7 +224,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
         paths = legal.modelIds.flatMap((id) => {
           const m = p.models.get(id), ghost = box.ghosts.get(id);
           const route = ghost === undefined ? undefined : routeAt(answer, id, xy(ghost.position));
-          return m === undefined || m.location.kind !== 'table' || route === undefined ? [] : [pathOf(placed(m.slot, m.location.placement), route)];
+          return m === undefined || m.location.kind !== 'table' || route === undefined ? [] : [pathOf(placed(m.slot, m.location.placement), route, ghost!.yaw.degrees)];
         });
         for (const id of legal.modelIds) {
           const l = p.models.get(id)?.location, ghost = box.ghosts.get(id);

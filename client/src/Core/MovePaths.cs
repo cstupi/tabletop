@@ -5,8 +5,9 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Core;
 
 /// <summary>One model's move path: where it stood (its base at the start's facing, as the server sweeps it), the route its move is measured along
-/// (Movement.Measured, MoveRegions.Route) and the base swept along it (SweptPath: footprints and the dangerous volumes it enters or crosses).</summary>
-public sealed record ModelPath(Guid ModelId, PlacedModel Start, IReadOnlyList<Point2> Route, SweptBase Swept)
+/// (Movement.Measured, MoveRegions.Route), the base swept along it (SweptPath: footprints and the dangerous volumes it enters or crosses) and the
+/// facing it ends at, where known (the ghost's or the answer's).</summary>
+public sealed record ModelPath(Guid ModelId, PlacedModel Start, IReadOnlyList<Point2> Route, SweptBase Swept, Yaw? End = null)
 {
     public IReadOnlyList<PathFootprint> Footprints => Swept.Footprints;
     public IReadOnlyList<Guid> Dangerous => Swept.Dangerous;
@@ -60,25 +61,26 @@ public static class MovePaths
             return new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement);
         });
 
-    /// <summary>The path of a model from its start along a route of this length, against the Ask's dangerous and unstable volumes.</summary>
-    public static ModelPath Of(Guid id, PlacedModel start, IReadOnlyList<Point2> route, double distance, MoveRegion legal, IReadOnlyList<WorldVolume> volumes)
+    /// <summary>The path of a model from its start along a route of this length, against the Ask's dangerous and unstable volumes, ending at `end`.</summary>
+    public static ModelPath Of(Guid id, PlacedModel start, IReadOnlyList<Point2> route, double distance, MoveRegion legal, IReadOnlyList<WorldVolume> volumes,
+        Yaw? end = null)
     {
         var dangerous = volumes.Where(v => legal.DangerousVolumeIds?.Contains(v.Id) == true).ToList();
         var unstable = volumes.Where(v => legal.UnstableVolumeIds?.Contains(v.Id) == true).ToList();
-        return new ModelPath(id, start, route, SweptPath.Of(start, route, SweptPath.DangerousTo(distance, dangerous, unstable, legal.UnstableOver ?? 0)));
+        return new ModelPath(id, start, route, SweptPath.Of(start, route, SweptPath.DangerousTo(distance, dangerous, unstable, legal.UnstableOver ?? 0)), end);
     }
 
     /// <summary>An open move Ask's paths: each of its models a ghost has moved from where it stands, along MoveRegions.Route (`capped`: the unit held to
-    /// the cap, MoveRegions.Allowance), in the Ask's order.</summary>
+    /// the cap, MoveRegions.Allowance), in the Ask's order, each ending at its ghost's facing in `facings`.</summary>
     public static IReadOnlyList<ModelPath> Proposed(MoveRegions regions, IReadOnlyDictionary<Guid, PlacedModel> starts, MoveRegion legal,
-        IReadOnlyList<WorldVolume> volumes, IReadOnlyDictionary<Guid, Point2> to, bool capped = false)
+        IReadOnlyList<WorldVolume> volumes, IReadOnlyDictionary<Guid, Point2> to, bool capped = false, IReadOnlyDictionary<Guid, Yaw>? facings = null)
     {
         var paths = new List<ModelPath>();
         foreach (var id in legal.ModelIds)
         {
             if (!starts.TryGetValue(id, out var start) || !to.TryGetValue(id, out var end)) continue;
             if (start.Placement.Position.Horizontal.DistanceTo(end) <= 1e-6 || regions.Route(id, end, capped) is not { } route) continue;
-            paths.Add(Of(id, start, route.Points, route.Distance, legal, volumes));
+            paths.Add(Of(id, start, route.Points, route.Distance, legal, volumes, facings?.GetValueOrDefault(id)));
         }
         return paths;
     }
@@ -142,7 +144,7 @@ public static class MovePaths
             if (from.Placement.Position.Horizontal.DistanceTo(end) <= 1e-6) continue;
             var path = Movement.Measured(start, end, Math.Max(0, legal.Allowance), impassable, difficult, legal.DifficultCap, size,
                 legal.PassesModels ? null : standing, volumes, dangerous, unstable, legal.UnstableOver ?? 0, steep);
-            paths.Add(Of(m.ModelId, start, path.Path, path.Distance, legal, volumes));
+            paths.Add(Of(m.ModelId, start, path.Path, path.Distance, legal, volumes, to.Placement.Yaw));
         }
         return paths;
     }

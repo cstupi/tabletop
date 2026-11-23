@@ -17,16 +17,16 @@ import packedCatalog from '@builtin-catalog';
 import { loadTestGeometry } from './geometry';
 
 interface PathCase {
-  modelId: string; route: [number, number][]; footprints: { at: [number, number]; dangerous: boolean }[]; dangerous: string[]; stretches: [number, number][];
+  modelId: string; route: [number, number][]; footprints: { at: [number, number]; dangerous: boolean }[]; dangerous: string[]; stretches: [number, number][]; end: number | null;
 }
-/** [x, y, facing, left, dangerous, station] */
-type Mark = [number, number, number, boolean, boolean, number];
+/** [x, y, facing, left, dangerous, station, size] */
+type Mark = [number, number, number, boolean, boolean, number, number];
 interface LogCase { log: string; upTo: number; segments: string[][]; paths: PathCase[]; marks: Record<string, string>; lines: string[] }
 interface Fixture {
   cases: LogCase[];
   flayer: { terrain: TerrainPlacement[]; size: TableSize; legal: MoveRegion; moves: ModelRelocation[]; body: ModelBody; names: Record<string, string>;
     paths: PathCase[]; marks: Record<string, string>; lines: string[]; prints: Mark[][]; treads: Mark[][] };
-  routes: { base: Base; yaw: number; vehicle: boolean; route: [number, number][]; stretches: [number, number][]; marks: Mark[] }[];
+  routes: { base: Base; start: number | null; end: number | null; vehicle: boolean; route: [number, number][]; stretches: [number, number][]; marks: Mark[] }[];
   shapes: { boot: [number, number][][]; tread: [number, number][] };
   team: number[];
   rims: number[][]; rimScale: number;
@@ -40,10 +40,10 @@ const round = (n: number): number => Math.round(n * 1e6) / 1e6;
 const shape = (paths: readonly ModelPath[]): PathCase[] => paths.map((p) => ({
   modelId: p.modelId, route: p.route.map((q) => [round(q.x), round(q.y)] as [number, number]),
   footprints: p.footprints.map((f) => ({ at: [round(f.at.x), round(f.at.y)] as [number, number], dangerous: f.dangerous })), dangerous: [...p.dangerous],
-  stretches: p.stretches.map((s) => [round(s.from), round(s.to)] as [number, number]),
+  stretches: p.stretches.map((s) => [round(s.from), round(s.to)] as [number, number]), end: p.end ?? null,
 }));
-const markShape = (ms: readonly PathMark[]): Mark[] => ms.map((m) => [round(m.at.x), round(m.at.y), round(m.facing), m.left, m.dangerous, round(m.station)]);
-const roundedMarks = (ms: Mark[]): Mark[] => ms.map(([x, y, f, l, d, s]) => [round(x), round(y), round(f), l, d, round(s)]);
+const markShape = (ms: readonly PathMark[]): Mark[] => ms.map((m) => [round(m.at.x), round(m.at.y), round(m.facing), m.left, m.dangerous, round(m.station), round(m.size)]);
+const roundedMarks = (ms: Mark[]): Mark[] => ms.map(([x, y, f, l, d, s, z]) => [round(x), round(y), round(f), l, d, round(s), round(z)]);
 const rounded = (paths: PathCase[]): PathCase[] => paths.map((p) => ({
   ...p, route: p.route.map(([x, y]) => [round(x), round(y)] as [number, number]),
   footprints: p.footprints.map((f) => ({ at: [round(f.at[0]), round(f.at[1])] as [number, number], dangerous: f.dangerous })),
@@ -75,7 +75,7 @@ it('the Flayer Cavalry rush warns for rider 1 alone, as Godot does', () => {
   expect(Object.fromEntries(marks(paths))).toEqual(f.marks);
   expect(lines(paths, (id) => f.names[id]!, (v) => volumeName({ terrain: f.terrain }, v, catalog))).toEqual(f.lines);
   expect(f.lines).toEqual(['Flayer Cavalry 1 crosses Toxic Smog: Dangerous terrain test']);
-  const of = (p: ModelPath, vehicle: boolean) => markShape(marksOf(p.route, p.start.body.base, p.start.placement.yaw.degrees, p.stretches, vehicle));
+  const of = (p: ModelPath, vehicle: boolean) => markShape(marksOf(p.route, p.start.body.base, p.stretches, vehicle, p.start.placement.yaw.degrees, p.end));
   expect(paths.map((p) => of(p, false))).toEqual(f.prints.map(roundedMarks));
   expect(paths.map((p) => of(p, true))).toEqual(f.treads.map(roundedMarks));
   expect(f.prints[0]!.some((m) => m[4])).toBe(true);
@@ -83,7 +83,7 @@ it('the Flayer Cavalry rush warns for rider 1 alone, as Godot does', () => {
 
 it('marks along a cornered route agree for every base shape, prints and treads', () => {
   for (const r of fixture.routes) {
-    const ms = marksOf(r.route.map(([x, y]) => ({ x, y })), r.base, r.yaw, r.stretches.map(([from, to]) => ({ from, to })), r.vehicle);
+    const ms = marksOf(r.route.map(([x, y]) => ({ x, y })), r.base, r.stretches.map(([from, to]) => ({ from, to })), r.vehicle, r.start ?? undefined, r.end ?? undefined);
     expect(markShape(ms)).toEqual(roundedMarks(r.marks));
   }
 });
