@@ -141,8 +141,8 @@ public partial class TeamColumnsPanel : MarginContainer
         var lines = new VBoxContainer(); lines.AddThemeConstantOverride("separation", _compact ? 0 : Space.XS); row.AddChild(lines);
         var top = new HBoxContainer(); top.AddThemeConstantOverride("separation", Space.S); lines.AddChild(top);
         top.AddChild(Icon("player", column.Ordinal > 0 ? Ui.Team(column.Ordinal) : Ui.DimText, _compact ? 16 : 22));
-        // Names and armies read whole: they wrap to a second line rather than end in an ellipsis.
-        top.AddChild(new Label { Text = m.Name, SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(NameMinWidth, 0),
+        // Names and armies wrap at spaces and hyphens, never mid-word; one long token ends in an ellipsis, the full text in the tooltip.
+        top.AddChild(new Label { Text = m.Name, SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.Word, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, CustomMinimumSize = new Vector2(NameMinWidth, 0),
             TooltipText = m.Name, MouseFilter = MouseFilterEnum.Pass });
         var editing = Icon("editing", Ui.Accent, 16); editing.Visible = false; editing.TooltipText = "Editing the table"; editing.MouseFilter = MouseFilterEnum.Pass;
         top.AddChild(editing); _editing[m.ParticipantId] = editing;
@@ -171,7 +171,7 @@ public partial class TeamColumnsPanel : MarginContainer
         }
         else
             army.AddChild(new Label { Text = m.Army ?? TeamColumns.NoArmy, ThemeTypeVariation = warn ? Variation.Warning : m.Army is null ? Variation.Dim : "",
-                SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(NameMinWidth, 0), TooltipText = m.Army ?? "",
+                SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.Word, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, CustomMinimumSize = new Vector2(NameMinWidth, 0), TooltipText = m.Army ?? "",
                 MouseFilter = MouseFilterEnum.Pass });
         return row;
     }

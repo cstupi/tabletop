@@ -17,7 +17,7 @@ public partial class SetupToolBody : VBoxContainer
     protected readonly GameScreen Screen = null!;
     protected Session S = null!;
     Action? _onBoard;
-    readonly List<(Button Button, Func<TableState?, string?> Why)> _gates = new();
+    readonly List<(Button Button, Func<TableState?, string?> Why, string Base)> _gates = new();
 
     public SetupToolBody() { }
     protected SetupToolBody(GameScreen screen) { Screen = screen; SizeFlagsHorizontal = SizeFlags.ExpandFill; }
@@ -50,15 +50,15 @@ public partial class SetupToolBody : VBoxContainer
     protected virtual void Gone() { }
 
     /// <summary>A button disabled with the reason while the draft is at a cap.</summary>
-    protected T Gated<T>(T button, Func<TableState?, string?> why) where T : Button { _gates.Add((button, why)); return button; }
+    protected T Gated<T>(T button, Func<TableState?, string?> why) where T : Button { _gates.Add((button, why, button.TooltipText)); return button; }
 
     void RefreshGates()
     {
-        foreach (var (button, why) in _gates)
+        foreach (var (button, why, baseTip) in _gates)
         {
             if (!IsInstanceValid(button)) continue;
             var reason = why(S.Draft);
-            button.Disabled = reason is not null; button.TooltipText = reason ?? button.TooltipText;
+            button.Disabled = reason is not null; button.TooltipText = reason ?? baseTip;   // the reason only while disabled
         }
     }
 
