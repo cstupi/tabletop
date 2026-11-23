@@ -33,8 +33,9 @@ public sealed record CoherencyRequest(IReadOnlyList<PlacedModel> Models, double 
 /// <summary>A keep-away (Clearance): each of From at Over[i], lifted within LiftedWithin of each of Lifted; Placed, the base ClearanceBreaks tests.</summary>
 public sealed record ClearanceRequest(IReadOnlyList<PlacedModel> From, IReadOnlyList<double> Over, IReadOnlyList<PlacedModel>? Lifted = null, double LiftedWithin = 0,
     PlacedModel? Placed = null);
-/// <summary>Legs: Side Battle's, from the game's Welcome; null is ZoneLegs.Default.</summary>
-public sealed record ZoneRequest(string Shape, TableSize Size, Point2? Point, PlacedModel? Model, ZoneLegs? Legs = null);
+/// <summary>Legs: Side Battle's, from the game's Welcome; null is ZoneLegs.Default. Reach: the inches from the zone a base stands fully within
+/// (PieceSelection.ZoneReach: a Scout's); null or 0 is the zone itself.</summary>
+public sealed record ZoneRequest(string Shape, TableSize Size, Point2? Point, PlacedModel? Model, ZoneLegs? Legs = null, double? Reach = null);
 public sealed record TableRequest(TableSize Size, PlacedModel Model);
 public sealed record ExitRequest(ModelBody Body, PlacedModel Container, double Within, Point2 At, IReadOnlyList<Guid> Impassable, IReadOnlyList<Piece> Terrain, TableSize Size);
 

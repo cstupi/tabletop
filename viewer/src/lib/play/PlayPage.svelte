@@ -41,6 +41,7 @@
   import { midDeploy } from './deployView';
   import { PlacingFocus } from './setAsideView';
   import { KeepAwayCache, keepAwayFor, SHADE, SHADE_WORDS } from './keepAwayArea';
+  import { ZoneReachCache, zoneReachOrdinal } from './zoneReachArea';
   import { AllThreatCache, ThreatRingCache, pinnedThreat, shownThreats, threatsWanted } from './threatRings';
   import { SightCheck, sightOverlay } from './sightCheck';
   import { teamColour } from '../board/palette';
@@ -349,9 +350,21 @@
     const ring = keep === null ? null : keepAwayCache.of(geometry, p, keep);
     return ring === null ? null : { rings: [ring], colour: SHADE, words: SHADE_WORDS, rim: SHADE_WORDS };
   });
-  // Every layer in one overlay, so their labels are kept apart; the keep-away's and the threats' labels place first.
+  // RangeRingNode's reach layer: while I place a unit held within a reach of my zone (my deploy pick's ZoneReach: a Scout), the area it may stand
+  // in, in my team colour.
+  const zoneReachCache = new ZoneReachCache();
+  const reachLayer = $derived.by((): RingLayer | null => {
+    const p = shown, s = snap;
+    if (geometry === null || p === null || s === null || s.game === null || isWatching(s)) return null;
+    const mid = [actingTeam, ...teams].map((t) => midDeploy(p, s.log, t)).find((m) => m !== null) ?? null;
+    if (mid === null || mid.zoneReach === null) return null;
+    const ordinal = zoneReachOrdinal(p, s.game, mid);
+    const ring = ordinal === null ? null : zoneReachCache.of(geometry, p, s.game, mid, s.zones);
+    return ring === null || ordinal === null ? null : { rings: [ring], colour: teamColour(ordinal) };
+  });
+  // Every layer in one overlay, so their labels are kept apart; the reach's, the keep-away's and the threats' labels place first.
   const ringsDrawn = $derived.by((): Overlay | null => {
-    const layers = [keepAwayLayer, ...threatLayers, rangeLayer].filter((l): l is RingLayer => l !== null);
+    const layers = [reachLayer, keepAwayLayer, ...threatLayers, rangeLayer].filter((l): l is RingLayer => l !== null);
     return layers.length === 0 ? null : ringsOverlay(layers, frame.obstacles);
   });
 

@@ -145,7 +145,15 @@ public static class Facade
     public static string ZoneHoldsBase(string json)
     {
         var r = Read<ZoneRequest>(json);
-        return Write(ZoneStyles.BaseFullyWithin(r.Shape, r.Size, r.Model ?? throw new JsonException("ZoneHoldsBase needs a model."), r.Legs));
+        var model = r.Model ?? throw new JsonException("ZoneHoldsBase needs a model.");
+        return Write(r.Reach is > 0 ? ZoneStyles.BaseFullyWithin(r.Shape, r.Size, model, r.Reach.Value, r.Legs) : ZoneStyles.BaseFullyWithin(r.Shape, r.Size, model, r.Legs));
+    }
+
+    /// <summary>ZoneReach.Outline: the zone grown by Reach, cut to the table, as outline segments.</summary>
+    public static string ZoneReachOutline(string json)
+    {
+        var r = Read<ZoneRequest>(json);
+        return Write(ZoneReach.Outline(ZoneStyles.Resolve(r.Shape, r.Size, r.Legs), r.Reach ?? 0, r.Size).Select(s => new Segment(s.A, s.B)).ToArray());
     }
 
     /// <summary>Containment.ExitYaw over the terrain's volumes the Ask names Impassable: a facing the exit position is legal at, or null.</summary>

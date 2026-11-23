@@ -294,6 +294,21 @@ internal static partial class CoreGames
                 }) ?? (log.Deployments.Where(d => d.Question == AskQuestions.DeployScouts).Any(d => log.EnemiesOf(d.Unit).Where(u => Scout(log, u))
                     .SelectMany(u => log.FirstPlacement(u)).Any(q => log.FirstPlacement(d.Unit).Any(p => p.DistanceTo(q) - 2 * ModelRadius <= 9)))
                     ? null : "no Scout stood within 9\" of an enemy Scout"), "Scout"),
+            Check("3.6.0 p.15 Scout: the Scout pick carries 9\" from its zone and 9\" from each non-Scout enemy unit, none from an enemy Scout", log =>
+                Require(log.Events.Select(e => e.Payload).OfType<AskOpened>().Where(o => o.Ask.Question == AskQuestions.DeployScouts).ToList(), "no Scout was offered", o =>
+                {
+                    var pick = (PieceSelection)o.Ask.Legal;
+                    foreach (var unit in pick.Eligible)
+                    {
+                        var name = log.Run.Final.Units[unit].Definition.Name;
+                        if (pick.ZoneReach?.GetValueOrDefault(unit) is not 9.0) return $"{name} was offered with reach {pick.ZoneReach?.GetValueOrDefault(unit)}";
+                        if (pick.KeepAway?.GetValueOrDefault(unit) is not { } keep) return $"{name} was offered with no distance from enemy units";
+                        var expected = log.EnemiesOf(unit).Where(u => !Scout(log, u)).Order();
+                        if (!keep.Units.Select(a => a.UnitId).Order().SequenceEqual(expected) || keep.Units.Any(a => a.Over != 9))
+                            return $"{name} keeps {string.Join(", ", keep.Units.Select(a => $"{a.Over}\" from {log.Run.Final.Units[a.UnitId].Definition.Name}"))}";
+                    }
+                    return null;
+                }), "Scout"),
         ], covers: ["Scout"], evidence: new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { ["Scout"] = log => Answered(log, AskQuestions.DeployScouts) });
     }
 

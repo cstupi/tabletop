@@ -12,6 +12,7 @@ namespace Tabletop.Client.Hud;
 public partial class DecisionBox
 {
     Dictionary<Guid, Point3>? _proposed, _deployAt; Guid? _deployUnit; KeepAway? _deployKeep;   // the pick's distance from enemy units (an Ambusher, a 3.6 Scout or Reinforcement copy)
+    MidDeploy? _deployMid;                                                   // the pick, for its reach from the zone (a Scout's, ZoneReachArea)
     /// <summary>The facings the player gave the ghosts, read at each drop, and the ghosts kept across a reconnect.</summary>
     readonly Dictionary<Guid, Yaw> _turned = new(); readonly GhostStash _stash = new();
     // What AskAnswers.FacingOf needs from the disembark render: the exit distance, the board's volumes and its size.
@@ -296,7 +297,7 @@ public partial class DecisionBox
     /// from the shelf. Nothing is sent before Enter.</summary>
     void StartDeploy(MidDeploy mid, Names names)
     {
-        _deployUnit = mid.UnitId; _deployKeep = mid.KeepAway;
+        _deployUnit = mid.UnitId; _deployKeep = mid.KeepAway; _deployMid = mid;
         Head(new CardHead("army", "Place", names.Unit(mid.UnitId), "Click the table where the unit goes"), MyOrdinal);
         var unit = mid.UnitId;
         _input.PlacementPoint = at => DropDeploy(unit, at);                        // its own slot: a menu point pick cannot take it
@@ -335,7 +336,8 @@ public partial class DecisionBox
             if (_deployAt is not { } at || _s.Projection is not { } p || _s.Game is not { } game || !IsInstanceValid(place)) return;
             var placed = at.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
             var unitName = new Names(game, p).Unit;
-            _input.Violations.Measure(at.Keys, KeepAwayArea.With(ContactCheck.Words(ContactCheck.Placement(p, placed, _view.Volumes), null, unitName), p, _deployKeep, placed, unitName));
+            var words = KeepAwayArea.With(ContactCheck.Words(ContactCheck.Placement(p, placed, _view.Volumes), null, unitName), p, _deployKeep, placed, unitName);
+            _input.Violations.Measure(at.Keys, ZoneReachArea.With(words, p, game, _deployMid, _s.Zones, placed));
             // p.7 unit coherency of the ghosts: the server does not judge a deployment's, so it warns and never holds Place.
             var coherency = CoherencyView.Of(p, placed, _s.Coherency, id => _input.Violations.Subject?.Invoke(id) ?? p.Models[id].Slot.Name, judged: false);
             _view.Coherency.Show(coherency, Palette.Team(MyOrdinal));

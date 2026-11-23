@@ -14,6 +14,7 @@ import type { Enforcement, KeepAway, ModelRelocation, MoveRegion, Placement, Poi
 import type { AskView } from './askView';
 import { allWords, move as contactsOfMove, placement as contactsOfPlacement } from './contactCheck';
 import { withKeepAway } from './keepAwayArea';
+import { withZoneReach } from './zoneReachArea';
 import { coherencyOf, coherencyWarnings, NO_COHERENCY, withCoherency, type CoherencyPicture } from './coherencyView';
 import { CommitHold } from './commitHold';
 import { button, dim, type Control, type DecisionBox, type MoveHooks } from './decisionBox';
@@ -293,10 +294,11 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
   // ---- deployment placement ----
 
   let deployKeep: KeepAway | null = null;   // the pick's distance from enemy units (an Ambusher, a 3.6 Scout or Reinforcement copy)
+  let deployMid: MidDeploy | null = null;   // the pick, for its reach from the zone (a Scout's, zoneReachArea)
 
   function startDeploy(box: DecisionBox, mid: MidDeploy, n: Names): void {
     const unit = mid.unitId;
-    box.deployUnit = unit; deployKeep = mid.keepAway;
+    box.deployUnit = unit; deployKeep = mid.keepAway; deployMid = mid;
     box.setHead({ icon: 'army', title: 'Place', subject: n.unit(unit), prompt: 'Click the table where the unit goes' });
     box.placementPoint = (at) => dropDeploy(box, unit, at);                // its own slot: a menu point pick cannot take it
     const p = box.host.state().projection;
@@ -347,8 +349,8 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       if (st.projection === null || st.game === null) return;
       const ids = [...box.ghosts.keys()];
       const unitName = (id: string): string => st.projection!.units.get(id)?.definition.name ?? id;
-      if (g !== null) deps.violations.measure(ids, withKeepAway(allWords(contactsOfPlacement(g, st.projection, new Map(box.ghosts)), undefined, unitName),
-        g, st.projection, deployKeep, new Map(box.ghosts), unitName));
+      if (g !== null) deps.violations.measure(ids, withZoneReach(withKeepAway(allWords(contactsOfPlacement(g, st.projection, new Map(box.ghosts)), undefined, unitName),
+        g, st.projection, deployKeep, new Map(box.ghosts), unitName), g, st.projection, st.game, deployMid, st.zones, new Map(box.ghosts)));
       // p.7 unit coherency of the ghosts: the server does not judge a deployment's, so it warns and never holds Place.
       coherency = g === null ? NO_COHERENCY : coherencyOf(g, st.projection, new Map(box.ghosts), st.coherency, (id) => st.projection!.models.get(id)?.slot.name ?? id, false);
       deps.violations.warn(ids, coherency.words);

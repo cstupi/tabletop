@@ -17,7 +17,7 @@ describe('DeployView', () => {
   it('a unit picked at deploy with models still on the shelf is mid deploy', () => {
     const ask = deployAsk();
     const a = applied(open(ask), { kind: 'ask_answered', askId: ask.id, teamId: TEAM1, answer: pick, outsideLegalSet: false }, closed(ask, pick));
-    expect(midDeploy(a.projection, a.log, TEAM1)).toEqual({ unitId: s.squad.id, question: 'deploy', shelvedModelIds: [s.model.id], keepAway: null });
+    expect(midDeploy(a.projection, a.log, TEAM1)).toEqual({ unitId: s.squad.id, question: 'deploy', shelvedModelIds: [s.model.id], keepAway: null, zoneReach: null });
   });
 
   it('a pick carries its unit\'s keep-away', () => {

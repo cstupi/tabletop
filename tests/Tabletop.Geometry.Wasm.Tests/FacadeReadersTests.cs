@@ -15,7 +15,7 @@ public class FacadeReadersTests
         ["RestPiece"] = typeof(PieceRestRequest), ["Contacts"] = typeof(ContactsRequest), ["OverlapBases"] = typeof(PairRequest),
         ["EdgeToEdge"] = typeof(PairRequest), ["BodyToBody"] = typeof(PairRequest), ["EdgeToPoint"] = typeof(PointRequest),
         ["EdgeToMarker"] = typeof(MarkerRequest), ["NearestPair"] = typeof(NearestRequest), ["RangeOutline"] = typeof(RingRequest), ["CoherencyGaps"] = typeof(CoherencyRequest), ["ClearanceOutline"] = typeof(ClearanceRequest), ["ClearanceBreaks"] = typeof(ClearanceRequest),
-        ["ZonePolygons"] = typeof(ZoneRequest), ["ZoneContains"] = typeof(ZoneRequest), ["ZoneHoldsBase"] = typeof(ZoneRequest),
+        ["ZonePolygons"] = typeof(ZoneRequest), ["ZoneContains"] = typeof(ZoneRequest), ["ZoneHoldsBase"] = typeof(ZoneRequest), ["ZoneReachOutline"] = typeof(ZoneRequest),
         ["ExitYaw"] = typeof(ExitRequest), ["TableHoldsBase"] = typeof(TableRequest), ["MoveBands"] = typeof(BandsRequest), ["MoveRoutes"] = typeof(RoutesRequest),
         ["MoveAskOpen"] = typeof(MoveAskRequest), ["MoveAskArea"] = typeof(MoveAreaRequest), ["MoveAskFrame"] = typeof(MoveFrameRequest), ["MoveAskClose"] = typeof(MoveKeyRequest),
     };
