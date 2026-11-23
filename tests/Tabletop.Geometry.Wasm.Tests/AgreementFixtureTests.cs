@@ -6,9 +6,10 @@ namespace Tabletop.Geometry.Wasm.Tests;
 
 public class AgreementFixtureTests
 {
-    static readonly JsonSerializerOptions FileOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    static readonly JsonSerializerOptions FileOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    static string FixtureText() => JsonSerializer.Serialize(AgreementCases.All, FileOptions).Replace("\r\n", "\n") + "\n";
+    /// <summary>One case per line: a diff shows which cases changed without tens of thousands of indented lines.</summary>
+    static string FixtureText() => "[\n" + string.Join(",\n", AgreementCases.All.Select(c => JsonSerializer.Serialize(c, FileOptions))) + "\n]\n";
 
     [Fact]
     public void Every_facade_method_has_a_case()
