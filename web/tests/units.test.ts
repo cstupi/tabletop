@@ -21,6 +21,16 @@ describe('bases', () => {
     expect(baseLabel({ shape: 'oval', a: 2, b: 1 })).toBe('50.8 × 25.4 mm oval (custom)');
     expect(BASE_PRESETS.map((p) => p.base.shape)).toContain('rect');
   });
+
+  it('offers only the sizes One Page Rules publishes, and one vehicle hull', () => {
+    expect(BASE_PRESETS.map((p) => p.label)).toEqual([
+      '25 mm round', '32 mm round', '40 mm round', '50 mm round', '60 mm round',
+      '60 × 35 mm oval', '75 × 46 mm oval', '90 × 52 mm oval', '105 × 70 mm oval', '120 × 92 mm oval', '160 × 122 mm oval',
+      '120 × 80 mm vehicle',
+    ]);
+    expect(presetFor(oval(75, 46))?.label).toBe('75 × 46 mm oval');
+    expect(baseLabel(oval(75, 42))).toBe('75 × 42 mm oval (custom)');   // a size from another game is a custom size
+  });
 });
 
 describe('declarations', () => {

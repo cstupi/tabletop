@@ -640,7 +640,7 @@ and notes ≤ 2000. Asset and folder names pass `Limits.Text`. Deleting an asset
 key.
 
 **Starter miniatures.** `StarterMeshes` builds six GLBs in memory (five round figures, 25 to 60 mm, and the
-221 × 119 mm hull), sized from `ArmyForgeImport.HeightFromBase` and `DefaultBody`. `StarterAssets.SeedIfNeeded`
+120 × 80 mm hull), sized from `ArmyForgeImport.HeightFromBase` and `DefaultBody`. `StarterAssets.SeedIfNeeded`
 runs from `Sessions.Complete` when `account.starter_seeded_at` is null: it finds or creates a top-level
 `Starter` folder, writes each mesh with `IBlobStore.Put` to `Key(owner, hash)`, inserts the `blob` row
 (`uploaded = true`, on conflict do nothing), the `asset` row (`kind = miniature`) and the folder link, then
@@ -803,12 +803,12 @@ and `bases.square`, and nothing says which units are vehicles. `ParseBase(AfBase
 `HeightFromBase` of the base the import writes. `ImportRequest` is `{ source }`; an old client's extra `bases` field
 is ignored (base shape at import spec).
 
-Defaults where nothing supplies one: `DefaultBody`, a 221 × 119 × 113 mm vehicle hull, when
+Defaults where nothing supplies one: `DefaultBody`, a 120 × 80 × 60 mm vehicle hull, when
 the entry has neither base, not a 32 mm infantry circle: Army Forge publishes `bases.round` reliably
 for infantry, so a missing base means a vehicle or monster in practice, and a 32 mm circle would put
 a tank's whole 6" disembark region — and its movement, cover and line of sight — inside its own
 hull (open questions → *The default base for a model that publishes none*). The default carries its
-own height rather than going through `HeightFromBase`, which would scale 221 mm into a 13" tall
+own height rather than going through `HeightFromBase`, which would scale 120 mm into a 7" tall
 tank. The army spec says bases default to "whatever the ruleset says" and no ruleset value exists
 anywhere in the model (the plan's ruling 3; the army → *Base shape and height*). The player corrects
 it per model through `SlotPatch.Base`, which the web app's base editor already writes.
@@ -1823,7 +1823,7 @@ Stytch user and one stamp call per mint, with the second JWT accepted by `GET /v
 | --- | --- | --- |
 | 1. Custom claim by per-login `session_custom_claims` or by a Stytch dashboard claim template (`{"account_id": "{{ user.external_id }}"}`)? | **`session_custom_claims`, stamped once per new session** | the template is dashboard configuration outside the repo and its absence fails silently, so signup and sign-in could not be shown to work from the repo. Stytch keeps session custom claims on the session, so the stamp costs one extra call per new session and a refresh makes none. `external_id` links the account and `Sessions.Complete` stamps from it |
 | 2. Do joined heroes (`joinToUnit` without `combined`) import as their own unit? | **no: the hero is a model of the unit it joined** | Army Forge publishes the attachment on the joining entry, and `ModelSlot` already carries the stats and properties the hero needs, so no table records the join. `Merge` returns a host plus the entries joining it, `Section` appends one entry's slots with its own stats, base and cursor, the unit's stats and properties stay the host's, and an unresolvable `joinToUnit` imports as a unit of its own |
-| 3. Default base and height when Army Forge gives none? | **`DefaultBody`, a 221 × 119 × 113 mm vehicle hull carrying its own height, when `bases.round` is absent; a published base gets `HeightFromBase`, `1.5 ×` its larger dimension** | Army Forge publishes `bases.round` reliably for infantry, so a missing base is a vehicle or monster in practice, and the base is the only physical dimension the export gives. `HeightFromBase` is one expression, and a per-`GameRules` table of heights would be the alternative |
+| 3. Default base and height when Army Forge gives none? | **`DefaultBody`, a 120 × 80 × 60 mm vehicle hull carrying its own height, when `bases.round` is absent; a published base gets `HeightFromBase`, `1.5 ×` its larger dimension** | Army Forge publishes `bases.round` reliably for infantry, so a missing base is a vehicle or monster in practice, and the base is the only physical dimension the export gives. `HeightFromBase` is one expression, and a per-`GameRules` table of heights would be the alternative |
 | 4. How are partial weapon counts dealt onto models? | **an advancing cursor**, and the flamer lands last | import expands deterministically; asking the user would need a per-slot weapon editor and a `PATCH` shape for weapons, neither designed |
 | 5. Which game systems import? | **Grimdark Future and Age of Fantasy, both as `grimdark-future`** | the mechanics are the same and only the content differs. No Age of Fantasy content set exists, so such a list imports before anything can play it, recorded against the interpreter |
 | 6. Who may `/end` and `DELETE` a game? | **the creator alone**, still so after leaving | the creator starts and ends setup, so ending and destroying the game belong to the same account. `GameRepository.IsCreator` gates both routes and anyone else gets `404` |

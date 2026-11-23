@@ -26,7 +26,7 @@ public static class StarterMeshes
             return Mesh($"Figure, {mm}mm round", b, Figure((float)b.A, (float)ArmyForgeImport.HeightFromBase(b)));
         }).ToList();
         var hull = ArmyForgeImport.DefaultBody;
-        meshes.Add(Mesh("Hull, 221 × 119mm", hull.Base, Hull((float)hull.Base.A, (float)hull.Base.B, (float)hull.Height)));
+        meshes.Add(Mesh("Hull, 120 × 80mm", hull.Base, Hull((float)hull.Base.A, (float)hull.Base.B, (float)hull.Height)));
         return meshes;
     }
 
