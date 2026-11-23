@@ -1,6 +1,6 @@
 // viewer/src/lib/play/enemyStrip.ts
 // client/src/Core/EnemyStrip.cs: the strip above the unit card (client UX spec → Unit card, Hovered enemy): the hovered enemy's name,
-// Defense and models alive, the distance between the two units, and each of my weapons' printed range within or beyond it. No claim
+// Defense and models alive, the distance between the two units, and each of its own ranged weapons' printed range within or beyond it. No claim
 // about shooting.
 
 import type { Projection } from '../live/apply';
@@ -21,16 +21,16 @@ export function stripShows(p: Projection, game: GameInfo, myTeam: string | null,
   return myTeam !== null && teamOf(p, game, cardUnit)?.id === myTeam && theirs !== null && theirs.id !== myTeam;
 }
 
-/** EnemyStrip.Measured: whose weapons the strip measures: my team's acting unit (the shooter while targets are declared), else the card's unit. */
+/** EnemyStrip.Measured: which of my units the distance is measured from: my team's acting unit (the shooter while targets are declared), else the card's unit. */
 export function measuredUnit(p: Projection, game: GameInfo, myTeam: string | null, cardUnit: string): string {
   const actor = actionFrame(p)?.context.actorUnitId;
   return myTeam !== null && actor !== undefined && teamOf(p, game, actor)?.id === myTeam ? actor : cardUnit;
 }
 
-export function enemyStripOf(mine: UnitSheetModel, hovered: UnitSheetModel, distance: number | null): EnemyStripModel {
+export function enemyStripOf(hovered: UnitSheetModel, distance: number | null): EnemyStripModel {
   return {
     unitId: hovered.unitId, name: hovered.name, defense: hovered.defense, alive: hovered.alive, distance,
-    ranges: mine.weapons.filter((w) => w.range !== '-').map((w) => ({ weapon: w.name, range: w.range, within: within(w.range, distance) })),
+    ranges: hovered.weapons.filter((w) => w.range !== '-').map((w) => ({ weapon: w.name, range: w.range, within: within(w.range, distance) })),
   };
 }
 

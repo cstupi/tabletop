@@ -46,7 +46,7 @@ public partial class DecisionBox
             var fromShelf = MoveRuler.IsShelfPlacement(legal, p);                   // a Spawn or Split reserve: placed around its anchor model, the Ask's prompt says what
             var unitName = names.Unit(lead.UnitId);
             Head(fromShelf ? new CardHead("army", "Place", unitName, ask.Prompt)        // the Ask's prompt says what is placed
-                : new CardHead("advance", "Disembark", unitName, $"Fully within {DecisionCard.Inches(within)} of {names.Piece(containerId)}"), MyOrdinal);
+                : new CardHead("advance", "Disembark", unitName, $"Fully within {DecisionCard.Inches(within)} of {names.Unit(p.Models[containerId].UnitId)}"), MyOrdinal);
             _input.Allowance = null; _input.Proposed = null; _input.Region = null;
             _input.Pinned.Clear(); _input.Pinned.Add(containerId);                   // the transport (or the anchor) stays put: a drag over it takes a ghost or nothing
             // The ghosts start around the container, clear of it and within the exit reach (MoveRuler.ExitStart): grabbable, and a commit as they stand leaves it.
@@ -127,7 +127,7 @@ public partial class DecisionBox
             // A disembarking ghost the exit does not allow where it stands (p.15: beyond 6" of the transport) is marked as its contacts are.
             var contacts = ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit, _regions), legal.Separation, names.Unit)
                 .ToDictionary(kv => kv.Key, kv => kv.Value);
-            foreach (var (id, words) in MoveRuler.ExitWords(p, legal, placed, _view.Volumes, _view.Size, names.Piece)) contacts.TryAdd(id, words);
+            foreach (var (id, words) in MoveRuler.ExitWords(p, legal, placed, _view.Volumes, _view.Size, c => names.Unit(p.Models[c].UnitId))) contacts.TryAdd(id, words);
             _input.Violations.Measure(legal.ModelIds, CoherencyView.With(KeepAwayArea.With(contacts, p, legal.KeepAway, placed, names.Unit), coherency));
             // Each moved model's path and footprints, and a warning where its swept base crosses dangerous ground: never holding the commit.
             var paths = pathCache?.Proposed(proposed.ToDictionary(kv => kv.Key, kv => kv.Value.Horizontal), unit < allowance) ?? [];

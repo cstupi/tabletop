@@ -59,11 +59,13 @@ public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Not
     public int WoundsLeft => Groups.Sum(g => g.WoundsLeft);
     public int WoundsMax => Groups.Sum(g => g.WoundsMax);
 
-    /// <summary>One pip per model, survivors first as the models row and the roster draw them; past twelve `alive/size`.</summary>
-    public string Pips => Sheet.Models.Count <= RosterPipsMax ? RosterView.Pips(Sheet.Models.Count(m => !m.Removed), Sheet.Models.Count) : $"{Sheet.Alive}/{Sheet.Size}";
+    /// <summary>The unit's wounds as the roster and the decision card draw them (DecisionCard.UnitPips): one pip per wound, those left first;
+    /// past twelve `left/max`.</summary>
+    public string Pips => PipsOf(Sheet.Models.Where(m => !m.Removed).Sum(m => m.Left), Sheet.Models.Sum(m => m.Max));
 
     /// <summary>`5 models · 2 wounds left on Sergeant · 170 pts`: the count of standing models, then the wounds left when a standing model has
-    /// more than one (on that model by name when it is the only one, else summed), then the unit's points from its army list when it gave them.</summary>
+    /// more than one (on that model by name when it is the only tough one among others; else every standing model's, as the pips count them),
+    /// then the unit's points from its army list when it gave them.</summary>
     public string CountNote
     {
         get
@@ -72,9 +74,10 @@ public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Not
             var count = Sheet.Alive == 1 ? "1 model" : $"{Sheet.Alive} models";
             var tough = Sheet.Models.Where(m => !m.Removed && m.Max > 1).ToList();
             if (tough.Count == 0) return count + points;
-            var left = tough.Sum(m => m.Left);
+            var named = tough.Count == 1 && Sheet.Alive > 1;
+            var left = named ? tough[0].Left : Sheet.Models.Where(m => !m.Removed).Sum(m => m.Left);
             var wounds = left == 1 ? "1 wound left" : $"{left} wounds left";
-            return (tough.Count == 1 ? $"{count} · {wounds} on {tough[0].Label}" : $"{count} · {wounds}") + points;
+            return (named ? $"{count} · {wounds} on {tough[0].Label}" : $"{count} · {wounds}") + points;
         }
     }
 

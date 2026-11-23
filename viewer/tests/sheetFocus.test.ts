@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { sheetFocusOf, teamOf } from '../src/lib/play/sheetFocus';
+import { actorOf, sheetFocusOf, teamOf } from '../src/lib/play/sheetFocus';
+import { PlacingFocus } from '../src/lib/play/setAsideView';
 import { TEAM_A, activating, blue, blue2, focusGame, marker, red, terrain } from './focusSamples';
 
 describe('SheetFocus', () => {
@@ -12,6 +13,17 @@ describe('SheetFocus', () => {
   it('an activation never changes a selection', () => {
     expect(sheetFocusOf(activating(blue.id), focusGame, TEAM_A, blue2.id)).toBe(blue2.id);
     expect(sheetFocusOf(activating(blue.id), focusGame, TEAM_A, red.id)).toBe(red.id);
+  });
+
+  it('my activating unit takes the card from an earlier selection until I select again', () => {
+    const focus = new PlacingFocus();
+    expect(focus.placing(actorOf(activating(null), focusGame, TEAM_A), blue2.id)).toBeNull();
+    const p = activating(blue.id);
+    let held = focus.placing(actorOf(p, focusGame, TEAM_A), blue2.id);
+    expect(sheetFocusOf(p, focusGame, TEAM_A, blue2.id, null, held)).toBe(blue.id);
+    held = focus.placing(actorOf(p, focusGame, TEAM_A), red.id);
+    expect(sheetFocusOf(p, focusGame, TEAM_A, red.id, null, held)).toBe(red.id);
+    expect(actorOf(activating(red.id), focusGame, TEAM_A)).toBeNull();
   });
 
   it('an enemy activation never takes the card', () => {

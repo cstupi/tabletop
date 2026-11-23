@@ -65,7 +65,7 @@ describe('WaitingForPlayers and WaitingView', () => {
     const now = waitingLines(picked, waitingTeams(picked, board), P1);
     expect(now.map((l) => l.text)).toEqual(['Team 1 has no army']);
     expect(linesChanged(shown, now)).toBe(true);
-    expect(WAITING_TITLE).toBe('Setup is over. Deployment begins once every team has a player and an army.');
+    expect(WAITING_TITLE).toBe('Deployment starts once every team has a player and an army.');
     expect(s.game.teams).toHaveLength(2);
   });
 

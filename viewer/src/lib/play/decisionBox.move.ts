@@ -192,7 +192,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       const fromShelf = isShelfPlacement(legal, p);                       // a Spawn or Split reserve: the Ask's prompt says what is placed
       const unitName = n.unit(lead.unitId);
       box.setHead(fromShelf ? { icon: 'army', title: 'Place', subject: unitName, prompt: ask.prompt }   // the Ask's prompt says what is placed
-        : { icon: 'advance', title: 'Disembark', subject: unitName, prompt: `Fully within ${inches(within)} of ${n.piece(containerId)}` });
+        : { icon: 'advance', title: 'Disembark', subject: unitName, prompt: `Fully within ${inches(within)} of ${n.unit(container.unitId)}` });
       box.pinned = new Set([containerId]);                                 // the transport (or the anchor) stays put: a drag over it takes a ghost or nothing
       // The ghosts start around the container, clear of it and within the exit reach (MoveRuler.ExitStart): a commit as they stand leaves it.
       start = () => {
@@ -267,7 +267,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       if (g !== null) {
         // A disembarking ghost the exit does not allow where it stands (p.15: beyond 6" of the transport) is marked as its contacts are.
         const contacts = allWords(contactsOfMove(g, p, legal, new Map(box.ghosts), size), legal.separation, n.unit.bind(n));
-        for (const [id, words] of exitWords(g, p, legal, new Map(box.ghosts), size, n.piece.bind(n))) if (!contacts.has(id)) contacts.set(id, words);
+        for (const [id, words] of exitWords(g, p, legal, new Map(box.ghosts), size, (c) => n.unit(p.models.get(c)!.unitId))) if (!contacts.has(id)) contacts.set(id, words);
         deps.violations.measure(legal.modelIds, withCoherency(withKeepAway(contacts, g, p, legal.keepAway ?? null, new Map(box.ghosts), n.unit.bind(n)), coherency));
       }
       deps.violations.warn(legal.modelIds, coherencyWarnings(warningMarks(paths), coherency));

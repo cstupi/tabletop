@@ -69,8 +69,8 @@ async function placeUnit(seat: Seat, g: Geometry): Promise<void> {
 
 /**
  * One step for the seat if its box shows an Ask or a deploy placement: choose (an option labelled Hold when there is one, else key 1),
- * move (commit where the ghosts stand), deploy pick (key 1) and placement, pick pieces (the first eligible, then Enter), assign (the first
- * candidate, then Enter; Pass when none), allocate (Auto, then Enter), token spend and confirm (Enter). False when there was nothing to do.
+ * move (commit where the ghosts stand), deploy pick (key 1) and placement, pick pieces (the first eligible, then Enter when Done shows), assign (the first
+ * candidate, then Enter; Pass when none), allocate (Auto, then Enter), token spend and confirm, the round's end among them (Enter). False when there was nothing to do.
  */
 export async function step(seat: Seat, g: Geometry): Promise<boolean> {
   const { box } = seat;
@@ -80,20 +80,23 @@ export async function step(seat: Seat, g: Geometry): Promise<boolean> {
   const controls = box.panel.controls;
   const ids = controls.flatMap((c) => ('id' in c && c.id !== undefined ? [c.id] : []));
   const has = (id: string) => ids.includes(id);
-  const options = controls.flatMap((c) => (c.kind === 'button' && c.id.startsWith('opt:') ? [c] : []));
+  // Option tiles sit in unit groups on the card (an activation, a choice); a foot button may be an option too.
+  const options = controls.flatMap((c): { id: string; label: string }[] => (c.kind === 'group' ? c.tiles.filter((t) => !t.disabled)
+    : c.kind === 'button' && c.id.startsWith('opt:') ? [c] : []));
   if (options.length > 0) {
     const hold = options.find((o) => /\bhold\b/i.test(o.label));
     if (hold !== undefined) box.press(hold.id); else if (!box.number(1)) box.press(options[0]!.id);
   } else if (has('commit')) box.enter();
-  else if (has('done')) {
-    const pick = ids.find((id) => id.startsWith('pick:'));
-    if (pick !== undefined) box.press(pick);
-    box.enter();
-  } else if (has('fire')) {
+  else if (ids.some((id) => id.startsWith('pick:'))) {
+    // A one-unit pick answers on the press and shows no Done; a several-unit pick needs Enter after it.
+    box.press(ids.find((id) => id.startsWith('pick:'))!);
+    if (has('done')) box.enter();
+  } else if (has('done')) box.enter();
+  else if (has('fire')) {
     const first = box.targets?.candidates[0];
     if (first !== undefined) { box.target(first); box.enter(); } else if (has('pass')) box.press('pass'); else return false;
   } else if (has('auto')) { box.press('auto'); box.enter(); }
-  else if (has('spend') || has('enter')) box.enter();
+  else if (has('spend') || has('enter') || has('confirm')) box.enter();
   else if (has('pass')) box.press('pass');
   else return false;
   await settle(() => box.renderedAsk !== ask || box.deployUnit !== null || box.panel.refusal !== null);

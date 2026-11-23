@@ -84,6 +84,7 @@ public partial class GameScreen
         _animator.Played += _floating.Show;
         _roster.UnitPicked += id => { Input.Select(id); Input.Focus(id); };
         _roster.UnitMenuRequested += (id, at) => { if (MenuCtx() is { } ctx) _menu?.Open(Menus.Roster(ctx, id), at); };
+        _roster.HasMenu = id => MenuCtx() is { } ctx && Menus.Roster(ctx, id).Count > 0;
         _end.LeaveRequested += () => Guarded.Run(_session.DisconnectAsync, Toast);
         // Follow (spec → Camera): an action frame starting glides to its actor, unless the player moved the camera in the last 2 s
         // or holds a unit; never for the history replayed on join.

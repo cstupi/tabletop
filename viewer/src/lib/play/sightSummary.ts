@@ -6,14 +6,14 @@
 import type { Projection } from '../live/apply';
 import type { AskOption, SightAnswer } from '../protocol/wire.generated';
 
-/** "4 of 5 models can see Red Warriors · 2 of 3 clear lines screened", and while targets are declared how many can shoot and each range
+/** "4 of 5 see Red Warriors · 2 screened" (the models that see it, then the clear lines a model screens), and while targets are declared how many can shoot and each range
  * a rule changed against this target: "· 1 can shoot · Carbine 18" → 14" (Shadowborn)". */
 export function summaryText(answer: SightAnswer, target: string, shooting: boolean): string {
   const observers = new Set(answer.lines.map((l) => l.fromModelId)).size;
   const seeing = new Set(answer.lines.filter((l) => l.clear).map((l) => l.fromModelId)).size;
   const clear = answer.lines.filter((l) => l.clear).length;
-  let text = `${seeing} of ${observers} models can see ${target}`;
-  if (clear > 0) text += ` · ${answer.lines.filter((l) => l.clear && l.screened).length} of ${clear} clear lines screened`;
+  let text = `${seeing} of ${observers} see ${target}`;
+  if (clear > 0) text += ` · ${answer.lines.filter((l) => l.clear && l.screened).length} screened`;
   if (!shooting) return text;
   text += ` · ${answer.canShoot.length} can shoot`;
   const changed = (answer.ranges ?? []).filter((r) => r.inches !== r.printed);

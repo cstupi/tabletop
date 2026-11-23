@@ -108,11 +108,13 @@ public static partial class UnitSheet
         return [.. weapons, .. rules];
     }
 
-    /// <summary>The hover line of one model: its marks, else its own name when it is not one of the unit's most common entry (a joined Hero),
-    /// else null (one of the many has nothing to say).</summary>
+    /// <summary>The hover line of one model: its entry with its marks (`Weapon Team with Laser Cannon`; `Model with` when the entry is the unit's
+    /// own name, already over it), else its own name when it is not one of the unit's most common entry (a joined Hero), else null (one of the
+    /// many has nothing to say).</summary>
     public static string? ModelLine(Unit unit, ModelSlot slot)
     {
-        if (Marks(unit, slot) is { Count: > 0 } marks) return string.Join(", ", marks);
+        if (Marks(unit, slot) is { Count: > 0 } marks)
+            return $"{(Entry(slot.Name) is var entry && entry != unit.Name ? entry : "Model")} with {string.Join(", ", marks)}";
         var common = unit.Models.GroupBy(m => Entry(m.Name)).OrderByDescending(g => g.Count()).ThenBy(g => g.Min(m => m.Ordinal)).First().Key;
         return Entry(slot.Name) == common ? null : Entry(slot.Name);
     }

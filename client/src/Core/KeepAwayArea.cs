@@ -34,12 +34,9 @@ public static class KeepAwayArea
 
     public static RangeRing? Of(Projection p, KeepAway keep) => Builder(p, keep)();
 
-    /// <summary>"Too close 9\"", or the shortest–longest when the units are kept at different distances.</summary>
-    public static string Label(IReadOnlyList<double> over)
-    {
-        double lo = over.Min(), hi = over.Max();
-        return lo == hi ? $"Too close {Inches(hi)}" : $"Too close {lo.ToString("0.#", CultureInfo.InvariantCulture)}–{Inches(hi)}";
-    }
+    /// <summary>"Too close 9\"": the placing rule's own distance, the shortest listed (a unit kept farther, Repel Ambushers' 12", shows in the
+    /// ring's shape and in the breach words).</summary>
+    public static string Label(IReadOnlyList<double> over) => $"Too close {Inches(over.Min())}";
 
     /// <summary>Each proposed model whose base breaks the keep-away, with the words the decision box shows: "placed within 9\" of {unit}". The
     /// proposed models are left out of what they are measured against.</summary>

@@ -81,7 +81,7 @@ describe('the move Ask', () => {
     const r = moveRig();
     for (const id of r.ids) r.applier.projection.models.get(id)!.location = { kind: 'inside', containerId: r.truck };
     r.openMove(region({ modelIds: r.ids, allowance: 0, containment: { enterable: [], exitingId: r.truck, exitWithin: 6 } }));
-    expect(r.panel.head).toMatchObject({ title: 'Disembark', prompt: 'Fully within 6" of Truck (Truck)' });
+    expect(r.panel.head).toMatchObject({ title: 'Disembark', prompt: 'Fully within 6" of Truck' });
     expect(r.box.ghosts.size).toBe(2);
     expect(r.control('stop')).toBeUndefined();
   });
@@ -103,7 +103,7 @@ describe('the move Ask', () => {
     r.openMove(region({ modelIds: r.ids, allowance: 0, containment: { enterable: [], exitingId: r.truck, exitWithin: 6 } }));
     r.setExit(null);
     r.box.dragged(r.ids[0]!, at(40, 40));
-    expect(r.violations.marked.get(r.ids[0]!)).toBe('beyond 6" of Truck (Truck)');
+    expect(r.violations.marked.get(r.ids[0]!)).toBe('beyond 6" of Truck');
   });
 
   it('a disembark answers the exit yaw at the drop, not the ghost\'s', () => {

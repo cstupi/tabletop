@@ -35,7 +35,7 @@ export function refusalText(r: Refused): string | null {
 export function closedText(code: number | null, reason: string | null, willReconnect: boolean, desync = false, error = false): string {
   if (desync) {
     return willReconnect
-      ? 'The table fell out of step with the server; rebuilding it from the log…'
+      ? 'Rebuilding the table from the log…'
       : `This game's log cannot be replayed: ${reason ?? ''}`;
   }
   const why = reason === null || reason.trim() === '' ? null : reason;

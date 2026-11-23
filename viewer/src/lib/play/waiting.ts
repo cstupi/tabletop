@@ -31,7 +31,7 @@ export function waitHolds(game: GameInfo, board: Board | null, lastSeq: number):
   return game.status === 'playing' && board !== null && lastSeq === 0 && waitingTeams(game, board).length > 0;
 }
 
-export const WAITING_TITLE = 'Setup is over. Deployment begins once every team has a player and an army.';
+export const WAITING_TITLE = 'Deployment starts once every team has a player and an army.';
 
 /** One team deployment waits on: what everyone reads, and what this client may do about it. */
 export interface WaitingLine { readonly text: string; readonly join: TeamChoice | null; readonly army: ArmySeat | null }
