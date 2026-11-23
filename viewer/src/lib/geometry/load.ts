@@ -6,7 +6,9 @@ interface Exports { [method: string]: (json: string) => string }
 
 const loads = new Map<string, Promise<Geometry>>();
 const downloads = new Map<string, DownloadProgress>();
-const defaultBase = (): string => `${import.meta.env.BASE_URL}geometry/_framework/`;
+/** Where the runtime is served: `${import.meta.env.BASE_URL}geometry/_framework/` (the move workers load it from there too). */
+export const geometryBase = (): string => `${import.meta.env.BASE_URL}geometry/_framework/`;
+const defaultBase = geometryBase;
 
 /** The download of `base`'s runtime: counts while loadGeometry(base) fetches, finished once it has settled. */
 export function geometryDownload(base: string = defaultBase()): DownloadProgress {

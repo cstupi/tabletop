@@ -98,7 +98,7 @@ describe('PlayDrags', () => {
     expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 24, y: 10 });                                  // back where it was picked up
   });
 
-  it('a landing of every held ghost regates once: one Contacts per pointer move, the gate over all of them', () => {
+  it('a landing of every held ghost regates once: one Contacts per pointer move, the gate over all of them, none again for the same landing', () => {
     const r = rig({ squad: 4 });
     const [a] = r.ids as [string];
     r.openMove(region({ modelIds: r.ids }));
@@ -108,10 +108,12 @@ describe('PlayDrags', () => {
     expect(r.contactCalls.length - before).toBe(1);
     expect(r.reason()).toBe('4 models past their allowance.');
     r.drags.onDragEnd({ x: 24, y: 10 }, { ...NO_MODIFIERS, alt: true });
-    expect(r.contactCalls.length - before).toBe(2);
+    expect(r.contactCalls.length - before).toBe(1);                                                         // dropped where it landed: the answer stands
     r.drags.onDragStart(model(a), { x: 24, y: 10 }, NO_MODIFIERS);
+    r.drags.onDragMove({ x: 20, y: 10 }, { ...NO_MODIFIERS, alt: true });
+    expect(r.contactCalls.length - before).toBe(2);
     r.drags.onDragCancel();
-    expect(r.contactCalls.length - before).toBe(3);
+    expect(r.contactCalls.length - before).toBe(3);                                                         // back where it was picked up
   });
 
   it('pointer moves wait for the next frame and only the last one lands; a drop or a key takes the latest at once', () => {

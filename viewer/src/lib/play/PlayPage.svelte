@@ -9,7 +9,8 @@
   import type { View } from '../board/transform';
   import Board from '../components/Board.svelte';
   import type { ConnectionState, GameConnection } from '../connection/gameConnection';
-  import { geometryDownload, loadGeometry, type Geometry } from '../geometry';
+  import { geometryBase, geometryDownload, loadGeometry, type Geometry } from '../geometry';
+  import { MoveWorkers, areaWorkers, facadeWorker } from './moveWorkers';
   import Loading from '../components/Loading.svelte';
   import { tableToolsText } from '../components/loading';
   import { waitText } from '../game/header';
@@ -115,7 +116,12 @@
   const violations = new Violations((id) => connection.state.projection?.models.get(id)?.slot.name ?? null);   // the box names the model, as the server does
   const drops = new PendingDrops();
   const locks = new MarkerLocks();
+  // A move Ask's areas, routes and contacts in Web Workers, started with the first move Ask (moveWorkers.ts); inline where there are none.
+  const moveWork = typeof Worker === 'undefined' ? undefined
+    : new MoveWorkers(() => facadeWorker(geometryBase()), areaWorkers(typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency));
+  $effect(() => () => { moveWork?.dispose(); });
   const moves = moveHooks({ geometry: () => geometry, violations, enforcement: () => connection.state.game?.enforcement ?? 'strict', drops,
+    ...(moveWork === undefined ? {} : { work: moveWork }), changed: bump,
     terrainName: (v) => { const p = connection.state.projection; return p == null ? 'terrain' : volumeName(p.board.table, v, catalog); } });
   const drags = new PlayDrags({
     state: () => connection.state, box: () => box, hooks: () => moves, geometry: () => geometry, violations, drops, locks,
@@ -176,7 +182,7 @@
   });
 
   $effect(() => {
-    loadGeometry().then((g) => { geometry = g; }).catch(() => { /* zones stay undrawn */ });
+    loadGeometry().then((g) => { geometry = g; moveWork?.start(); }).catch(() => { /* zones stay undrawn */ });
   });
 
   // The rule texts come once per property set, from playing on; a failure caches nothing and the next game frame tries again.
