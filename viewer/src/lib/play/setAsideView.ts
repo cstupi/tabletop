@@ -10,8 +10,8 @@ import type { Command, SetAsideRule } from '../protocol/wire.generated';
 export interface SetAsideChip { readonly name: string; readonly tip: string }
 
 export const SET_ASIDE = 'set-aside';
-export const HOW = 'Right-click the unit → Set aside, or Set aside beside it in the deploy pick.';
-export const HOW_BACK = 'Set aside. Right-click the unit → Return to deployment.';
+export const HOW = 'Right-click → Set aside';
+export const HOW_BACK = 'Set aside · right-click → Return to deployment';
 
 const held = (p: Projection, unitId: string): boolean => p.units.get(unitId)?.conditions.has(SET_ASIDE) === true;
 

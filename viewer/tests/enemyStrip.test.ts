@@ -10,15 +10,15 @@ const sheet = (name: string, ...weapons: SheetWeapon[]): UnitSheetModel =>
   ({ unitId: newId(), team: 'Team 1', name, alive: 2, size: 3, quality: '4+', defense: '5+', chips: [], weapons, rules: [], models: [] });
 
 describe('EnemyStrip', () => {
-  it('ranges compare the printed number with the distance', () => {
-    const s = enemyStripOf(sheet('Blue', w('Rifle', '24"'), w('Pistol', '12"'), w('CCW', '-')), sheet('Red'), 12.0);
+  it('the hovered unit\'s own ranges compare the printed number with the distance', () => {
+    const s = enemyStripOf(sheet('Red', w('Rifle', '24"'), w('Pistol', '12"'), w('CCW', '-')), 12.0);
     expect([s.name, s.defense, s.alive, s.distance]).toEqual(['Red', '5+', 2, 12.0]);
     expect(s.ranges).toEqual([{ weapon: 'Rifle', range: '24"', within: true }, { weapon: 'Pistol', range: '12"', within: true }]);   // equal is within; melee left out
-    expect(enemyStripOf(sheet('Blue', w('Pistol', '12"')), sheet('Red'), 12.5).ranges[0]!.within).toBe(false);
+    expect(enemyStripOf(sheet('Red', w('Pistol', '12"')), 12.5).ranges[0]!.within).toBe(false);
   });
 
   it('without a distance no range is judged', () => {
-    expect(enemyStripOf(sheet('Blue', w('Rifle', '24"')), sheet('Red'), null).ranges[0]!.within).toBeNull();
+    expect(enemyStripOf(sheet('Red', w('Rifle', '24"')), null).ranges[0]!.within).toBeNull();
   });
 
   it('only an enemy hovered beside my unit shows a strip', () => {

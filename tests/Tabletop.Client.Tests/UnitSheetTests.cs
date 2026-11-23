@@ -191,11 +191,13 @@ public class UnitSheetLoadoutTests
         Assert.Equal(["Bomb Drone"], UnitSheet.Marks(Mixed, Mixed.Models[0]));
         Assert.Empty(UnitSheet.Marks(Mixed, Mixed.Models[1]));
         Assert.Empty(UnitSheet.Marks(Mixed, Mixed.Models[3]));
-        Assert.Equal("Bomb Drone", UnitSheet.ModelLine(Mixed, Mixed.Models[0]));
+        Assert.Equal("Model with Bomb Drone", UnitSheet.ModelLine(Mixed, Mixed.Models[0]));   // the unit's own kind: not named again
         Assert.Null(UnitSheet.ModelLine(Mixed, Mixed.Models[1]));                               // one of the many: nothing to say
         Assert.Equal("Orc Leader", UnitSheet.ModelLine(Mixed, Mixed.Models[3]));
         var banner = Mixed with { Models = [.. Mixed.Models.Take(2), Mixed.Models[2] with { Name = "Specialists (Junk Banner) 3", Properties = [new PropertyInstance("Junk Banner", null)] }] };
-        Assert.Equal("Junk Banner", UnitSheet.ModelLine(banner, banner.Models[2]));             // the import names the slot for its upgrade: still a Specialist
+        Assert.Equal("Model with Junk Banner", UnitSheet.ModelLine(banner, banner.Models[2]));
+        var team = Mixed with { Models = [.. Mixed.Models.Take(2), Mixed.Models[2] with { Name = "Weapon Team 1" }, Mixed.Models[2] with { Name = "Weapon Team 2", Weapons = [.. Mixed.Models[2].Weapons, W("Laser Cannon")] }] };
+        Assert.Equal("Weapon Team with Laser Cannon", UnitSheet.ModelLine(team, team.Models[3]));             // the import names the slot for its upgrade: still a Specialist
     }
 
     [Fact]

@@ -166,7 +166,7 @@ public static class HeaderView
         waiting.Count == 0 ? null : "Deployment waits: " + string.Join(" · ", waiting.Select(w => w.Text));
 
     /// <summary>The header's line for a client the server answers as a watcher (Session.IsWatching).</summary>
-    public const string Watching = "Watching: you have no team in this game";
+    public const string Watching = "Watching";
     /// <summary>The header's line in a replay (Session.Replaying).</summary>
     public const string Replaying = "Replay: the table at this point in the game";
 

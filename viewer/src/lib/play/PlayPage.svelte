@@ -37,7 +37,7 @@
   import { intentOf, textFocused } from './keys';
   import { isWatching } from './waiting';
   import { RangeRingCache, ringsOverlay, type RingLayer } from './rangeRings';
-  import { sheetFocusOf, teamOf } from './sheetFocus';
+  import { actorOf, sheetFocusOf, teamOf } from './sheetFocus';
   import { midDeploy } from './deployView';
   import { PlacingFocus } from './setAsideView';
   import { KeepAwayCache, keepAwayFor, SHADE, SHADE_WORDS } from './keepAwayArea';
@@ -335,7 +335,8 @@
     const p = shown, s = snap;
     if (p === null || s === null || isWatching(s)) return null;
     const mid = [actingTeam, ...teams].map((t) => midDeploy(p, s.log, t)).find((m) => m !== null) ?? null;
-    return placingFocus.placing(mid?.unitId ?? null, selection?.pieceId ?? null);
+    const game = s.game;
+    return placingFocus.placing(mid?.unitId ?? (game === null ? null : actorOf(p, game, actingTeam)), selection?.pieceId ?? null);
   });
   const pickHovered = $derived.by(() => { void panel; return box?.pickHovered ?? null; });
   const keepAwayCache = new KeepAwayCache();
@@ -368,7 +369,7 @@
     void sightTick; void panel;
     return shown === null || snap?.game == null ? null : sight.view(shown, snap.game, new Names(snap.game, shown), box?.targets != null);
   });
-  const sightDrawn = $derived(sightView === null || scene === null ? null : sightOverlay(sightView, scene));
+  const sightDrawn = $derived.by(() => (sightView === null || scene === null ? null : sightOverlay(sightView, scene, frame.obstacles)));
 
   // D4: the menus (GameScreen.Play: ItemsFor, OpenTeamMenu, the roster's and the table's) and the hand actions they send.
   let menu = $state.raw<{ items: readonly MenuItem[]; at: { x: number; y: number } } | null>(null);
@@ -418,6 +419,7 @@
     const c = menuContext();
     if (c !== null) openMenu(teamMenu(c, teamId, new Names(c.game, c.p)), at);
   };
+  const rosterHasMenu = (unitId: string): boolean => { const c = menuContext(); return c !== null && rosterMenu(c, unitId).length > 0; };
   const rosterMenuAt = (unitId: string, at: { x: number; y: number }): void => {
     const c = menuContext();
     if (c !== null) openMenu(rosterMenu(c, unitId), at);
@@ -565,7 +567,7 @@
   {/if}
   {#if snap !== null && shown !== null && snap.game !== null}
     <div class="part header" style={place('header', 760)} use:measure={'header'}><HeaderBar {snap} {shown} myTeams={teams} {actingTeam} onGameOver={() => gameOver?.open()} onTeamMenu={teamMenuAt} /></div>
-    <div class="part" style={place('roster', 420)} use:measure={'roster'}><Roster {snap} {shown} myTeam={actingTeam} myTeams={teams} selected={selection?.pieceId ?? null} onPick={pickUnit} onMenu={rosterMenuAt} /></div>
+    <div class="part" style={place('roster', 420)} use:measure={'roster'}><Roster {snap} {shown} myTeam={actingTeam} myTeams={teams} selected={selection?.pieceId ?? null} onPick={pickUnit} onMenu={rosterMenuAt} hasMenu={rosterHasMenu} /></div>
   {/if}
   <div class="part" style={place('decision', 480)} use:measure={'decision'}>
     {#if snap !== null}<WaitingPanel {connection} {api} {snap} />{/if}

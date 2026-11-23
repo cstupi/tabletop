@@ -55,6 +55,21 @@ public class SheetFocusTests
         Assert.Equal(Red.Id, SheetFocus.Of(Activating(Blue.Id), Game, TeamA, Red.Id));
     }
 
+    /// <summary>Validation, 2026-11-22: the card stayed on a unit selected earlier while another unit's Ask was open. My activating unit holds
+    /// the card (PlacingFocus over SheetFocus.Actor) while the selection stands as it was when the activation began; a unit selected since takes it.</summary>
+    [Fact]
+    public void My_activating_unit_takes_the_card_from_an_earlier_selection_until_I_select_again()
+    {
+        var focus = new PlacingFocus();
+        Assert.Null(focus.Placing(SheetFocus.Actor(Activating(null), Game, TeamA), Blue2.Id));                // Blue Two selected, nothing acting
+        var p = Activating(Blue.Id);
+        var held = focus.Placing(SheetFocus.Actor(p, Game, TeamA), Blue2.Id);
+        Assert.Equal(Blue.Id, SheetFocus.Of(p, Game, TeamA, Blue2.Id, placing: held));                         // Blue's activation opens
+        held = focus.Placing(SheetFocus.Actor(p, Game, TeamA), Red.Id);
+        Assert.Equal(Red.Id, SheetFocus.Of(p, Game, TeamA, Red.Id, placing: held));                            // Red selected since
+        Assert.Null(SheetFocus.Actor(Activating(Red.Id), Game, TeamA));                                        // another team's activation
+    }
+
     [Fact]
     public void An_enemy_activation_never_takes_the_card()
     {

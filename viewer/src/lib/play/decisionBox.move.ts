@@ -157,7 +157,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       const fromShelf = isShelfPlacement(legal, p);                       // a Spawn or Split reserve: the Ask's prompt says what is placed
       const unitName = n.unit(lead.unitId);
       box.setHead(fromShelf ? { icon: 'army', title: 'Place', subject: unitName, prompt: ask.prompt }   // the Ask's prompt says what is placed
-        : { icon: 'advance', title: 'Disembark', subject: unitName, prompt: `Fully within ${inches(within)} of ${n.piece(containerId)}` });
+        : { icon: 'advance', title: 'Disembark', subject: unitName, prompt: `Fully within ${inches(within)} of ${n.unit(container.unitId)}` });
       start = () => {
         box.ghosts.clear();
         for (const r of around(legal.modelIds.map((id) => p.models.get(id)!), at, container.slot.base, size, legal.separation))

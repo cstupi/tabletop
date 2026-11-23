@@ -93,8 +93,12 @@ public partial class DecisionBox
         var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", Space.S);
         var ordinal = names.TeamOfUnit(unit) is { } t ? _s.Game?.Teams.FirstOrDefault(x => x.Id == t)?.Ordinal ?? 0 : 0;
         row.AddChild(DecisionTiles.Icon("army", 20, ordinal > 0 ? Ui.Team(ordinal) : null));
-        row.AddChild(new Label { Text = names.Piece(unit), SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
-        if (_s.Projection is { } q && SetAsideView.Of(q, unit, _s.SetAsideRules) is { } chip) { var c = HudBits.AsideChip(); HudBits.FillAside(c, chip); row.AddChild(c); }
+        // The name over its set-aside chip, so a chip never takes the name's width (a row beside Set aside is narrow).
+        var words = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
+        words.AddThemeConstantOverride("separation", Space.XS);
+        words.AddChild(new Label { Text = names.Piece(unit), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(Space.XXL * 2, 0), MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
+        if (_s.Projection is { } q && SetAsideView.Of(q, unit, _s.SetAsideRules) is { } chip) { var c = HudBits.AsideChip(); HudBits.FillAside(c, chip); c.SizeFlagsHorizontal = SizeFlags.ShrinkBegin; words.AddChild(c); }
+        row.AddChild(words);
         if (_s.Projection is { } p && p.Units.ContainsKey(unit)) { var pips = DecisionTiles.Pips(DecisionCard.UnitPips(p, unit, _s.MaxWounds), ordinal); pips.MouseFilter = MouseFilterEnum.Ignore; row.AddChild(pips); }
         row.AddChild(DecisionTiles.Cap(DecisionCard.KeyCap(key)));
         b.Pressed += pressed;

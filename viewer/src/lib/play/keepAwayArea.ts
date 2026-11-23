@@ -47,11 +47,8 @@ function read(p: Projection, keep: KeepAway, moving?: ReadonlySet<string>): Read
 
 const inchesText = (d: number): string => `${Math.round(d * 10) / 10}"`;
 
-/** "Too close 9\"", or the shortest–longest when the units are kept at different distances. */
-export function keepAwayLabel(over: readonly number[]): string {
-  const lo = Math.min(...over), hi = Math.max(...over);
-  return lo === hi ? `Too close ${inchesText(hi)}` : `Too close ${Math.round(lo * 10) / 10}–${inchesText(hi)}`;
-}
+/** "Too close 9\"": the placing rule's own distance, the shortest listed (a unit kept farther shows in the ring's shape and the breach words). */
+export const keepAwayLabel = (over: readonly number[]): string => `Too close ${inchesText(Math.min(...over))}`;
 
 /** The ring, or null when no listed model is on the table. */
 export function keepAwayRingOf(g: Geometry, p: Projection, keep: KeepAway): RangeRing | null {

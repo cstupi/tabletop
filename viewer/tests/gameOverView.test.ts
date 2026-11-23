@@ -31,6 +31,6 @@ describe('GameOverView', () => {
     const m = gameOverOf(after({ kind: 'ask_opened', ask: asked }, { kind: 'ask_closed', askId: asked.id, answers: [] },
       { kind: 'game_ended', reason: '4 rounds have been played. 2 to 1', winners: [TEAM1] }), s.game, TEAM1);
     expect([m.stage, m.askId, m.reason, m.result, m.choices]).toEqual(['ended', null, '4 rounds have been played. 2 to 1', 'Team 1 wins', []]);
-    expect([headline(m), headline({ ...m, rounds: 4 })]).toEqual(['Team 1 wins', 'Team 1 wins · 4 rounds']);
+    expect([headline(m), headline({ ...m, rounds: 4 })]).toEqual(['Team 1 wins', 'Team 1 wins']);   // the server's reason names the rounds: said once
   });
 });

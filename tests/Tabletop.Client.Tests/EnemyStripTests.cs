@@ -8,17 +8,17 @@ public class EnemyStripTests
     static UnitSheetModel Sheet(string name, params SheetWeapon[] weapons) => new(Guid.CreateVersion7(), "Team 1", name, 2, 3, "4+", "5+", [], weapons, [], []);
 
     [Fact]
-    public void Ranges_compare_the_printed_number_with_the_distance()
+    public void The_hovered_unit_s_own_ranges_compare_the_printed_number_with_the_distance()
     {
-        var s = EnemyStrip.Of(Sheet("Blue", W("Rifle", "24\""), W("Pistol", "12\""), W("CCW", "-")), Sheet("Red"), 12.0);
+        var s = EnemyStrip.Of(Sheet("Red", W("Rifle", "24\""), W("Pistol", "12\""), W("CCW", "-")), 12.0);
         Assert.Equal(("Red", "5+", 2, (double?)12.0), (s.Name, s.Defense, s.Alive, s.Distance));
         Assert.Equal([new RangeCheck("Rifle", "24\"", true), new RangeCheck("Pistol", "12\"", true)], s.Ranges);   // equal is within; melee left out
-        Assert.Equal(false, EnemyStrip.Of(Sheet("Blue", W("Pistol", "12\"")), Sheet("Red"), 12.5).Ranges[0].Within);
+        Assert.Equal(false, EnemyStrip.Of(Sheet("Red", W("Pistol", "12\"")), 12.5).Ranges[0].Within);
     }
 
     [Fact]
     public void Without_a_distance_no_range_is_judged() =>
-        Assert.Null(EnemyStrip.Of(Sheet("Blue", W("Rifle", "24\"")), Sheet("Red"), null).Ranges[0].Within);
+        Assert.Null(EnemyStrip.Of(Sheet("Red", W("Rifle", "24\"")), null).Ranges[0].Within);
 
     [Fact]
     public void Only_an_enemy_hovered_beside_my_unit_shows_a_strip()

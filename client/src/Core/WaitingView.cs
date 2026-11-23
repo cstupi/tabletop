@@ -12,7 +12,7 @@ public sealed record WaitingLine(string Text, TeamChoice? Join, ArmySeat? Army);
 /// </summary>
 public static class WaitingView
 {
-    public const string Title = "Setup is over. Deployment begins once every team has a player and an army.";
+    public const string Title = "Deployment starts once every team has a player and an army.";
 
     public static IReadOnlyList<WaitingLine> Of(GameInfo game, IReadOnlyList<TeamWaiting> waiting, Guid? participantId)
     {

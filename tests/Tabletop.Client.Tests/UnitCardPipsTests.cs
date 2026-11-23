@@ -12,11 +12,11 @@ public class UnitCardPipsTests
             [new SheetChip(ChipKind.Activated, "Activated: Advance"), new SheetChip(ChipKind.Condition, "Shaken", "shaken")], [], [], models), 1, null);
 
     [Fact]
-    public void Pips_per_model_and_a_note_naming_the_one_tough_model_s_wounds()
+    public void Wound_pips_as_the_roster_draws_them_and_a_note_naming_the_one_tough_model_s_wounds()
     {
         var c = Card(M("Warrior", 1, 1, false, "w", "Rifle"), M("Warrior", 1, 1, false, "w", "Rifle"), M("Warrior", 0, 1, true, "w", "Rifle"),
             M("Sergeant", 2, 3, false, "s", "Plasma Pistol"));
-        Assert.Equal("●●●○", c.Pips);
+        Assert.Equal("●●●●○○", c.Pips);
         Assert.Equal("3 models · 2 wounds left on Sergeant", c.CountNote);
         var sgt = c.Groups[1];
         Assert.Equal(("●", "Sergeant · Plasma Pistol", "●●○", "2/3"), (sgt.Pips, sgt.Name, sgt.WoundPips, sgt.WoundCount));
@@ -36,6 +36,23 @@ public class UnitCardPipsTests
     {
         Assert.Equal("1 model", Card(M("Warrior", 1, 1, false, "w")).CountNote);
         Assert.Equal("2 models · 5 wounds left", Card(M("Ogre", 2, 3, false, "o"), M("Ogre", 3, 3, false, "o")).CountNote);
+    }
+
+    [Fact]
+    public void A_lone_tough_model_s_note_does_not_name_it_again()
+    {
+        var c = Card(M("Light APC", 6, 6, false, "apc"));
+        Assert.Equal("1 model · 6 wounds left", c.CountNote);
+    }
+
+    [Fact]
+    public void Several_tough_models_among_others_count_every_wound_the_pips_count()
+    {
+        var models = Enumerable.Range(0, 18).Select(_ => M("Trooper", 1, 1, false, "t"))
+            .Concat(Enumerable.Range(0, 3).Select(_ => M("Weapon Team", 3, 3, false, "wt"))).ToArray();
+        var c = Card(models);
+        Assert.Equal("27/27", c.Pips);
+        Assert.Equal("21 models · 27 wounds left", c.CountNote);
     }
 
     [Fact]

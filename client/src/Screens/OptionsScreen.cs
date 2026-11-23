@@ -56,6 +56,7 @@ public partial class OptionsScreen : CanvasLayer
 
     public override void _Ready()
     {
+        if (GetWindow().Mode == Window.ModeEnum.Windowed) _model = new OptionsModel(OptionsModel.WithWindow(_session.Settings, GraphicsApplier.RectOf(GetWindow())));
         _model.Screen = GraphicsApplier.ScreenOf(GetWindow());
         var root = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsPreset(Control.LayoutPreset.FullRect);

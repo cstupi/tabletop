@@ -12,8 +12,8 @@ public sealed record SetAsideChip(string Name, string Tip);
 /// </summary>
 public static class SetAsideView
 {
-    public const string How = "Right-click the unit → Set aside, or Set aside beside it in the deploy pick.";
-    public const string HowBack = "Set aside. Right-click the unit → Return to deployment.";
+    public const string How = "Right-click → Set aside";
+    public const string HowBack = "Set aside · right-click → Return to deployment";
 
     public static SetAsideChip? Of(Projection p, Guid unitId, IReadOnlyDictionary<Guid, SetAsideRule> rules)
     {
@@ -48,7 +48,8 @@ public static class SetAsideView
 
 /// <summary>
 /// The unit card while I place a unit (the owner: "I have no idea what the stats or info of the unit I am placing is anywhere"): the unit picked
-/// holds the card while the selection stands as it was at the pick, or is cleared; a unit selected since takes it. Feed it every render.
+/// holds the card while the selection stands as it was at the pick, or is cleared; a unit selected since takes it. The unit card feeds my activating
+/// unit the same way when I place nothing (SheetFocus.Actor). Feed it every render.
 /// </summary>
 public sealed class PlacingFocus
 {

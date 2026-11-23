@@ -102,12 +102,11 @@
   const strip = $derived.by(() => {
     const p = shown, game = snap.game;
     if (p === null || game === null || sheet === null || focus === null || hoveredUnit === null || !p.units.has(hoveredUnit)) return null;
-    const measured = measuredUnit(p, game, myTeam, focus);   // the acting shooter's weapons, whatever the card shows
+    const measured = measuredUnit(p, game, myTeam, focus);   // the distance from the acting shooter, whatever the card shows
     if (!stripShows(p, game, myTeam, measured, hoveredUnit)) return null;
     const names = new Names(game, p);
     const distance = hoverOf(geometry, p, game, names, hoveredUnit, measured, snap.maxWounds, distances)?.distance ?? null;
-    const mine = measured === focus ? sheet : unitSheetOf(p, names, measured, rules, snap.maxWounds);
-    return enemyStripOf(mine, unitSheetOf(p, names, hoveredUnit, rules, snap.maxWounds), distance);
+    return enemyStripOf(unitSheetOf(p, names, hoveredUnit, rules, snap.maxWounds), distance);
   });
 
   /** HoverLabels: the distance follows the name only with one of my units selected. */

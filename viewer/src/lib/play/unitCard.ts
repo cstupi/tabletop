@@ -40,11 +40,9 @@ export const groupName = (g: ModelGroup): string => g.label + (g.loadout.length 
 export const groupWoundPips = (g: ModelGroup): string | null => (showsWounds(g) ? pipsOf(g.woundsLeft, g.woundsMax) : null);
 export const groupWoundCount = (g: ModelGroup): string => `${g.woundsLeft}/${g.woundsMax}`;
 
-/** UnitCardContent.Pips: one pip per model, survivors first as the models row and the roster draw them; past twelve `alive/size`. */
-export const cardPips = (c: UnitCardContent): string => {
-  const standing = c.sheet.models.filter((m) => !m.removed).length, n = c.sheet.models.length;
-  return n <= MAX_PIPS ? '●'.repeat(standing) + '○'.repeat(n - standing) : `${c.sheet.alive}/${c.sheet.size}`;
-};
+/** UnitCardContent.Pips: the unit's wounds as the roster and the decision card draw them, those left first; past twelve `left/max`. */
+export const cardPips = (c: UnitCardContent): string =>
+  pipsOf(c.sheet.models.filter((m) => !m.removed).reduce((s, m) => s + m.left, 0), c.sheet.models.reduce((s, m) => s + m.max, 0));
 
 /** UnitCardContent.CountNote: `5 models · 2 wounds left on Sergeant · 170 pts`, the points when the army list gave them. */
 export function countNote(c: UnitCardContent): string {
@@ -52,9 +50,10 @@ export function countNote(c: UnitCardContent): string {
   const count = c.sheet.alive === 1 ? '1 model' : `${c.sheet.alive} models`;
   const tough = c.sheet.models.filter((m) => !m.removed && m.max > 1);
   if (tough.length === 0) return count + points;
-  const left = tough.reduce((s, m) => s + m.left, 0);
+  const named = tough.length === 1 && c.sheet.alive > 1;
+  const left = named ? tough[0]!.left : c.sheet.models.filter((m) => !m.removed).reduce((s, m) => s + m.left, 0);
   const wounds = left === 1 ? '1 wound left' : `${left} wounds left`;
-  return (tough.length === 1 ? `${count} · ${wounds} on ${tough[0]!.label}` : `${count} · ${wounds}`) + points;
+  return (named ? `${count} · ${wounds} on ${tough[0]!.label}` : `${count} · ${wounds}`) + points;
 }
 
 const ACTIVATED_PREFIX = 'Activated: ';

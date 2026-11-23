@@ -77,7 +77,7 @@ describe('HeaderView', () => {
   });
 
   it('a watcher is told they watch and a replay that it changes nothing', () => {
-    expect(WATCHING).toBe('Watching: you have no team in this game');
+    expect(WATCHING).toBe('Watching');
     expect(REPLAYING).toBe('Replay: the table at this point in the game');
   });
 

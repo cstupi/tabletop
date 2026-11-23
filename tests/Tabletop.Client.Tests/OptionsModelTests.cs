@@ -137,6 +137,18 @@ public class OptionsModelTests
         Assert.Equal(7, m.Choices(row).Count);   // Custom goes once a listed size is picked
     }
 
+    /// <summary>Validation, 2026-11-22: Options read 1600×900, the saved rect, while the window stood at 1280×720. A window reads its own size.</summary>
+    [Fact]
+    public void The_resolution_row_reads_the_window_as_it_stands()
+    {
+        var saved = ClientSettings.Default with { Window = new WindowRect(160, 90, 1600, 900) };
+        var m = new OptionsModel(OptionsModel.WithWindow(saved, new WindowRect(320, 180, 1280, 720))) { Screen = new WindowRect(0, 0, 1920, 1080) };
+        Assert.Equal(0, m.Value(Row(OptionsModel.ResolutionId)));                                                 // 1280×720
+        Assert.False(m.Dirty);
+        var full = saved with { Display = DisplayMode.Fullscreen };
+        Assert.Equal(full, OptionsModel.WithWindow(full, new WindowRect(0, 0, 1920, 1080)));                       // a fullscreen rect is never saved
+    }
+
     [Fact]
     public void Outside_a_window_the_resolution_row_shows_native_and_is_disabled()
     {
