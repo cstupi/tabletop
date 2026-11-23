@@ -214,6 +214,13 @@ export class Draft {
 
   get actor(): string | null { return this.#s.context.actorUnitId ?? null; }
 
+  /** A casting block's spell once picked, by its label's name (`Hex`), else null. */
+  get spell(): string | null {
+    if (!this.#nested || this.#chosen === null) return null;
+    const label = this.#labels.get(this.#chosen);
+    return label !== undefined ? split(label).name : nameOfOption(this.#chosen);
+  }
+
   /** `R{round} · {Team} · {Unit} · {Action}`: the header before its targets and move, what an undo into it names. */
   get baseHeader(): string {
     const a = this.actor;

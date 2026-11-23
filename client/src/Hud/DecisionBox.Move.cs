@@ -102,7 +102,7 @@ public partial class DecisionBox
         void Commit() => Relocate(false);
         _onEnter = Commit;
         // Any ghost out of range is counted and each contact named, only while it holds; under strict the commit and the stop wait until none is.
-        var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false }; Add(reason);
+        var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = HudBits.WrapMin, Visible = false }; Add(reason);
         var commit = Act(CardActions.Commit, Commit); Foot(commit);
         Button? stop = null;
         if (legal.Stoppable && !MoveRuler.IsDisembark(legal))
@@ -327,7 +327,7 @@ public partial class DecisionBox
         _onEnter = PlaceDeploy;
         _onCancel = () => { Reset(); Render(); return true; };                    // Reset drops _deployUnit, so Render arms a fresh click
         // A ghost on another model's base is named, only while it holds; under strict Place waits until none is.
-        var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false }; Add(reason);
+        var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = HudBits.WrapMin, Visible = false }; Add(reason);
         _cardActions = CardActions.Placing;
         var place = Act(CardActions.Place, PlaceDeploy); Foot(place); Rekey();
         _regate = () =>

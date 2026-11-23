@@ -8,6 +8,10 @@ namespace Tabletop.Client.Hud;
 /// that draws its icon, its word and its key cap, and a terrain effect's chip.</summary>
 public static class HudBits
 {
+    /// <summary>The least width a wrapping label on a card or the dice tray is laid out at, a few characters: a container that gives a
+    /// wrapping label no width otherwise lays it out one character per line.</summary>
+    public static readonly Vector2 WrapMin = new(Space.XXL, 0);
+
     /// <summary>The theme's icon tinted; an empty square of the size when the theme has none, so rows keep their columns.</summary>
     public static TextureRect Icon(string name, Color tint, int size, string tooltip = "") => new()
     {

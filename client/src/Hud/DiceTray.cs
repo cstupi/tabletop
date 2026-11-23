@@ -96,7 +96,7 @@ public partial class DiceTray : PanelContainer
         var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", Space.S);
         title.AddChild(HudBits.Icon("dice", Ui.Accent, 18));
         var rollOff = r.DieLabels is { Count: > 0 };
-        title.AddChild(new Label { Text = rollOff ? r.Collapsed(CombatLog.Pip) : r.Title, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill });
+        title.AddChild(new Label { Text = rollOff ? r.Collapsed(CombatLog.Pip) : r.Title, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = HudBits.WrapMin, SizeFlagsHorizontal = SizeFlags.ExpandFill });
         Add(title);
         if (rollOff) return;
         var faces = new HFlowContainer(); faces.AddThemeConstantOverride("h_separation", Space.XS); Add(faces);

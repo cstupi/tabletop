@@ -73,6 +73,11 @@ public sealed record RollEntry(long Seq, GameEvent Event, bool Undone, Guid Fram
     public string Result => !Judged ? "" : RollWords.Result(Record.Roll, Dice, Sequence) + (Consequence is { } c && Dice.Count == 1 ? $" → {c}" : "");
     public string Chain => !Judged ? Label : $"{Label} {(Dice.Count == 1 ? Result : Successes.ToString())}";
 
+    /// <summary>A roll its modifiers add to (RollWords.AddsToRoll) of one die: `rolled 1 +1 token = 2`, `rolled 5` with none; else null.</summary>
+    public string? Sum => RollWords.AddsToRoll(Record) && Dice.Count == 1
+        ? $"rolled {Dice[0].Raw}{string.Concat(Record.Modifiers.Select(m => " " + RollWords.RollPart(m)))}{(Record.Modifiers.Count > 0 ? $" = {Dice[0].Modified}" : "")}"
+        : null;
+
     /// <summary>What follows the faces: the result, or an unjudged roll's consequence (a roll-off's winner).</summary>
     public string Outcome => Judged ? Result : Consequence ?? "";
 
@@ -123,6 +128,15 @@ public static class RollWords
     /// <summary>A roll made once per wound being dealt (p.14 Regeneration: "roll one die for each"): one in a deal-wounds frame.</summary>
     public static bool PerWound(string roll, string? sequence) => sequence == "deal-wounds" && roll is not ("hit" or "defense");
 
+    /// <summary>A roll whose modifiers change the die and leave the target as printed: casting (3.6.0 p.13, p.13: "roll one die, and on 4+
+    /// resolve the spell's effect", tokens "give the Caster +1/-1 to the roll per token").</summary>
+    public static bool AddsToRoll(RollRecord r) => r.Roll == "casting" && r.Threshold is not null && r.RequiredRaw is null;
+
+    /// <summary>A modifier as an addition to the die: `+1 token`, `-2 tokens`, `+1 Spell Conduit`.</summary>
+    public static string RollPart(RollModifier m) => m.Source == "tokens"
+        ? $"{Signed(m.Amount)} token{(Math.Abs(m.Amount) == 1 ? "" : "s")}"
+        : $"{Signed(m.Amount)} {(m.Via is { } via ? via + " " : "")}{m.Source}";
+
     /// <summary>The printed value, the changes in parentheses (cover a rule took away first), `→ needs N` when anything changed it.
     /// A record with no basis (an old log, a property's own roll) starts from its threshold. A roll judged on the raw face alone reads
     /// `unmodified N+`, nothing when every face passes; dangerous terrain (threshold 2, p.11) reads the face that fails.</summary>
@@ -131,6 +145,7 @@ public static class RollWords
         if (r.RequiredRaw is { } raw) return raw <= 1 ? "" : $"unmodified {raw}+";
         if (r.Threshold is not { } t) return "";
         if (r is { Roll: "dangerous-terrain", Threshold: 2, Basis: null, Modifiers.Count: 0 }) return "1 fails";
+        if (AddsToRoll(r)) return $"needs {t}+" + (r.Modifiers.Count == 0 ? "" : $" ({string.Join(", ", r.Modifiers.Select(RollPart))})");
         var printed = r.Basis is { } b ? $"{b.Stat} {b.Printed}+" : $"{t}+";
         var parts = new List<string>();
         if (r.Cover is { IgnoredBy: { } by }) parts.Add($"cover ignored ({by})");
@@ -159,7 +174,7 @@ public static class RollWords
         return lines;
     }
 
-    /// <summary>`4 hits (3 sixes: Rending)`, `1 blocked, 2 wounds`, `1 ignored, 2 wounds stand`, `passed` (`cast`), `2 of 3 passed`.
+    /// <summary>`4 hits (3 sixes: Rending)`, `1 blocked, 2 wounds`, `1 ignored, 2 wounds stand`, `passed`, `2 of 3 passed`.
     /// A hit's total adds the extra hits its dice set off, a block's wounds the extra wounds.</summary>
     public static string Result(string roll, IReadOnlyList<DieView> dice, string? sequence = null)
     {
@@ -171,7 +186,7 @@ public static class RollWords
             "hit" => Plural(successes + Extra("hit"), "hit"),
             "defense" => $"{successes} blocked, {Plural(failures + Extra("wound"), "wound")}",
             _ when PerWound(roll, sequence) => $"{successes} ignored, {Plural(failures, "wound")} {(failures == 1 ? "stands" : "stand")}",
-            _ when dice.Count == 1 => successes == 1 ? roll == "casting" ? "cast" : "passed" : "failed",
+            _ when dice.Count == 1 => successes == 1 ? "passed" : "failed",
             "dangerous-terrain" => Plural(failures, "wound"),
             _ => $"{successes} of {dice.Count} passed",
         };
