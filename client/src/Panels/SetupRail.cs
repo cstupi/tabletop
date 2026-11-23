@@ -33,7 +33,7 @@ public partial class SetupRail : PanelContainer
             var badge = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore, Visible = false };
             badge.AddThemeStyleboxOverride("panel", BadgeBox());
             var count = new Label { MouseFilter = MouseFilterEnum.Ignore, HorizontalAlignment = HorizontalAlignment.Center };
-            count.AddThemeFontSizeOverride("font_size", Ui.Current.Body.Size * 2 / 3);   // readable: two thirds of the body text, scaled with Text size count.AddThemeColorOverride("font_color", Ui.Background with { A = 1 });
+            count.AddThemeFontSizeOverride("font_size", Ui.Current.Body.Size - 4); count.AddThemeColorOverride("font_color", Ui.Background with { A = 1 });
             badge.AddChild(count); b.AddChild(badge);
             column.AddChild(b);
             _buttons[tool] = (b, badge, count);
