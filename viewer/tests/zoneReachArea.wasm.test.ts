@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Geometry } from '../src/lib/geometry';
 import type { MidDeploy } from '../src/lib/play/deployView';
+import { sentence } from '../src/lib/play/contactCheck';
 import { shortWords } from '../src/lib/play/markLabels';
 import { ZoneReachCache, withZoneReach, zoneReachBreaches, zoneReachOrdinal, zoneReachRingOf } from '../src/lib/play/zoneReachArea';
 import type { TableState } from '../src/lib/protocol/wire.generated';
@@ -46,6 +47,7 @@ describe('zoneReachArea through the WebAssembly', () => {
     if (marked) {
       expect(found.get(ghost.id)).toBe(`placed beyond ${reach}" of its deployment zone`);
       expect(shortWords(found.get(ghost.id)!)).toBe(`Beyond ${reach}"`);
+      expect(sentence(found.get(ghost.id)!, 'M1')).toBe(`M1 would be placed beyond ${reach}" of its deployment zone`);
     }
   });
 

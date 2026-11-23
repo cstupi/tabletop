@@ -35,6 +35,7 @@ public class ZoneReachAreaTests
         {
             Assert.Equal($"placed beyond {reach}\" of its deployment zone", found[ghost]);
             Assert.Equal($"Beyond {reach}\"", MarkWords.Short(found[ghost]));
+            Assert.Equal($"M1 would be placed beyond {reach}\" of its deployment zone", ContactCheck.Sentence(found[ghost], "M1"));
         }
     }
 
@@ -45,6 +46,7 @@ public class ZoneReachAreaTests
         var found = ZoneReachArea.Breaches(TableUx.After(), TableUx.Game, Scout(0), ZoneLegs.Default, new Dictionary<Guid, Placement> { [ghost] = At(20, 35.8) });
         Assert.Equal("placed outside its deployment zone", found[ghost]);
         Assert.Equal("Outside its zone", MarkWords.Short(found[ghost]));
+        Assert.Equal("M1 would be placed outside its deployment zone", ContactCheck.Sentence(found[ghost], "M1"));
         Assert.Equal("Your zone", ZoneReachArea.Of(TableUx.After(), TableUx.Game, Scout(0), ZoneLegs.Default)!.Label);
     }
 
