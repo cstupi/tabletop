@@ -124,4 +124,23 @@ public class CasualtyPickTests
         var tough = new CasualtyPick(new Allocation([M1, M2], 2), new Dictionary<Guid, int> { [M1] = 1, [M2] = 3 });
         Assert.Equal((false, "Assign 2 wounds"), (tough.OneEach, tough.Title));
     }
+
+    /// <summary>A later segment of a deal-wounds frame asks for the wounds left (the most wounded Tough model took the first and died): the card
+    /// says how many of the frame's wounds (`wounds_total`, the server's) are already assigned, so its count agrees with the block's.</summary>
+    [Fact]
+    public void A_later_segment_says_how_many_of_the_frames_wounds_are_assigned()
+    {
+        var frame = Guid.CreateVersion7();
+        var a = new EventApplier(new Board(Tabletop.Content.Tests.TableStateTests.Sample(), []), SheetFocusTests.Game);
+        a.ApplyAll([new GameEvent(1, null, new SequenceStarted(frame, "deal-wounds", new SequenceContext(null, [], [], null)), null)]);
+        var ask = new Ask(Guid.CreateVersion7(), "remove_casualties", "Assign 1 wound(s)", [], new Allocation([M1, M2], 1, 1), false, false, null, frame);
+        Assert.Null(CasualtyPick.TotalOf(a.Projection, ask));                                                    // the first segment: nothing assigned yet
+        a.ApplyAll([new GameEvent(2, null, new StepCompleted(frame, "assign", null, [], []) { Values = new Dictionary<string, int> { ["wounds_total"] = 2, ["wounds_left"] = 1 } }, null)]);
+        Assert.Equal(2, CasualtyPick.TotalOf(a.Projection, ask));
+        var left = new Dictionary<Guid, int> { [M1] = 3, [M2] = 3 };
+        var later = new CasualtyPick((Allocation)ask.Legal, left, 2);
+        Assert.Equal(("Assign 1 wound to one model", "1 of 2 wounds assigned"), (later.Title, later.Assigned));
+        Assert.Null(new CasualtyPick((Allocation)ask.Legal, left).Assigned);
+        Assert.Null(new CasualtyPick((Allocation)ask.Legal, left, 1).Assigned);
+    }
 }

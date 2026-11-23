@@ -6,7 +6,7 @@
 import type { Projection } from '../live/apply';
 import type { Ask, AskOption, GameInfo } from '../protocol/wire.generated';
 import { unitNamed, type Numbered } from './decisionView';
-import { actionFrame } from './headerView';
+import { actionFrame, outline } from './headerView';
 import { isDisembark, type RulerReadout } from './moveRuler';
 import type { Names } from './names';
 import { words } from './rosterView';
@@ -61,6 +61,14 @@ export function headOf(ask: Ask, p: Projection, n: Names): CardHead {
     const lead = l.modelIds.length > 0 ? p.models.get(l.modelIds[0]!) : undefined;
     const unit = lead !== undefined ? n.unit(lead.unitId) : actor();
     if (isDisembark(l)) return head('advance', 'Disembark', unit);
+    // A move that is not the acting unit's own action move (the charged unit's close-in, p.9; a consolidation, p.10, in the melee's frame)
+    // is titled by its frame's current outline step, the book's name for it, where the frame has one.
+    const frame = ask.frameId === undefined || ask.frameId === null ? undefined : p.stack.find((f) => f.id === ask.frameId);
+    if (frame !== undefined) {
+      const own = frame.id === actionFrame(p)?.id && (lead === undefined || lead.unitId === acting?.actorUnitId);
+      const step = own ? undefined : outline(frame).find((o) => o.state === 'current');
+      if (step !== undefined) return head('advance', step.label, unit);
+    }
     const action = acting?.action ?? null;
     return head(actionIcon(action) ?? 'advance', action ?? 'Move', unit);
   }

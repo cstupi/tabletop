@@ -163,6 +163,11 @@ public static partial class GfAttack
 
         const string IgnoreWoundsKey = "ignore_wounds";
 
+        /// <summary>The wounds the frame started with (its first segment's), on every segment: what a later segment's Ask, asking for the
+        /// wounds left, is a part of (the clients' `1 of 2 wounds assigned`).</summary>
+        const string WoundsTotalKey = "wounds_total";
+        static int WoundsTotal(StepContext ctx, int wounds) => ctx.Frame.Values.ContainsKey(WoundsTotalKey) ? ctx.Frame.Value(WoundsTotalKey) : wounds;
+
         /// <summary>
         /// Owner ruling (2026-11-09): a unit whose every model the wounds kill is not asked to allocate them. p.8 "For each wound that the
         /// unit has taken, the defending player must remove one model", p.15 Tough "must take X wounds before being killed": when the wounds
@@ -255,7 +260,7 @@ public static partial class GfAttack
             {
                 foreach (var m in segment.Where(m => m.Incoming > m.Kept))
                     ctx.Roll(new Dice.RollPlan(regen.Source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), m.Incoming - m.Kept);
-                var recorded = new Dictionary<string, int> { [IgnoreWoundsKey] = wounds };
+                var recorded = new Dictionary<string, int> { [IgnoreWoundsKey] = wounds, [WoundsTotalKey] = WoundsTotal(ctx, wounds) };
                 foreach (var (a, i) in allocation.Select((a, i) => (a, i))) recorded[$"allocated_{i}_{a.Model:N}"] = a.Count;
                 return new Complete([], recorded, Repeat: true);
             }
@@ -297,7 +302,7 @@ public static partial class GfAttack
             changes.Add(new WoundsThisActivationSet(target, ctx.Projection.Units[target].WoundsThisActivation + landed));
             var left = !fixedModels ? wounds - allocation.Sum(a => a.Count) + spilled : 0;
             var survivors = Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && !AtCapacity(ctx.State, m));
-            var values = new Dictionary<string, int>(perModel) { ["wounds_dealt"] = total, ["wounds_left"] = left, ["wounds_carried"] = !fixedModels ? spilled : 0 };
+            var values = new Dictionary<string, int>(perModel) { ["wounds_dealt"] = total, ["wounds_left"] = left, ["wounds_carried"] = !fixedModels ? spilled : 0, [WoundsTotalKey] = WoundsTotal(ctx, wounds) };
             if (multiplier > 1) values["wound_multiplier"] = multiplier;   // Deadly's ×X on each wound of the segment: what the combat log multiplies its wounds by
             return new Complete(changes, values, Repeat: left > 0 && survivors);
         }

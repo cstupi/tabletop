@@ -36,6 +36,14 @@ describe('Violations', () => {
     expect(v.marked.get(C)).toBe('C would be placed outside its deployment zone');
   });
 
+  it('a reason several models share names their unit; one model alone names the model', () => {
+    const v = new Violations((id) => `Veterans ${id}`, () => 'Veterans');
+    v.measure([A, B, C], marks({ [A]: 'beyond 9" of its deployment zone', [B]: 'beyond 9" of its deployment zone', [C]: 'overlaps a base' }));
+    expect(v.marked.get(A)).toBe('Veterans would be placed beyond 9" of its deployment zone');
+    expect(v.marked.get(B)).toBe('Veterans would be placed beyond 9" of its deployment zone');
+    expect(v.marked.get(C)).toBe(`Veterans ${C} would be placed on another model's base`);
+  });
+
   it('a refusal marks its models with the server\'s reason until one of them moves', () => {
     const v = new Violations();
     v.refused([A, B], 'would move through another model');

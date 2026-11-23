@@ -73,6 +73,10 @@ public sealed record RollEntry(long Seq, GameEvent Event, bool Undone, Guid Fram
     public string Result => !Judged ? "" : RollWords.Result(Record.Roll, Dice, Sequence) + (Consequence is { } c && Dice.Count == 1 ? $" → {c}" : "");
     public string Chain => !Judged ? Label : $"{Label} {(Dice.Count == 1 ? Result : Successes.ToString())}";
 
+    /// <summary>The value a die is drawn at, so the modifiers show once: its total on a roll its modifiers add to (RollWords.AddsToRoll, whose
+    /// title keeps the printed target), else its face as rolled, the title's `→ needs N` already holding them (p.5: the same verdict).</summary>
+    public int Face(DieView d) => RollWords.AddsToRoll(Record) ? d.Modified : d.Raw;
+
     /// <summary>A roll its modifiers add to (RollWords.AddsToRoll) of one die: `rolled 1 +1 token = 2`, `rolled 5` with none; else null.</summary>
     public string? Sum => RollWords.AddsToRoll(Record) && Dice.Count == 1
         ? $"rolled {Dice[0].Raw}{string.Concat(Record.Modifiers.Select(m => " " + RollWords.RollPart(m)))}{(Record.Modifiers.Count > 0 ? $" = {Dice[0].Modified}" : "")}"

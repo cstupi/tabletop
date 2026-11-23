@@ -19,6 +19,9 @@ public sealed class Violations
     /// <summary>Names a model for the decision box's sentences (ContactCheck.Sentence); without it, or for a model it does not name, a mark is its words.</summary>
     public Func<Guid, string?>? Subject { get; set; }
 
+    /// <summary>Names a model's unit: a reason several models share is said of the unit (the gate adds the count), one model's of the model.</summary>
+    public Func<Guid, string?>? UnitSubject { get; set; }
+
     /// <summary>Each marked model's reason for the decision box: the client's own as a sentence naming the first model with it, else the server's refusal.</summary>
     public IReadOnlyDictionary<Guid, string> Marked => _marked;
 
@@ -81,11 +84,13 @@ public sealed class Violations
     {
         var words = new Dictionary<Guid, string>(_measured);
         if (_refusal is { } r) foreach (var id in _refused) words.TryAdd(id, r);
-        var said = new Dictionary<string, string>();                           // each measured reason's sentence, about its first model
+        var said = new Dictionary<string, string>();                           // each measured reason's sentence, about its unit or its one model
         foreach (var id in _order)
         {
             var w = _measured[id];
-            if (!said.ContainsKey(w)) said[w] = Subject?.Invoke(id) is { } name ? ContactCheck.Sentence(w, name) : w;
+            if (said.ContainsKey(w)) continue;
+            var several = _measured.Values.Count(x => x == w) > 1;
+            said[w] = (several ? UnitSubject?.Invoke(id) ?? Subject?.Invoke(id) : Subject?.Invoke(id)) is { } name ? ContactCheck.Sentence(w, name) : w;
         }
         var marked = words.ToDictionary(kv => kv.Key, kv => _measured.ContainsKey(kv.Key) ? said[kv.Value] : kv.Value);
         if (Same(words, _words) && Same(marked, _marked)) return false;

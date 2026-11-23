@@ -66,6 +66,12 @@ public static class DecisionCard
         {
             var unit = m.ModelIds.Count > 0 && p.Models.GetValueOrDefault(m.ModelIds[0]) is { } lead ? n.Unit(lead.UnitId) : Actor();
             if (MoveRuler.IsDisembark(m)) return new CardHead("advance", "Disembark", unit);
+            // A move that is not the acting unit's own action move (the charged unit's close-in, p.9; a consolidation, p.10, in the melee's
+            // frame) is titled by its frame's current outline step, the book's name for it, where the frame has one.
+            var frame = ask.FrameId is { } fid ? p.Stack.FirstOrDefault(f => f.Id == fid) : null;
+            var leadUnit = m.ModelIds.Count > 0 ? p.Models.GetValueOrDefault(m.ModelIds[0])?.UnitId : null;
+            var own = frame is null || frame.Id == HeaderView.ActionFrame(p)?.Id && (leadUnit is null || leadUnit == acting?.ActorUnitId);
+            if (!own && HeaderView.Outline(frame!).FirstOrDefault(o => o.State == OutlineState.Current) is { } step) return new CardHead("advance", step.Label, unit);
             var action = acting?.Action;
             return new CardHead(ActionIcon(action) ?? "advance", action ?? "Move", unit);
         }

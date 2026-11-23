@@ -91,6 +91,33 @@ public class DecisionCardTests
         Assert.Equal(new CardHead("advance", "Move", "Battle Brothers"), DecisionCard.Head(move, bare, new Names(Game, bare)));
     }
 
+    /// <summary>p.9: the charged unit's models "must move by up to 3”" (the charge's outline step `Target moves`); p.10's consolidation moves run in
+    /// the melee frame (`Consolidation`): neither is the Charge, so each is titled by its frame's current step, the charger's own move by the action.</summary>
+    [Fact]
+    public void A_move_of_another_unit_or_in_a_nested_frame_is_titled_by_the_frames_current_step()
+    {
+        Guid charge = Guid.CreateVersion7(), melee = Guid.CreateVersion7();
+        OutlineStep[] chargeOutline = [new("charge-target", "Pick target"), new("charge", "Charge move"), new("defender-closes", "Target moves"), new("fight", "Melee")];
+        var (p, second) = Two(new RoundStarted(1, [Samples.Team1, Samples.Team2], []),
+            new SequenceStarted(charge, "charge", new SequenceContext(Samples.Unit, [SecondId], [], "Charge"), chargeOutline),
+            new StepCompleted(charge, "charge-target", null, [], []));
+        var n = new Names(Game, p);
+        Assert.Equal(new CardHead("charge", "Charge", "Battle Brothers"),
+            DecisionCard.Head(AskOf("move", new MoveRegion([Samples.Model], 12, [], [], null)) with { FrameId = charge }, p, n));
+        var (closing, _) = Two(new RoundStarted(1, [Samples.Team1, Samples.Team2], []),
+            new SequenceStarted(charge, "charge", new SequenceContext(Samples.Unit, [SecondId], [], "Charge"), chargeOutline),
+            new StepCompleted(charge, "charge-target", null, [], []), new StepCompleted(charge, "charge", null, [], []));
+        Assert.Equal(new CardHead("advance", "Target moves", "Scouts"),
+            DecisionCard.Head(AskOf("move", new MoveRegion([SecondModel], 3, [], [], null)) with { FrameId = charge }, closing, new Names(Game, closing)));
+        var (after, _) = Two(new RoundStarted(1, [Samples.Team1, Samples.Team2], []),
+            new SequenceStarted(charge, "charge", new SequenceContext(Samples.Unit, [SecondId], [], "Charge"), chargeOutline),
+            new SequenceStarted(melee, "melee", new SequenceContext(Samples.Unit, [SecondId], [], null), [new("compare", "Melee resolution"), new("consolidate", "Consolidation")]),
+            new StepCompleted(melee, "compare", null, [], []));
+        foreach (var mover in new[] { Samples.Model, SecondModel })
+            Assert.Equal("Consolidation", DecisionCard.Head(AskOf("move", new MoveRegion([mover], 3, [], [], null)) with { FrameId = melee }, after, new Names(Game, after)).Title);
+        Assert.Equal(second, SecondId);
+    }
+
     [Fact]
     public void The_bar_reads_the_farthest_model_over_the_allowance()
     {

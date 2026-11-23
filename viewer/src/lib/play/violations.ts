@@ -11,13 +11,17 @@ export class Violations {
   readonly #refused = new Set<string>();
   readonly #listeners = new Set<() => void>();
   readonly #subject: ((modelId: string) => string | null) | null;
+  readonly #unitSubject: ((modelId: string) => string | null) | null;
   #refusal: string | null = null;
   #words: ReadonlyMap<string, string> = new Map();
   #marked: ReadonlyMap<string, string> = new Map();
   #warned: ReadonlyMap<string, string> = new Map();
 
-  /** `subject` names a model for the decision box's sentences (contactCheck's `sentence`); without it a mark is its words. */
-  constructor(subject: ((modelId: string) => string | null) | null = null) { this.#subject = subject; }
+  /** `subject` names a model for the decision box's sentences (contactCheck's `sentence`); without it a mark is its words. `unitSubject`
+   *  names a model's unit: a reason several models share is said of the unit (the gate adds the count), one model's of the model. */
+  constructor(subject: ((modelId: string) => string | null) | null = null, unitSubject: ((modelId: string) => string | null) | null = null) {
+    this.#subject = subject; this.#unitSubject = unitSubject;
+  }
 
   /** Each marked model's reason for the decision box: the client's own as a sentence naming the first model with it, else the server's
    *  refusal. */
@@ -93,10 +97,12 @@ export class Violations {
   #update(): boolean {
     const words = new Map(this.#measured);
     if (this.#refusal !== null) for (const id of this.#refused) if (!words.has(id)) words.set(id, this.#refusal);
-    const said = new Map<string, string>();                               // each measured reason's sentence, about its first model
+    const said = new Map<string, string>();                               // each measured reason's sentence, about its unit or its one model
+    const counts = new Map<string, number>();
+    for (const w of this.#measured.values()) counts.set(w, (counts.get(w) ?? 0) + 1);
     for (const [id, w] of this.#measured) {
       if (said.has(w)) continue;
-      const name = this.#subject?.(id) ?? null;
+      const name = (counts.get(w)! > 1 ? this.#unitSubject?.(id) ?? this.#subject?.(id) : this.#subject?.(id)) ?? null;
       said.set(w, name === null ? w : sentence(w, name));
     }
     const marked = new Map([...words].map(([id, w]) => [id, this.#measured.has(id) ? said.get(w)! : w] as const));

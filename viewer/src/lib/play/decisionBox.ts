@@ -654,9 +654,9 @@ export class DecisionBox {
   #renderCasualties(ask: Ask, legal: Allocation, p: Projection, names: Names): void {
     const facts = this.#host.state().maxWounds;
     const left = new Map(legal.targets.map((id) => [id, Math.max(0, (facts.get(id) ?? 1) - (p.models.get(id)?.wounds ?? 0))] as const));
-    const pick = new CasualtyPick(legal, left);
+    const pick = new CasualtyPick(legal, left, CasualtyPick.totalOf(p, ask));
     const unit = legal.targets.map((id) => p.models.get(id)?.unitId).find((u) => u !== undefined);
-    this.#head = { icon: 'wound', title: pick.title, subject: unit === undefined ? null : names.unit(unit), prompt: null };
+    this.#head = { icon: 'wound', title: pick.title, subject: unit === undefined ? null : names.unit(unit), prompt: pick.assigned };
     const confirm = () => { const a = pick.answer(); if (a !== null) this.#send(ask, a); };
     const show = () => {
       const marks = new Map<string, string>();
