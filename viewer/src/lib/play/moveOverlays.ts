@@ -146,7 +146,7 @@ const laid = new WeakMap<ModelPath, { vehicle: boolean; marks: PathMark[] }>();
 const marksOfPath = (path: ModelPath, vehicle: boolean): PathMark[] => {
   const known = laid.get(path);
   if (known !== undefined && known.vehicle === vehicle) return known.marks;
-  const marks = marksOf(path.route, path.start.body.base, path.start.placement.yaw.degrees, path.stretches, vehicle);
+  const marks = marksOf(path.route, path.start.body.base, path.stretches, vehicle, path.start.placement.yaw.degrees, path.end);
   laid.set(path, { vehicle, marks });
   return marks;
 };

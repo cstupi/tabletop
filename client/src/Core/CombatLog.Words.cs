@@ -181,6 +181,8 @@ public static partial class CombatLog
         public List<LogEntry> Entries { get; } = [];
         public List<string> Chain { get; } = [];
         public Guid? Actor => s.Context.ActorUnitId;
+        /// <summary>A casting block's spell once picked, by its label's name (`Hex`), else null.</summary>
+        public string? Spell => !nested || _chosen is not { } c ? null : _labels.GetValueOrDefault(c) is { } label ? SpellText.Split(label).Name : SpellText.NameOfOption(c);
 
         /// <summary>`R{round} · {Team} · {Unit} · {Action}`: the header before its targets and move, what an undo into it names.</summary>
         public string BaseHeader => string.Join(" · ", new[]

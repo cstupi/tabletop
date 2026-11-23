@@ -138,7 +138,7 @@ the unit on the table, as today.
 
 **Confirmation** (`confirm`, `end_round`): the title, the prompt, one primary `[ End the round ⏎ ]`. A sealed Ask's reveal draws each
 team's choice as that team's band and chip (`▌TEAM 1 ▐ continue`), not the sentence `Revealed: Team 1 chose continue, Team 2 chose
-continue` (`29-ended-game.png`).
+continue` (`29-ended-game.png`). The reveal shows only while no card of the viewer's is up; the next card clears it.
 
 **Move** (`move`, `disembark`):
 

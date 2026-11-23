@@ -78,8 +78,8 @@ describe('CombatLogBlock', () => {
     expect(nested.nested).toBe(true);
     expect(nested.header).toBe(`Cast Hex (3) → ${Foe}`);
     expect([nested.spell, nested.spellCost]).toEqual(['hex', 3]);
-    expect(words(only(nested.entries) as RollEntry)).toBe('Casting · 4+ · ⚄ · cast');
-    expect(b.chainParts.join(' → ')).toBe('Casting cast');
+    expect(words(only(nested.entries) as RollEntry)).toBe('Cast Hex · needs 4+ · ⚄ · passed');
+    expect(b.chainParts.join(' → ')).toBe('Cast Hex passed');
     expect(latest(entries)!.record.id).toBe(casting.id);
     const onlyRolls = filter(entries, 'rolls', () => true, null);
     const inner = only((only(onlyRolls) as ActivationBlock).entries) as ActivationBlock;

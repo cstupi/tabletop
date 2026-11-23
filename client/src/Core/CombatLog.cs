@@ -99,6 +99,7 @@ public static partial class CombatLog
                                 InAttack = tree.Tag(step, roll, context, n), HitMultiplier = roll.Roll == "hit" ? multiplier : 1,
                                 Unit = context.ActorUnitId is { } unit ? n.Unit(unit) : null,
                             };
+                        if (roll.Roll == "casting" && drafts.LastOrDefault(d => d.Spell is not null)?.Spell is { } spell) entry = entry with { Label = $"Cast {spell}" };
                         into.Add(entry); Chain(entry.Chain);
                     }
                     if (after.Absorbed.Contains(e.Seq)) break;

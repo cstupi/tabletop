@@ -11,8 +11,13 @@ dangerous terrain."*
 
 - **Path:** for each held or proposed model in a move Ask, small marks along the server's route (`MoveRegions.Route`, the path
   `Movement.Measured` gives) from its origin to its ghost. Owner, 2026-11-22: *"it should be little footprints instead of traces of the
-  base and lines. That way it shows movement. Vehicles should show treads for their path."* A model leaves boot prints alternating left
-  and right, a few per inch, facing along the route, from walkers spread across the base's swept width so the width still reads; a
+  base and lines. That way it shows movement. Vehicles should show treads for their path."* and *"it should be based on the number of
+  models. A single model shouldn't have a sea of footprints like this but instead a line of a pair of footprints."* Each model leaves one
+  trail: a single pair of feet's prints alternating left and right a little either side of the route, facing along it, stride and print
+  size scaled modestly with the base (an infantryman's 0.4" apart, a monster's larger and further apart). Owner: *"if they had to pivot or
+  go around something that has to be reflected in their pathing."* The trail follows the measured route round whatever it bends round
+  (impassable terrain, models, dangerous ground), the feet turning in place at each bend, and where the model's facing at the start or
+  end differs from the route's the prints turn in place there (a vehicle's tracks swing round its centre); a
   vehicle (the army list published no base for it: Army Forge's `bases` "none" or empty, `ModelSlot.Vehicle`) leaves two tread tracks
   of repeating links at the base's width. Drawn while the Ask is open, under the ghosts, in the team colour in the theme's look (Fantasy
   an ink stamp, Sci-fi a faint light trace); a mark on the stretch of the walk where any part of the base touches a dangerous volume

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Names } from '../src/lib/play/names';
+import { rollLine } from '../src/lib/play/logSheet';
 import { RollWords, chain, collapsed, pip, rollEntryOf, type RollEntry } from '../src/lib/play/rollEntry';
 import type { Die, RollModifier, RollRecord, SequenceContext, StepCompleted, ThresholdBasis } from '../src/lib/protocol/wire.generated';
 import { FRAME, ev, gameOf, newId } from './play';
@@ -45,10 +46,19 @@ describe('RollLine', () => {
     expect(chain(morale)).toBe('Morale failed → Shaken');
   });
 
-  it('a passed casting roll reads cast', () => {
+  it('a casting roll adds its tokens to the die and needs 4+', () => {
     expect(line(record('casting', 4, [D(6, true)], undefined, undefined, { source: 'tokens', amount: 1 }), 'casting'))
-      .toBe('Casting · 4+ (tokens +1) → needs 3 · ⚅ · cast');
-    expect(line(record('casting', 4, [D(1, false)]), 'casting')).toBe('Casting · 4+ · ⚀ · failed');
+      .toBe('Casting · needs 4+ (+1 token) · ⚅ · passed');
+    expect(line(record('casting', 4, [D(1, false)]), 'casting')).toBe('Casting · needs 4+ · ⚀ · failed');
+    expect(line(record('casting', 4, [{ raw: 5, modified: 4, success: true }], undefined, undefined, { source: 'tokens', amount: -2 }, { source: 'Spell Conduit', amount: 1 }), 'casting'))
+      .toBe('Casting · needs 4+ (-2 tokens, +1 Spell Conduit) · ⚄ · passed');
+  });
+
+  it('a casting log line sums the die and its tokens', () => {
+    const failed = { ...entry(record('casting', 4, [{ raw: 1, modified: 2, success: false }], undefined, undefined, { source: 'tokens', amount: 1 }), 'casting'), label: 'Cast Hex' };
+    expect(rollLine(failed, null)).toBe('Cast Hex: rolled 1 +1 token = 2, needs 4+, failed');
+    const plain = { ...entry(record('casting', 4, [D(5, true)]), 'casting'), label: 'Cast Hex' };
+    expect(rollLine(plain, null)).toBe('Cast Hex: rolled 5, needs 4+, passed');
   });
 
   it('dangerous terrain fails on a one', () => {

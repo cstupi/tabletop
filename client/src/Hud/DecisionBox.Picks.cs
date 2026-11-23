@@ -164,7 +164,7 @@ public partial class DecisionBox
         Head(new CardHead("wound", pick.Title, unit is { } u ? names.Unit(u) : null), MyOrdinal);
         var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.M); Add(row);
         var count = new Label { ThemeTypeVariation = Variation.Display, VerticalAlignment = VerticalAlignment.Center }; row.AddChild(count);
-        var pips = new Label { VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.Arbitrary, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        var pips = new Label { VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.Arbitrary, CustomMinimumSize = HudBits.WrapMin, SizeFlagsHorizontal = SizeFlags.ExpandFill };
         pips.AddThemeColorOverride("font_color", Ui.Failure); row.AddChild(pips);
         void Confirm() { if (pick.Answer() is { } answer) Send(ask, answer); }
         var confirm = Act(CardActions.Confirm, Confirm);

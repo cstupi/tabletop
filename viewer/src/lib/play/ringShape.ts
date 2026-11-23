@@ -6,14 +6,16 @@
 
 import type { Segment, XY } from '../geometry';
 
-export type RingKind = 'range' | 'charge' | 'shoot' | 'keepAway';
+export type RingKind = 'range' | 'charge' | 'shoot' | 'keepAway' | 'reach';
 
-export interface RingLook { readonly fillAlpha: number; readonly lineWidth: number; readonly icon: 'charge' | 'shoot' | 'warning' }
+export interface RingLook { readonly fillAlpha: number; readonly lineWidth: number; readonly icon: RingIcon }
+export type RingIcon = 'charge' | 'shoot' | 'warning' | 'zone';
 const LOOKS: Record<RingKind, RingLook> = {
   charge: { fillAlpha: 0.22, lineWidth: 3, icon: 'charge' },
   shoot: { fillAlpha: 0.12, lineWidth: 3, icon: 'shoot' },
   range: { fillAlpha: 0.08, lineWidth: 2.5, icon: 'shoot' },
   keepAway: { fillAlpha: 0.45, lineWidth: 3.5, icon: 'warning' },
+  reach: { fillAlpha: 0.10, lineWidth: 3.5, icon: 'zone' },
 };
 export const ringLook = (kind: RingKind): RingLook => LOOKS[kind];
 

@@ -47,6 +47,17 @@ public class DeployViewTests
         Assert.Null(DeployView.MidDeploy(b.Projection, b.Log, Samples.Team1)!.KeepAway);
     }
 
+    [Fact]
+    public void A_scout_pick_carries_its_units_reach_from_the_zone_and_none_without_one()
+    {
+        var ask = DeployAsk(AskQuestions.DeployScouts) with { Legal = new PieceSelection([Samples.Unit], 1, 1, ZoneReach: new Dictionary<Guid, double> { [Samples.Unit] = 9 }) };
+        var a = Applier(new AskOpened(ask), Closed(ask, new SelectedPieces([Samples.Unit])));
+        Assert.Equal(9, DeployView.MidDeploy(a.Projection, a.Log, Samples.Team1)!.ZoneReach);
+        var plain = DeployAsk();
+        var b = Applier(new AskOpened(plain), Closed(plain, new SelectedPieces([Samples.Unit])));
+        Assert.Null(DeployView.MidDeploy(b.Projection, b.Log, Samples.Team1)!.ZoneReach);
+    }
+
     [Theory]
     [InlineData(AskQuestions.DeployScouts)]
     [InlineData(AskQuestions.DeployAmbusher)]

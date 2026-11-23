@@ -94,8 +94,11 @@ export interface Geometry {
   /** `legs`: Side Battle's, from the game's Welcome; absent is ZoneLegs.Default. */
   zonePolygons(shape: string, size: TableSize, legs?: ZoneLegs): XY[][];
   zoneContains(shape: string, size: TableSize, point: XY, legs?: ZoneLegs): boolean;
-  /** The whole base inside one of the zone's polygons (p.6 "fully within"). */
-  zoneHoldsBase(shape: string, size: TableSize, model: PlacedModel, legs?: ZoneLegs): boolean;
+  /** The whole base inside one of the zone's polygons (p.6 "fully within"); with `reach` over 0, every point of the base within `reach` of the zone
+   *  (p.14 Scout "fully within 12” of their deployment zone", 3.6.0 p.15 9"). */
+  zoneHoldsBase(shape: string, size: TableSize, model: PlacedModel, legs?: ZoneLegs, reach?: number): boolean;
+  /** ZoneReach.Outline: the zone grown by `reach`, cut to the table, as outline segments. */
+  zoneReachOutline(shape: string, size: TableSize, reach: number, legs?: ZoneLegs): Segment[];
   tableHoldsBase(size: TableSize, model: PlacedModel): boolean;
   /** Containment.ExitYaw (p.7, p.15): a facing a disembarking model's position is legal at, or null; `impassable` are the volume ids the Ask names. */
   exitYaw(body: ModelBody, container: PlacedModel, within: number, at: XY, terrain: Terrain, impassable: readonly string[], size: TableSize): Yaw | null;

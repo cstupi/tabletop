@@ -12,6 +12,8 @@ namespace Tabletop.Client.Hud;
 public partial class DiceTray : PanelContainer
 {
     const double TumbleSeconds = 0.4;
+    /// <summary>The longest result the tray draws beside the dice; a longer one gets its own wrapped line.</summary>
+    const int ResultBesideFaces = 24;
     Session _s = null!;
     readonly Button _line = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton };
     readonly VBoxContainer _row = new() { MouseFilter = MouseFilterEnum.Ignore };   // the title line over the faces, which wrap inside the tray's slot
@@ -96,7 +98,7 @@ public partial class DiceTray : PanelContainer
         var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", Space.S);
         title.AddChild(HudBits.Icon("dice", Ui.Accent, 18));
         var rollOff = r.DieLabels is { Count: > 0 };
-        title.AddChild(new Label { Text = rollOff ? r.Collapsed(CombatLog.Pip) : r.Title, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill });
+        title.AddChild(new Label { Text = rollOff ? r.Collapsed(CombatLog.Pip) : r.Title, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = HudBits.WrapMin, SizeFlagsHorizontal = SizeFlags.ExpandFill });
         Add(title);
         if (rollOff) return;
         var faces = new HFlowContainer(); faces.AddThemeConstantOverride("h_separation", Space.XS); Add(faces);
@@ -110,8 +112,13 @@ public partial class DiceTray : PanelContainer
             if (!settled) _tumbling.Add(c);
         }
         // An unjudged roll has no pass or fail, so no result label; a roll-off whose dice no team labels may still name the winner.
-        if (settled && r.Judged) Face(new Label { Text = r.Result, ThemeTypeVariation = r.Successes > 0 ? Variation.Success : Variation.Failure, SizeFlagsVertical = SizeFlags.ShrinkCenter });
-        else if (settled && r.Outcome.Length > 0) Face(new Label { Text = r.Outcome, SizeFlagsVertical = SizeFlags.ShrinkCenter });
+        if (!settled) return;
+        var result = r.Judged ? new Label { Text = r.Result, ThemeTypeVariation = r.Successes > 0 ? Variation.Success : Variation.Failure, SizeFlagsVertical = SizeFlags.ShrinkCenter }
+            : r.Outcome.Length > 0 ? new Label { Text = r.Outcome, SizeFlagsVertical = SizeFlags.ShrinkCenter } : null;
+        if (result is null) return;
+        // A short result sits beside the faces; a long one (a spell's consequence) is its own line wrapped at the tray's width, not cut off.
+        if (result.Text.Length <= ResultBesideFaces) Face(result);
+        else { result.AutowrapMode = TextServer.AutowrapMode.WordSmart; result.CustomMinimumSize = HudBits.WrapMin; Add(result); }
     }
 
     void Add(Control c) { Ignore(c); _row.AddChild(c); }

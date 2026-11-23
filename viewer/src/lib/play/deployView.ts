@@ -7,8 +7,11 @@ import { effectiveLog } from '../live/apply';
 import type { Ask, Base, GameEvent, KeepAway, ModelRelocation, Placement, Point3, TableSize, Yaw } from '../protocol/wire.generated';
 
 /** A deploy activation the server is waiting on: the unit picked at a deploy Ask, the models of it still on the shelf, and the distance from
- *  enemy units the pick carried for it (PieceSelection.keepAway: an Ambusher, a 3.6 Scout, a 3.6 Reinforcement copy), or null. */
-export interface MidDeploy { readonly unitId: string; readonly question: string; readonly shelvedModelIds: readonly string[]; readonly keepAway: KeepAway | null }
+ *  enemy units the pick carried for it (PieceSelection.keepAway: an Ambusher, a 3.6 Scout, a 3.6 Reinforcement copy), or null, and its reach from
+ *  the team's deployment zone (PieceSelection.zoneReach: a Scout's), or null. */
+export interface MidDeploy {
+  readonly unitId: string; readonly question: string; readonly shelvedModelIds: readonly string[]; readonly keepAway: KeepAway | null; readonly zoneReach: number | null;
+}
 
 /** deploy, deploy_scouts, deploy_ambusher, deploy_reinforcement. */
 export const DEPLOY_QUESTIONS: readonly string[] = ['deploy', 'deploy_scouts', 'deploy_ambusher', 'deploy_reinforcement'];
@@ -39,7 +42,8 @@ export function midDeploy(p: Projection, log: readonly GameEvent[], myTeam: stri
   const shelved = [...p.models.values()].filter((m) => m.unitId === unit && m.location.kind === 'shelf')
     .sort((a, b) => a.slot.ordinal - b.slot.ordinal).map((m) => m.id);
   const keepAway = last.legal.kind === 'pieces' ? last.legal.keepAway?.[unit] ?? null : null;
-  return shelved.length === 0 ? null : { unitId: unit, question: last.question, shelvedModelIds: shelved, keepAway };
+  const zoneReach = last.legal.kind === 'pieces' ? last.legal.zoneReach?.[unit] ?? null : null;
+  return shelved.length === 0 ? null : { unitId: unit, question: last.question, shelvedModelIds: shelved, keepAway, zoneReach };
 }
 
 const fit = (centre: number, half: number, extent: number): number => (extent <= 2 * half ? extent / 2 : Math.min(Math.max(centre, half), extent - half));

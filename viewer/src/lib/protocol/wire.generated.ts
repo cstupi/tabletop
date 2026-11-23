@@ -538,6 +538,7 @@ export interface PieceSelection {
   readonly min: number;
   readonly max: number;
   readonly keepAway?: { readonly [key: string]: KeepAway };
+  readonly zoneReach?: { readonly [key: string]: number };
 }
 
 export interface Placement {

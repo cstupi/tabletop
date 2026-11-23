@@ -5,7 +5,7 @@
 
 import type { RollModifier, RollRecord } from '../protocol/wire.generated';
 import {
-  type AttackTag, type DieView, type LogEntry, type RollEntry, RollWords, amendmentLine, capital, isTest, outcome, parseTrigger, signed, successes,
+  type AttackTag, type DieView, type LogEntry, type RollEntry, RollWords, amendmentLine, capital, isTest, outcome, parseTrigger, signed, successes, sum as rollSum,
 } from './rollEntry';
 
 /** One piece of the drawn log: an entry, or an attack's rolls (entries), as lines at a depth (two spaces each). entry is what a click picks. */
@@ -86,8 +86,15 @@ const prefix = (r: RollEntry, actor: string | null): string =>
 const labelled = (r: RollEntry): readonly string[] | null =>
   r.dieLabels !== null && r.dieLabels.length > 0 && r.dieLabels.length === r.dice.length ? r.dieLabels : null;
 
-/** LogSheet.RollLine: `{Label} {target}: rolled {faces}, {result}` and each live reroll or edit. */
+/** LogSheet.RollLine: `{Label} {target}: rolled {faces}, {result}` (a roll its modifiers add to: `Cast Hex: rolled 1 +1 token = 2, needs 4+, failed`)
+ *  and each live reroll or edit. */
 export function rollLine(r: RollEntry, actor: string | null): string {
+  const worked = rollSum(r);
+  if (worked !== null && r.record.threshold !== undefined) {
+    const oc = outcome(r);
+    return `${prefix(r, actor)}${r.label}: ${worked}, needs ${r.record.threshold}+${oc.length === 0 ? '' : `, ${oc}`}`
+      + r.amendments.filter((a) => !a.undone).map((a) => ` · ${amendmentLine(a, String)}`).join('');
+  }
   const head = r.target.length === 0 ? r.label : `${r.label} ${r.target}`;
   const labels = labelled(r);
   const faces = labels !== null ? r.dice.map((d, i) => `${labels[i]} rolled ${d.raw}`).join(' · ') : `rolled ${r.dice.map((d) => d.raw).join(' ')}`;
@@ -116,6 +123,7 @@ export function threshold(r: RollRecord): string {
   if (r.threshold === undefined) return '';
   const t = r.threshold;
   if (r.roll === 'dangerous-terrain' && t === 2 && r.basis === undefined && r.modifiers.length === 0) return '1 fails';
+  if (RollWords.addsToRoll(r)) return [`needs ${t}+`, ...r.modifiers.map(RollWords.rollPart)].join(' · ');
   const parts = [r.basis !== undefined ? `${r.basis.stat} ${r.basis.printed}+` : `${t}+`];
   if (r.basis !== undefined) {
     parts.push(...r.basis.changes.map((c) => (c.setTo !== undefined ? `${c.source} ${c.setTo}+` : `${c.source} ${signed(c.amount)}`)));
@@ -218,7 +226,8 @@ function rollDetail(r: RollEntry, actor: string | null): string[] {
   const labels = labelled(r);
   if (labels !== null) lines.push(...r.dice.map((d, i) => `${labels[i]} rolled ${d.raw}`), ...amended(r));
   else if (r.dice.length === 1) {
-    lines.push(`rolled ${rolledFaces(r)[0]}`, ...amended(r));
+    const worked = rollSum(r);
+    lines.push(worked !== null && !r.amendments.some((a) => !a.undone) ? worked : `rolled ${rolledFaces(r)[0]}`, ...amended(r));
     const note = always(r);
     if (note !== null) lines.push(note);
   } else lines.push(...diceLines(r));

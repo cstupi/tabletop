@@ -65,7 +65,7 @@ Regeneration 5+: rolled 6 2 3 1, 1 ignored, 3 wounds stand
 
 ```
 Blue unit 1 · Morale Quality 4+: rolled 3, failed → Shaken
-Casting 4+ (tokens +2) → needs 2: rolled 6, cast
+Cast Hex: rolled 6 +2 tokens = 8, needs 4+, passed
 Dangerous terrain 1 fails: rolled 1 4 5, 1 wound
 Roll-off: Team 1 rolled 3 · Team 2 rolled 2, Team 1 wins
 ```
@@ -148,7 +148,7 @@ The rules stay on the server: the client reads names and numbers from the record
   outside actions. `LogSheetTests`, `LogBbcodeTests`. `CombatLogTests` on built records: cover in, out and ignored, an old record, Rending and Furious triggers, a
   basis change, a reroll and an edit, a fled unit, the dropped set, the header's move. `CombatLogBlockTests`: `shoots`, an
   answered target, a strike-back, the nested cast, a consequence, condition subjects, a grant, repeated undos, deployment and a
-  round end's changes, roll-off ties. `RollLineTests`: raw-face and all-pass targets, a roll per wound, `cast`, dangerous terrain.
+  round end's changes, roll-off ties. `RollLineTests`: raw-face and all-pass targets, a roll per wound, a casting roll's tokens added to the die, dangerous terrain.
   `CombatLogFixtureTests` against the owner's game `01a126db`, seq 245 and 251–354.
 - `client/src/Hud/CombatLogPanel.cs`: one `RichTextLabel` of `LogBbcode`; `DiceTray.cs`: the tray clips a long line and carries all of
   it as its tooltip.

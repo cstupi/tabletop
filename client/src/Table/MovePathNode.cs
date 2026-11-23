@@ -64,9 +64,10 @@ public partial class MovePathNode : Node3D
     }
 
     /// <summary>The mark's instance transform: the shape (made in the table plane, +Y along the facing) turned to the facing, a left print mirrored, at
-    /// its point just over the start's height, `scale` times its size (the rim under it is larger).</summary>
+    /// its point just over the start's height, `scale` times its size (the rim under it is larger) times the mark's own Size.</summary>
     static Transform3D Place(PathMark m, double z, double scale)
     {
+        scale *= m.Size;
         var x = new Point2(m.Kind == MarkKind.Foot && m.Left ? -scale : scale, 0).Rotate(m.Facing);
         var y = new Point2(0, scale).Rotate(m.Facing);
         Vector3 Dir(Point2 d, double up = 0) => WorldFrame.ToGodot(new Point3(d.X, d.Y, up));

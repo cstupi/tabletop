@@ -76,7 +76,7 @@ public static partial class DecisionTiles
     public sealed partial class ChoiceTile : Button
     {
         public readonly TextureRect Picture = DecisionTiles.Icon(null, 26);
-        public readonly Label Word = new() { HorizontalAlignment = HorizontalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart, MouseFilter = MouseFilterEnum.Ignore };
+        public readonly Label Word = new() { HorizontalAlignment = HorizontalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = HudBits.WrapMin, MouseFilter = MouseFilterEnum.Ignore };
         public readonly Label Key = DecisionTiles.Cap("");
         /// <summary>The word's sides: clear of the key cap when no picture holds the top row, so a long word never runs under the cap.</summary>
         readonly MarginContainer _wordInset = new() { MouseFilter = MouseFilterEnum.Ignore };
@@ -142,7 +142,7 @@ public static partial class DecisionTiles
         public readonly HBoxContainer Head = new();
         public readonly Label Unit = new() { ThemeTypeVariation = Variation.Display, ClipText = true, SizeFlagsHorizontal = SizeFlags.ExpandFill, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis },
             Pips = new() { VerticalAlignment = VerticalAlignment.Center },
-            Note = new() { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+            Note = new() { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = HudBits.WrapMin };
         public readonly GridContainer Tiles = Grid(1);
         public readonly MarginContainer Inset = new();
         public readonly Kept Kept;
@@ -239,7 +239,7 @@ public static partial class DecisionTiles
         row.AddChild(Icon(icon, 18, colour));
         var name = new Label { Text = team.ToUpperInvariant(), ThemeTypeVariation = Variation.Display, VerticalAlignment = VerticalAlignment.Center };
         name.AddThemeColorOverride("font_color", colour); row.AddChild(name);
-        if (rest is not null) row.AddChild(new Label { Text = rest, ThemeTypeVariation = Variation.Dim, VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
+        if (rest is not null) row.AddChild(new Label { Text = rest, ThemeTypeVariation = Variation.Dim, VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = HudBits.WrapMin, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
         return panel;
     }
 }

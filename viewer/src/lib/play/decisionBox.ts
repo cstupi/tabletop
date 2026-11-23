@@ -269,8 +269,6 @@ export class DecisionBox {
       this.#reset(); this.#renderedAsk = null; this.#head = null; this.#note = ''; this.#quiet = [];
       return;
     }
-    const fresh = this.#reveals.drain();                                    // every reveal since the last render, in order
-    if (fresh.length > 0) this.#revealed = fresh;
     const team = this.#host.acting();
     const mine = myAsk(p, game, team);
     if ((mine?.ask.id ?? null) !== this.#refusalAsk) this.#refusal = null;           // a different Ask, or none: the refusal is spent
@@ -280,7 +278,8 @@ export class DecisionBox {
       const myTeams = this.#host.myTeams();
       const mid = [team, ...myTeams].map((t) => midDeploy(p, st.log, t)).find((m) => m !== null) ?? null;   // a pick by any team of mine is placed
       if (this.#renderedAsk !== null || (mid?.unitId ?? null) !== this.#deployUnit) { this.#reset(); this.#renderedAsk = null; this.#head = null; }
-      this.#note = '';                                                       // a sealed Ask's reveal (its own line) stays up until the next Ask
+      this.#note = '';
+      this.#revealed = this.#reveals.shown(mid !== null);                   // a sealed Ask's reveal stays up until my next card
       const waits = game.status === 'playing' && waitHolds(game, p.board, p.lastSeq) ? waitingTeams(game, p.board) : [];
       if (mid === null && waits.length > 0) this.#quiet = waits.map((w) => ({ ordinal: w.ordinal, team: `Team ${w.ordinal}`, doing: w.hasPlayer ? 'no army' : 'waiting for a player' }));
       else if (mid === null) this.#quiet = quietOf(p, game, names, myTeams).map((b) => ({ ordinal: b.ordinal, team: b.mine ? 'Your move' : b.team, doing: b.doing }));
@@ -288,12 +287,12 @@ export class DecisionBox {
       return;
     }
     this.#quiet = [];
+    this.#revealed = this.#reveals.shown(true);                             // a reveal is about the Ask that closed: never on this card
     const aside = drawnKey(st.maySetAside, st.setAsideRules);
     if (this.#renderedAsk === mine.ask.id && aside === this.#asideDrawn) return;
     this.#asideDrawn = aside;
     this.#reset(); this.#renderedAsk = mine.ask.id; this.#answering = team; this.#note = '';
     this.#head = headOf(mine.ask, p, names);
-    if (fresh.length === 0) this.#revealed = null;                          // a reveal is cleared only after a render has shown it
     this.#numbered = model.numbered;
     this.#cardActions = actionsOf(mine.ask, mine.mode, p);
     this.glow(mine.highlights);
