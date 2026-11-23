@@ -63,12 +63,64 @@ export const allowanceOverlay = (rings: readonly Ring[], colour: string): Overla
   for (const ring of rings) circle(ctx, project, ppi, ring);
 };
 
+/** One area's band traced once, in table inches, each triangle wound counter-clockwise (so the board's flip winds them all one way): kept per
+ *  triangle list, which an area keeps for its Ask, so a drag frame only fills it. */
+const traced = new WeakMap<readonly XY[], { path: Path2D; minX: number; minY: number; maxX: number; maxY: number }>();
+function tracedOf(t: readonly XY[]) {
+  const known = traced.get(t);
+  if (known !== undefined) return known;
+  const path = new Path2D();
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let i = 0; i + 2 < t.length; i += 3) {
+    let a = t[i]!, b = t[i + 1]!;
+    const c = t[i + 2]!;
+    if ((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) < 0) [a, b] = [b, a];
+    path.moveTo(a.x, a.y); path.lineTo(b.x, b.y); path.lineTo(c.x, c.y); path.closePath();
+    for (const q of [a, b, c]) { minX = Math.min(minX, q.x); minY = Math.min(minY, q.y); maxX = Math.max(maxX, q.x); maxY = Math.max(maxY, q.y); }
+  }
+  const found = { path, minX, minY, maxX, maxY };
+  traced.set(t, found);
+  return found;
+}
+
+/** Stripes across the band's box on the screen, half of each period drawn, inside the clip already set. */
+function stripes(ctx: CanvasRenderingContext2D, colour: string, ppi: number, minX: number, minY: number, maxX: number, maxY: number): void {
+  const period = Math.max(4, STRIPE_SPACING * ppi);
+  ctx.strokeStyle = colour; ctx.lineWidth = period / 2; ctx.setLineDash([]);
+  ctx.beginPath();
+  for (let x = minX - (maxY - minY); x <= maxX; x += period) { ctx.moveTo(x, maxY); ctx.lineTo(x + (maxY - minY), minY); }
+  ctx.stroke();
+}
+
 /** MoveRegionNode.ShowBands: each band's triangles from every held model's area filled as one path (each triangle wound one way, so overlapping
- *  areas fill once), the dangerous band striped across the table. */
+ *  areas fill once), the dangerous band striped across the table. Each area's band is traced once (tracedOf) and drawn through the board's
+ *  transform; without Path2D (the tests) each triangle is projected and traced as it is drawn. */
 export const bandsOverlay = (areas: readonly MoveBands[], team: string): Overlay => (ctx, project, ppi) => {
+  const cached = typeof Path2D !== 'undefined' && typeof ctx.getTransform === 'function';
   for (const { band, areas: parts } of layers(areas)) {
     if (parts.every((t) => t.length < 3)) continue;
     ctx.save();
+    const colour = bandColour(band, team);
+    if (cached) {
+      const screen = ctx.getTransform();
+      const o = project({ x: 0, y: 0 }), ex = project({ x: 1, y: 0 }), ey = project({ x: 0, y: 1 });
+      ctx.transform(ex.x - o.x, ex.y - o.y, ey.x - o.x, ey.y - o.y, o.x, o.y);
+      const all = new Path2D();
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const t of parts) {
+        if (t.length < 3) continue;
+        const one = tracedOf(t);
+        all.addPath(one.path);
+        for (const q of [project({ x: one.minX, y: one.minY }), project({ x: one.maxX, y: one.maxY })]) {
+          minX = Math.min(minX, q.x); minY = Math.min(minY, q.y); maxX = Math.max(maxX, q.x); maxY = Math.max(maxY, q.y);
+        }
+      }
+      ctx.fillStyle = colour;
+      ctx.fill(all, 'nonzero');
+      if (striped(band)) { ctx.clip(all, 'nonzero'); ctx.setTransform(screen); stripes(ctx, colour, ppi, minX, minY, maxX, maxY); }
+      ctx.restore();
+      continue;
+    }
     ctx.beginPath();
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const t of parts)
@@ -79,17 +131,9 @@ export const bandsOverlay = (areas: readonly MoveBands[], team: string): Overlay
         ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.closePath();
         for (const q of [a, b, c]) { minX = Math.min(minX, q.x); minY = Math.min(minY, q.y); maxX = Math.max(maxX, q.x); maxY = Math.max(maxY, q.y); }
       }
-    ctx.fillStyle = bandColour(band, team);
+    ctx.fillStyle = colour;
     ctx.fill('nonzero');
-    if (striped(band)) {
-      // Diagonal stripes, half of each period drawn, clipped to the band.
-      ctx.clip('nonzero');
-      const period = Math.max(4, STRIPE_SPACING * ppi);
-      ctx.strokeStyle = bandColour(band, team); ctx.lineWidth = period / 2; ctx.setLineDash([]);
-      ctx.beginPath();
-      for (let x = minX - (maxY - minY); x <= maxX; x += period) { ctx.moveTo(x, maxY); ctx.lineTo(x + (maxY - minY), minY); }
-      ctx.stroke();
-    }
+    if (striped(band)) { ctx.clip('nonzero'); stripes(ctx, colour, ppi, minX, minY, maxX, maxY); }
     ctx.restore();
   }
 };

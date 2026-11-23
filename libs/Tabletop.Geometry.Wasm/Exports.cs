@@ -31,4 +31,8 @@ public static partial class Exports
     [JSExport] public static string ExitYaw(string json) => Facade.ExitYaw(json);
     [JSExport] public static string MoveBands(string json) => Facade.MoveBands(json);
     [JSExport] public static string MoveRoutes(string json) => Facade.MoveRoutes(json);
+    [JSExport] public static string MoveAskOpen(string json) => Facade.MoveAskOpen(json);
+    [JSExport] public static string MoveAskArea(string json) => Facade.MoveAskArea(json);
+    [JSExport] public static string MoveAskFrame(string json) => Facade.MoveAskFrame(json);
+    [JSExport] public static string MoveAskClose(string json) => Facade.MoveAskClose(json);
 }

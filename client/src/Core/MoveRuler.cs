@@ -110,6 +110,52 @@ public static class MoveRuler
         return boundary;
     }
 
+    /// <summary>
+    /// Where a disembark's ghosts start (or a Spawn or Split reserve's, anchored on a model): in rings about the container, clear of it by the Ask's
+    /// separation, each at a spot and facing the exit allows (ExitYawAt, against the volumes the Ask names Impassable), so every ghost stands
+    /// beside the transport, never under it, and a commit as they stand leaves it. Where the reach has no room for every model the rest ring on
+    /// outward unfitted, marked by ExitWords. Empty when the container is off the table.
+    /// </summary>
+    public static IReadOnlyList<ModelRelocation> ExitStart(Projection p, MoveRegion legal, IReadOnlyList<WorldVolume> volumes, TableSize size)
+    {
+        if (legal.Containment?.ExitingId is not { } containerId || p.Models.GetValueOrDefault(containerId) is not { Location: OnTable at } container) return [];
+        var within = legal.Containment.ExitWithin ?? 0;
+        var impassable = volumes.Where(v => legal.ImpassableVolumeIds.Contains(v.Id)).ToList();
+        var anchor = new PlacedModel(new ModelBody(container.Slot.Base, container.Slot.Height), at.Placement);
+        var models = legal.ModelIds.Select(id => p.Models[id]).ToList();
+        var farthest = Math.Sqrt(container.Slot.Base.A * container.Slot.Base.A + container.Slot.Base.B * container.Slot.Base.B) / 2 + within;
+        var fitted = DeployView.Around(models, at.Placement, container.Slot.Base, size, legal.Separation,
+            (m, spot) => ExitYawAt(new ModelBody(m.Slot.Base, m.Slot.Height), anchor, within, spot, impassable, size), farthest);
+        if (fitted.Count == models.Count) return fitted;
+        var placed = fitted.Select(r => r.ModelId).ToHashSet();
+        var rest = DeployView.Around([.. models.Where(m => !placed.Contains(m.Id))], at.Placement, container.Slot.Base, size, farthest - Math.Max(container.Slot.Base.A, container.Slot.Base.B) / 2);
+        var all = fitted.Concat(rest).ToDictionary(r => r.ModelId);
+        return [.. legal.ModelIds.Where(all.ContainsKey).Select(id => all[id])];
+    }
+
+    /// <summary>Each disembarking ghost no facing of which the exit allows where it stands, as the server's move_exit reads it (ExitPlacement): off
+    /// the table at every facing, `would leave the table`; else not fully within the exit distance at any facing on the table, `beyond 6" of
+    /// {container}`; impassable terrain is ContactCheck's mark. A ghost of a model on the table is not judged.</summary>
+    public static IReadOnlyDictionary<Guid, string> ExitWords(Projection p, MoveRegion legal, IReadOnlyDictionary<Guid, Placement> placed,
+        IReadOnlyList<WorldVolume> volumes, TableSize size, Func<Guid, string> pieceName)
+    {
+        var words = new Dictionary<Guid, string>();
+        if (legal.Containment?.ExitingId is not { } containerId || p.Models.GetValueOrDefault(containerId) is not { Location: OnTable at } container) return words;
+        var within = legal.Containment.ExitWithin ?? 0;
+        var impassable = volumes.Where(v => legal.ImpassableVolumeIds.Contains(v.Id)).ToList();
+        var anchor = new PlacedModel(new ModelBody(container.Slot.Base, container.Slot.Height), at.Placement);
+        foreach (var (id, ghost) in placed)
+        {
+            if (p.Models.GetValueOrDefault(id) is not { } m || m.Location is OnTable) continue;
+            var body = new ModelBody(m.Slot.Base, m.Slot.Height);
+            if (ExitYawAt(body, anchor, within, ghost.Position.Horizontal, impassable, size) is not null) continue;
+            var yaws = m.Slot.Base.Shape == BaseShape.Circle ? 1 : ExitYaws;
+            if (!Enumerable.Range(0, yaws).Any(k => Tabletop.Geometry.Table.ContainsBase(size, new PlacedModel(body, ghost with { Yaw = new Yaw(360.0 * k / yaws) })))) words[id] = "would leave the table";
+            else if (ExitYawAt(body, anchor, within, ghost.Position.Horizontal, [], size) is null) words[id] = $"beyond {within:0.#}\" of {pieceName(containerId)}";
+        }
+        return words;
+    }
+
     /// <summary>How many facings a non-circular base is tried at (<see cref="Containment.ExitYaws"/>).</summary>
     public const int ExitYaws = Containment.ExitYaws;
 

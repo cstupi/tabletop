@@ -86,6 +86,26 @@ describe('the move Ask', () => {
     expect(r.control('stop')).toBeUndefined();
   });
 
+  it('a disembark starts its ghosts beside the container where the exit allows, and holds the container still', () => {
+    const r = moveRig();
+    for (const id of r.ids) r.applier.projection.models.get(id)!.location = { kind: 'inside', containerId: r.truck };
+    r.openMove(region({ modelIds: r.ids, allowance: 0, separation: 1, containment: { enterable: [], exitingId: r.truck, exitWithin: 6 } }));
+    for (const g of r.box.ghosts.values()) expect(Math.hypot(g.position.x - 20, g.position.y - 10)).toBeCloseTo(2 + 1 + 0.5, 6);   // clear of it, never on it
+    expect(r.exitCalls.length).toBeGreaterThanOrEqual(2);                                     // each spot asked of the exit
+    expect([...r.box.pinned]).toEqual([r.truck]);
+    r.box.enter();
+    expect(answerOf(r.sent[0]).moves.map((m) => m.to.kind)).toEqual(['table', 'table']);
+  });
+
+  it('a disembark ghost the exit does not allow is marked with the reason', () => {
+    const r = moveRig();
+    for (const id of r.ids) r.applier.projection.models.get(id)!.location = { kind: 'inside', containerId: r.truck };
+    r.openMove(region({ modelIds: r.ids, allowance: 0, containment: { enterable: [], exitingId: r.truck, exitWithin: 6 } }));
+    r.setExit(null);
+    r.box.dragged(r.ids[0]!, at(40, 40));
+    expect(r.violations.marked.get(r.ids[0]!)).toBe('beyond 6" of Truck');
+  });
+
   it('a disembark answers the exit yaw at the drop, not the ghost\'s', () => {
     const r = moveRig();
     for (const id of r.ids) r.applier.projection.models.get(id)!.location = { kind: 'inside', containerId: r.truck };
@@ -95,7 +115,7 @@ describe('the move Ask', () => {
     r.box.dragged(r.ids[0]!, at(14, 10, 135));                                // the player turned it to 135°
     r.box.enter();
     expect(answerOf(r.sent[0]).moves[0]!.to).toEqual({ kind: 'table', placement: { position: { x: 14, y: 10, z: 0 }, yaw: { degrees: 45 } } });
-    const [body, container, within, drop, , impassable] = r.exitCalls[0]! as [any, any, number, any, unknown, string[]];
+    const [body, container, within, drop, , impassable] = r.exitCalls.filter((c) => (c[3] as { x: number }).x === 14).at(-1)! as [any, any, number, any, unknown, string[]];
     expect([body.base.shape, container.placement.position, within, drop, impassable]).toEqual(['circle', { x: 20, y: 10, z: 0 }, 6, { x: 14, y: 10 }, walls]);
   });
 

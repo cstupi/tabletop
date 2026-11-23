@@ -41,6 +41,8 @@ public static class ContactCheck
         "ends in impassable terrain" => $"{subject} would end its move in impassable terrain",
         _ when words.StartsWith("within ", StringComparison.Ordinal) => $"{subject} would end {words}",
         _ when words.StartsWith("placed within ", StringComparison.Ordinal) => $"{subject} would be {words}",
+        _ when words.StartsWith("beyond ", StringComparison.Ordinal) => $"{subject} would be placed {words}",
+        "would leave the table" => $"{subject} would leave the table",
         _ => words,
     };
 

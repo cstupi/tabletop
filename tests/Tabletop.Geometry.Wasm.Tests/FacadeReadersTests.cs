@@ -17,6 +17,7 @@ public class FacadeReadersTests
         ["EdgeToMarker"] = typeof(MarkerRequest), ["NearestPair"] = typeof(NearestRequest), ["RangeOutline"] = typeof(RingRequest), ["CoherencyGaps"] = typeof(CoherencyRequest), ["ClearanceOutline"] = typeof(ClearanceRequest), ["ClearanceBreaks"] = typeof(ClearanceRequest),
         ["ZonePolygons"] = typeof(ZoneRequest), ["ZoneContains"] = typeof(ZoneRequest), ["ZoneHoldsBase"] = typeof(ZoneRequest),
         ["ExitYaw"] = typeof(ExitRequest), ["TableHoldsBase"] = typeof(TableRequest), ["MoveBands"] = typeof(BandsRequest), ["MoveRoutes"] = typeof(RoutesRequest),
+        ["MoveAskOpen"] = typeof(MoveAskRequest), ["MoveAskArea"] = typeof(MoveAreaRequest), ["MoveAskFrame"] = typeof(MoveFrameRequest), ["MoveAskClose"] = typeof(MoveKeyRequest),
     };
 
     /// <summary>Read with each, written back with the generated metadata: the same text.</summary>

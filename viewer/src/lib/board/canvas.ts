@@ -31,6 +31,31 @@ export function path(ctx: CanvasRenderingContext2D, shape: Shape, view: View, ta
   ctx.closePath();
 }
 
+/** The path `gap` px outside `shape`'s edge: a circle grown by it, a convex polygon's edges pushed out by it (mitred corners). A model's glow
+ *  and pick ring, which then follow an oval or rectangular base instead of the circle round it. */
+export function around(ctx: CanvasRenderingContext2D, shape: Shape, view: View, table: Table, gap: number): void {
+  ctx.beginPath();
+  if (shape.kind === 'circle') {
+    const p = toScreen(view, table, shape.centre);
+    ctx.arc(p.x, p.y, Math.max(0, shape.radius * view.scale + gap), 0, 2 * Math.PI);
+    return;
+  }
+  const pts = shape.points.map((point) => toScreen(view, table, point));
+  const n = pts.length;
+  let area = 0;
+  for (let i = 0; i < n; i++) { const a = pts[i]!, b = pts[(i + 1) % n]!; area += a.x * b.y - b.x * a.y; }
+  const out = area > 0 ? -1 : 1;                                   // the outward side of each edge, for the points' winding on the screen
+  const normal = (a: Point, b: Point): Point => { const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1; return { x: (out * dy) / l, y: (-out * dx) / l }; };
+  for (let i = 0; i < n; i++) {
+    const prev = pts[(i + n - 1) % n]!, at = pts[i]!, next = pts[(i + 1) % n]!;
+    const n1 = normal(prev, at), n2 = normal(at, next);
+    const k = gap / Math.max(0.25, 1 + n1.x * n2.x + n1.y * n2.y);
+    const q = { x: at.x + (n1.x + n2.x) * k, y: at.y + (n1.y + n2.y) * k };
+    if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
+  }
+  ctx.closePath();
+}
+
 /** A band `width` px wide around the outside of `shape`, square-cornered on a polygon's corners: the shape's own area stays clear. */
 export function ringOutside(ctx: CanvasRenderingContext2D, shape: Shape, view: View, table: Table, width: number): void {
   ctx.save();

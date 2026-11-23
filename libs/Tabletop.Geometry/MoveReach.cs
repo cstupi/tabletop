@@ -205,6 +205,14 @@ public sealed class MoveReach
     /// empty: with no difficult volume binding there is no Difficult band, with no volume dangerous to a path in reach no Dangerous band.</summary>
     public MoveBands Bands(Func<Point2, double>? least = null) => Bands(least, ReachMesh.Build);
 
+    /// <summary>One share of Bands: the triangles of the coarse cells c ≡ part (mod parts) of its walk, so several walkers (the browser's workers, one
+    /// thread each) build one area; every share's triangles together are Bands'.</summary>
+    public MoveBands Bands(Func<Point2, double>? least, int part, int parts)
+    {
+        if (parts < 1 || part < 0 || part >= parts) throw new ArgumentOutOfRangeException(nameof(part), $"share {part} of {parts}");
+        return Bands(least, (origin, reach, bands, fields, cover) => ReachMesh.Build(origin, reach, bands, fields, cover, (part, parts)));
+    }
+
     /// <summary>A walk of an area's square (ReachMesh.Build's): the tests hold it to the plain walk it replaced.</summary>
     internal delegate List<Point2>[] Walk(Point2 origin, double reach, int bands, ReachMesh.Fields fields, Func<Point2, double, MoveSpace.Cover> cover);
 

@@ -29,6 +29,18 @@ describe('coherencyView through the WebAssembly', () => {
     expect(picture.words.size).toBe(0);
   });
 
+  it('a ring is the base\'s own outline moved with the ghost: one outline per base, facing and distance, whatever the ghost\'s spot', () => {
+    let calls = 0;
+    const counting = { ...g, rangeOutline: (...a: Parameters<Geometry['rangeOutline']>) => { calls++; return g.rangeOutline(...a); } } as Geometry;
+    const first = coherencyOf(counting, deployed(), new Map([[S(2), at(13.9, 10)]]), opr, name, true);
+    const moved = coherencyOf(counting, deployed(), new Map([[S(2), at(20.25, 30.5)]]), opr, name, true);
+    expect(calls).toBe(1);
+    const direct = g.rangeOutline([{ body: { base: squad.models[2]!.base, height: squad.models[2]!.height }, placement: at(20.25, 30.5) }], 1);
+    expect(moved.rings[0]!.segments).toHaveLength(direct.length);
+    moved.rings[0]!.segments.forEach((s, i) => { expect(s.a.x).toBeCloseTo(direct[i]!.a.x, 9); expect(s.a.y).toBeCloseTo(direct[i]!.a.y, 9); expect(s.b.x).toBeCloseTo(direct[i]!.b.x, 9); });
+    expect(first.rings[0]!.segments[0]!.a.x).toBeCloseTo(moved.rings[0]!.segments[0]!.a.x - (20.25 - 13.9), 9);
+  });
+
   it('a straggler gets a line to its nearest model and words saying what to do', () => {
     const picture = of([[2, at(15.4, 10)]]);
     expect(picture.lines).toHaveLength(1);
@@ -39,6 +51,15 @@ describe('coherencyView through the WebAssembly', () => {
     expect(picture.words.get(S(2))).toBe('M3 out of coherency: move within 1" of another model');
     expect(shortWords(picture.words.get(S(2))!)).toBe('Out of coherency');
     expect(picture.blocks).toBe(true);
+  });
+
+  it('whether the unit stood in coherency is measured once for the Ask, not every drag frame', () => {
+    const asked: number[] = [];
+    const counting = { ...g, coherencyGaps: (...a: Parameters<Geometry['coherencyGaps']>) => { asked.push(a[0].length); return g.coherencyGaps(...a); } } as Geometry;
+    const one = coherencyOf(counting, deployed(), new Map([[S(2), at(15.4, 10)]]), opr, name, true);
+    const two = coherencyOf(counting, deployed(), new Map([[S(2), at(15.6, 10)]]), opr, name, true);
+    expect([one.blocks, two.blocks]).toEqual([true, true]);
+    expect(asked).toEqual([3, 3, 3]);                                        // the ghosts each frame, the stand once
   });
 
   it('a spread break gets a line to the farthest model', () => {

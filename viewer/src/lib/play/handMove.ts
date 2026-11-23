@@ -15,14 +15,15 @@ export type DragTarget =
   | { readonly kind: 'marker'; readonly id: string }
   | { readonly kind: 'terrain'; readonly id: string };
 
-/** A watcher drags nothing; models need every one proposing or a game that is not strict; a locked objective never drags; terrain only in setup. */
+/** A watcher drags nothing; models need every one proposing or a game that is not strict, and none the open Ask holds still (`pinned`: a
+ *  disembark's transport); a locked objective never drags; terrain only in setup. */
 export function mayDrag(
   target: DragTarget, watching: boolean, proposing: ReadonlySet<string>, enforcement: Enforcement,
-  status: GameStatus | null, p: Projection | null, locks: MarkerLocks,
+  status: GameStatus | null, p: Projection | null, locks: MarkerLocks, pinned: ReadonlySet<string> = new Set(),
 ): boolean {
   if (watching) return false;
   switch (target.kind) {
-    case 'models': return target.ids.every((id) => proposing.has(id)) || enforcement !== 'strict';
+    case 'models': return !target.ids.some((id) => pinned.has(id)) && (target.ids.every((id) => proposing.has(id)) || enforcement !== 'strict');
     case 'marker': return locks.mayDrag(status, p, target.id);
     case 'terrain': return terrainMayDrag(status);
   }

@@ -93,6 +93,8 @@ export class DecisionBox {
   readonly handlers: Handlers = noHandlers();
   /** TableInput.Proposing: the models being positioned (a move step's, a placement's ghosts). */
   proposing: ReadonlySet<string> = new Set();
+  /** Models the open Ask holds still: a disembark's transport (or a reserve's anchor). A drag on one does not start (TableInput.Pinned). */
+  pinned: ReadonlySet<string> = new Set();
   /** The proposed models' placements as the board draws them (a ghost's position and the facing the player gave it). */
   readonly ghosts = new Map<string, Placement>();
   /** TableInput.PlacementPoint: a deploy's click on the table, its own slot so a menu pick cannot take it. */
@@ -559,7 +561,7 @@ export class DecisionBox {
     Object.assign(this.handlers, noHandlers());
     this.#glow.clear(); this.#lit = null; this.#ghost.clear(); this.#deployUnit = null;
     this.#targets = null; this.#marks = new Map(); this.#spins = null;
-    this.#eligible = new Set(); this.proposing = new Set(); this.ghosts.clear(); this.placementPoint = null;
+    this.#eligible = new Set(); this.proposing = new Set(); this.pinned = new Set(); this.ghosts.clear(); this.placementPoint = null;
     this.#moves?.unhook(this);
   }
 

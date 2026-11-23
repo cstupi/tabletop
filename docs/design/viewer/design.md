@@ -599,7 +599,7 @@ game and log:
   score, the activation, the result), the selected unit's card (`unitSheet.ts`, `unitCard.ts`), terrain names from the built-in
   catalog (`nameOf`).
 
-Layout: the top bar (back to Games, the game's name, a Replay chip, the round and turn, the scores); the board (`models: 'circles'`,
+Layout: the top bar (back to Games, the game's name, a Replay chip, the round and turn, the scores); the board (`models: 'bases'`,
 zones once the geometry loads) beside a 24rem column with the unit card when a model is selected and the combat log in Godot's words
 (`CombatLogPanel` over the shown events); the replay bar fixed at the foot (`replayBarView.ts`): icon buttons labelled Round, Turn, Action and Step back, Play/Pause as
 the primary button, Step, Action, Turn and Round forward; the scrubber with a tick per round's start and the speed; the caption, the

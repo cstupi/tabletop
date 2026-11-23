@@ -2,9 +2,10 @@
 // client/src/Core/MoveRuler.cs, the parts the spec keeps: the displacement readout (GF p.7), the commit's gate, the distance used inside a
 // frame, and the two region tests. No reach outline: the browser's ruler is straight and the allowance is the Ask's.
 
-import type { XY } from '../geometry';
-import type { Frame, Projection } from '../live/apply';
-import type { Enforcement, MoveRegion } from '../protocol/wire.generated';
+import type { Geometry, XY } from '../geometry';
+import type { Frame, ModelInPlay, Projection } from '../live/apply';
+import type { Enforcement, ModelRelocation, MoveRegion, Placement, TableSize } from '../protocol/wire.generated';
+import { around } from './deployView';
 
 /** Distance is the base's displacement from where it started (GF p.7); remaining is what the allowance leaves; underMinimum is short of a
  *  minimum move the Ask set (MoveRegion.minDistance). */
@@ -65,6 +66,59 @@ export function isDisembark(legal: MoveRegion): boolean { return legal.containme
 export function isShelfPlacement(legal: MoveRegion, p: Projection): boolean {
   return isDisembark(legal) && legal.modelIds.length > 0 && p.models.get(legal.modelIds[0]!)?.location.kind === 'shelf';
 }
+
+/** Containment.ExitYaws: how many facings a non-circular base is tried at. */
+const EXIT_YAWS = 8;
+
+/** MoveRuler.ExitStart: a disembark's ghosts (or a Spawn or Split reserve's) in rings about the container, clear of it by the Ask's separation,
+ *  each at a spot and facing the exit allows (exitYaw against the volumes the Ask names Impassable), so every ghost stands beside the transport,
+ *  never under it; where the reach has no room for every model the rest ring on outward unfitted. Empty when the container is off the table. */
+export function exitStart(g: Geometry | null, p: Projection, legal: MoveRegion, size: TableSize): ModelRelocation[] {
+  const containerId = legal.containment?.exitingId;
+  const container = containerId === undefined ? undefined : p.models.get(containerId);
+  if (container === undefined || container.location.kind !== 'table') return [];
+  const at = container.location.placement, b = container.slot.base;
+  const within = legal.containment?.exitWithin ?? 0;
+  const anchor = { body: { base: b, height: container.slot.height }, placement: at };
+  const models = legal.modelIds.map((id) => p.models.get(id)!);
+  const farthest = Math.sqrt(b.a * b.a + b.b * b.b) / 2 + within;
+  const fit = g === null ? undefined : (m: ModelInPlay, spot: XY) =>
+    g.exitYaw({ base: m.slot.base, height: m.slot.height }, anchor, within, spot, p.board.table.terrain, legal.impassableVolumeIds, size);
+  const fitted = around(models, at, b, size, legal.separation, fit, farthest);
+  if (fitted.length === models.length) return fitted;
+  const placed = new Set(fitted.map((r) => r.modelId));
+  const rest = around(models.filter((m) => !placed.has(m.id)), at, b, size, farthest - Math.max(b.a, b.b) / 2);
+  const all = new Map([...fitted, ...rest].map((r) => [r.modelId, r]));
+  return legal.modelIds.filter((id) => all.has(id)).map((id) => all.get(id)!);
+}
+
+/** MoveRuler.ExitWords: each disembarking ghost no facing of which the exit allows where it stands, as the server's move_exit reads it: off the
+ *  table at every facing, `would leave the table`; else not fully within the exit distance at any facing on the table, `beyond 6" of
+ *  {container}`; impassable terrain is contactCheck's mark. A ghost of a model on the table is not judged. */
+export function exitWords(g: Geometry, p: Projection, legal: MoveRegion, placed: ReadonlyMap<string, Placement>, size: TableSize,
+  pieceName: (id: string) => string): Map<string, string> {
+  const words = new Map<string, string>();
+  const containerId = legal.containment?.exitingId;
+  const container = containerId === undefined ? undefined : p.models.get(containerId);
+  if (containerId === undefined || container === undefined || container.location.kind !== 'table') return words;
+  const within = legal.containment?.exitWithin ?? 0;
+  const anchor = { body: { base: container.slot.base, height: container.slot.height }, placement: container.location.placement };
+  const terrain = p.board.table.terrain;
+  for (const [id, ghost] of placed) {
+    const m = p.models.get(id);
+    if (m === undefined || m.location.kind === 'table') continue;
+    const body = { base: m.slot.base, height: m.slot.height }, spot = { x: ghost.position.x, y: ghost.position.y };
+    if (g.exitYaw(body, anchor, within, spot, terrain, legal.impassableVolumeIds, size) !== null) continue;
+    const yaws = m.slot.base.shape === 'circle' ? 1 : EXIT_YAWS;
+    const onTable = Array.from({ length: yaws }, (_, k) => k).some((k) => g.tableHoldsBase(size, { body, placement: { position: ghost.position, yaw: { degrees: 360 * k / yaws } } }));
+    if (!onTable) words.set(id, 'would leave the table');
+    else if (g.exitYaw(body, anchor, within, spot, terrain, [], size) === null) words.set(id, `beyond ${inchesOf(within)}" of ${pieceName(containerId)}`);
+  }
+  return words;
+}
+
+/** C#'s `{0:0.#}`. */
+const inchesOf = (v: number): string => String(Math.round(v * 10) / 10);
 
 /** RulerNode's label: `6.0"  (1.5" left)`, or `6.0"` without an allowance. */
 export function readoutText(r: RulerReadout): string {
