@@ -223,6 +223,17 @@ public class FacadeTests
     }
 
     [Fact]
+    public void A_zone_reach_answers_equal_ZoneReach_and_ZoneStyles()
+    {
+        var size = new TableSize(72, 48);
+        var outline = R<Segment[]>(Facade.ZoneReachOutline(W(new ZoneRequest("frontline/1", size, null, null, Reach: 9))));
+        Assert.Equal(ZoneReach.Outline(ZoneStyles.Resolve("frontline/1", size), 9, size).Select(s => new Segment(s.A, s.B)), outline);
+        var near = Model(10, 27.6, diameter: 1); var far = Model(10, 27.4, diameter: 1);
+        Assert.True(R<bool>(Facade.ZoneHoldsBase(W(new ZoneRequest("frontline/1", size, null, near, Reach: 9)))));
+        Assert.False(R<bool>(Facade.ZoneHoldsBase(W(new ZoneRequest("frontline/1", size, null, far, Reach: 9)))));
+    }
+
+    [Fact]
     public void TableHoldsBase_equals_Table_ContainsBase()
     {
         var size = new TableSize(72, 48);

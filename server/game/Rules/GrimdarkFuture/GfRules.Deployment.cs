@@ -24,15 +24,21 @@ public sealed partial class GrimdarkFutureRules
         return phase == Deployment
             ? new TurnAsk(AskQuestions.Deploy, "Deploy one unit", new PieceSelection(ids, 1, 1), AllowPass: false)
             : new TurnAsk(AskQuestions.DeployScouts, again.Count == 0 ? "Deploy a Scout" : ids.Count == 0 ? "Re-deploy a unit or pass" : "Deploy a Scout or re-deploy a unit",
-                Selection([.. ids, .. again], u => ids.Contains(u) ? GfKeepAway.Scout(state, u) : null), AllowPass: ids.Count == 0);
+                Selection([.. ids, .. again], u => ids.Contains(u) ? GfKeepAway.Scout(state, u) : null,
+                    HasZone(state, teamId) ? u => ids.Contains(u) ? GfEdition.Of(state).ScoutReach : 0 : null), AllowPass: ids.Count == 0);
     }
 
-    /// <summary>A one-unit deploy pick carrying each eligible unit's distance from enemy units (PieceSelection.KeepAway), where it has one.</summary>
-    static PieceSelection Selection(IReadOnlyList<Guid> eligible, Func<Guid, KeepAway?> keep)
+    /// <summary>A one-unit deploy pick carrying each eligible unit's distance from enemy units (PieceSelection.KeepAway), where it has one, and its reach
+    /// from the team's deployment zone (PieceSelection.ZoneReach), as ZoneBreach judges it, when `reach` is given.</summary>
+    static PieceSelection Selection(IReadOnlyList<Guid> eligible, Func<Guid, KeepAway?> keep, Func<Guid, double>? reach = null)
     {
         var kept = eligible.Select(u => (u, k: keep(u))).Where(x => x.k is not null).ToDictionary(x => x.u, x => x.k!);
-        return new PieceSelection(eligible, 1, 1, kept.Count == 0 ? null : kept);
+        return new PieceSelection(eligible, 1, 1, kept.Count == 0 ? null : kept, reach is null || eligible.Count == 0 ? null : eligible.ToDictionary(u => u, reach));
     }
+
+    /// <summary>The table has a deployment zone for the team (ZoneBreach judges a placement only then).</summary>
+    static bool HasZone(GameState state, Guid teamId) =>
+        state.Info.Teams.FirstOrDefault(t => t.Id == teamId)?.Ordinal is { } ordinal && state.Board.Table.Zones.Any(z => z.TeamOrdinal == ordinal);
 
     /// <summary>
     /// A hand placement from the shelf onto the table in the phases before round one, judged against the placing team's deployment zone when the

@@ -26,7 +26,7 @@ function close(a: unknown, b: unknown, path = '$'): string | null {
 }
 
 const FACADE = ['BodyToBody', 'ClearanceBreaks', 'ClearanceOutline', 'CoherencyGaps', 'Contacts', 'EdgeToEdge', 'EdgeToMarker', 'EdgeToPoint', 'ExitYaw', 'LandModels', 'LandPiece', 'ModelSurfaces', 'MoveAskArea', 'MoveAskClose', 'MoveAskFrame', 'MoveAskOpen', 'MoveBands', 'MoveRoutes', 'NearestPair',
-  'OverlapBases', 'PieceSurfaces', 'RangeOutline', 'RestModel', 'RestPiece', 'TableHoldsBase', 'TurnPiece', 'ZoneContains', 'ZoneHoldsBase', 'ZonePolygons'];
+  'OverlapBases', 'PieceSurfaces', 'RangeOutline', 'RestModel', 'RestPiece', 'TableHoldsBase', 'TurnPiece', 'ZoneContains', 'ZoneHoldsBase', 'ZonePolygons', 'ZoneReachOutline'];
 
 let g: Geometry;
 beforeAll(async () => { g = await loadTestGeometry(); });

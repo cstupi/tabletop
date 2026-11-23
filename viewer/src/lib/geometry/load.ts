@@ -74,7 +74,8 @@ function wrap(exports: Exports): Geometry {
     clearanceBreaks: (placed, from, over, lifted, liftedWithin) => ask<number>('ClearanceBreaks', { from, over, lifted: lifted ?? [], liftedWithin: liftedWithin ?? 0, placed }),
     zonePolygons: (shape, size, legs) => ask<XY[][]>('ZonePolygons', { shape, size, legs }),
     zoneContains: (shape, size, point, legs) => ask<boolean>('ZoneContains', { shape, size, point, legs }),
-    zoneHoldsBase: (shape, size, model, legs) => ask<boolean>('ZoneHoldsBase', { shape, size, model, legs }),
+    zoneHoldsBase: (shape, size, model, legs, reach) => ask<boolean>('ZoneHoldsBase', { shape, size, model, legs, reach }),
+    zoneReachOutline: (shape, size, reach, legs) => ask<Segment[]>('ZoneReachOutline', { shape, size, reach, legs }),
     tableHoldsBase: (size, model) => ask<boolean>('TableHoldsBase', { size, model }),
     exitYaw: (body, container, within, at, terrain, impassable, size) =>
       ask<Yaw | null>('ExitYaw', { body, container, within, at, impassable, terrain: pieces(terrain), size }),

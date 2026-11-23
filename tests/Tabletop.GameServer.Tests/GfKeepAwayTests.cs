@@ -108,6 +108,29 @@ public class GfKeepAwayTests
         Assert.Equal([new AwayFrom(b[0], 9)], pick.KeepAway![a[1]].Units);                // B's second unit is a Scout
     }
 
+    /// <summary>p.14 Scout "fully within 12” of their deployment zone", 3.6.0 p.15 "fully within 9”": the Scouts phase's pick carries the reach for each
+    /// Scout, and the reach it carries is the one the placement is judged by (ZoneBreach). A holds y 36–48; a model's base is 1.26" across.</summary>
+    [Theory]
+    [InlineData(RuleSets.Gf351, 12.0)]
+    [InlineData(RuleSets.Gf360, 9.0)]
+    public void The_scout_pick_carries_its_reach_from_the_deployment_zone(string rulesId, double reach)
+    {
+        var h = new SchedulerHarness([TestArmies.Build("A", 2, 1, unitRules: [(2, Scout, null)]), TestArmies.Build("B", 1, 1)],
+            enforcement: Enforcement.Warn, rules: GrimdarkFutureRules.Instance);
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1);
+        h.Run();
+        var a = h.Units(0); var b = h.Units(1);
+        h.Dispatch(new SetCondition(TestGames.UnitSubject(a[1]), SetAside, true));
+        h.Answer(0, new SelectedPieces([a[0]])); h.Dispatch(At(h, a[0], 10, 44), team: 0);
+        h.Answer(1, new SelectedPieces([b[0]])); h.Dispatch(At(h, b[0], 60, 4), team: 1);
+        Assert.Equal(AskQuestions.DeployScouts, h.Open.Question);
+        var state = h.State.Under(rulesId);
+        var pick = Assert.IsType<PieceSelection>(state.Rules.LegalTurn(state, TestProperties.Core, h.Teams[0])!.Legal);
+        Assert.Equal(reach, pick.ZoneReach![a[1]]);
+        foreach (var (y, inside) in new[] { (36 - reach + 0.7, true), (36 - reach + 0.55, false) })
+            Assert.Equal(inside, GrimdarkFutureRules.ZoneBreach(state, At(h, a[1], 10, y).Moves) is null);
+    }
+
     [Theory]
     [InlineData(RuleSets.Gf351, null)]
     [InlineData(RuleSets.Gf360, 9.0)]

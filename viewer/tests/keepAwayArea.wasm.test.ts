@@ -64,7 +64,7 @@ describe('keepAwayArea through the WebAssembly', () => {
   });
 
   it('the keep-away is the deploy pick\'s for its unit, else the open move Ask\'s', () => {
-    const mid = { unitId: mine.id, question: 'deploy_ambusher', shelvedModelIds: [slot(mine).id], keepAway: nine };
+    const mid = { unitId: mine.id, question: 'deploy_ambusher', shelvedModelIds: [slot(mine).id], keepAway: nine, zoneReach: null };
     expect(keepAwayFor(mid, null)).toBe(nine);
     const move = askOf({ kind: 'move_region', modelIds: [slot(mine).id], allowance: 9, impassableVolumeIds: [], difficultVolumeIds: [], keepAway: nine } as never,
       { question: 'move', prompt: 'Vanguard', teams: [TEAM1], allowPass: true });
