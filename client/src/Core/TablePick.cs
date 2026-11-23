@@ -7,8 +7,8 @@ namespace Tabletop.Client.Core;
 public enum HitKind { Model, Marker, Other }
 
 /// <summary>A piece against the pointer's ray: Along, how far along the ray it is entered; Miss, how far the ray passes beside it in screen
-/// pixels (0: the ray enters it).</summary>
-public readonly record struct TableHit(HitKind Kind, double Along, double Miss);
+/// pixels (0: the ray enters it); Proposed, a ghost the open Ask moves (Proposing).</summary>
+public readonly record struct TableHit(HitKind Kind, double Along, double Miss, bool Proposed = false);
 
 /// <summary>Which piece the pointer picks (TableInput.Pick, the viewer's pickAt): a model the ray enters, the nearest; else a model the ray
 /// passes within the slop of, the closest; else a marker that may be dragged now whose disc the ray meets, so an unlocked marker under a
@@ -31,12 +31,13 @@ public static class TablePick
         return best;
     }
 
-    /// <summary>0 a model entered, 1 a model within the slop, 2 a draggable marker entered, 3 another piece entered; null for nothing picked.</summary>
+    /// <summary>0 a ghost the open Ask moves entered (a passenger over its transport is grabbed, never the transport), 1 a model entered, 2 a
+    /// model within the slop, 3 a draggable marker entered, 4 another piece entered; null for nothing picked.</summary>
     static int? Rank(TableHit h, double slop) => h.Kind switch
     {
-        HitKind.Model => h.Miss <= 0 ? 0 : h.Miss <= slop ? 1 : null,
-        HitKind.Marker => h.Miss <= 0 ? 2 : null,
-        _ => h.Miss <= 0 ? 3 : null,
+        HitKind.Model => h.Miss <= 0 ? h.Proposed ? 0 : 1 : h.Miss <= slop ? 2 : null,
+        HitKind.Marker => h.Miss <= 0 ? 3 : null,
+        _ => h.Miss <= 0 ? 4 : null,
     };
 
     static double Key(TableHit h) => h.Kind == HitKind.Model && h.Miss > 0 ? h.Miss : h.Along;

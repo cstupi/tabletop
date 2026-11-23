@@ -43,7 +43,7 @@ export function moveRig(over: { enforcement?: Enforcement; squad?: number; parti
   const drops = new PendingDrops();
   let found = new Map<string, Contact>();
   const contactCalls: unknown[][] = [];
-  let exit: Yaw | null = null;
+  let exit: Yaw | null = { degrees: 0 };
   const exitCalls: unknown[][] = [];
   const bandCalls: unknown[][] = [];
   const routeCalls: { capped?: boolean; models: { id: string; to: { x: number; y: number } }[] }[] = [];
@@ -56,6 +56,7 @@ export function moveRig(over: { enforcement?: Enforcement; squad?: number; parti
   const geometry = {
     contacts: (...args: unknown[]) => { contactCalls.push(args); return found; },
     exitYaw: (...args: unknown[]) => { exitCalls.push(args); return exit; },
+    tableHoldsBase: () => true,
     moveRoutes: (request: never) => { const r = request as { capped?: boolean; models: never[] }; routeCalls.push(r); return r.models.map(routeOf); },
     moveBands: (...args: unknown[]) => { bandCalls.push(args); return { clear: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }], difficult: [], dangerous: [] }; },
   } as unknown as Geometry;

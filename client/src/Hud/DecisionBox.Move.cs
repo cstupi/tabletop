@@ -48,16 +48,14 @@ public partial class DecisionBox
             Head(fromShelf ? new CardHead("army", "Place", unitName, ask.Prompt)        // the Ask's prompt says what is placed
                 : new CardHead("advance", "Disembark", unitName, $"Fully within {DecisionCard.Inches(within)} of {names.Piece(containerId)}"), MyOrdinal);
             _input.Allowance = null; _input.Proposed = null; _input.Region = null;
+            _input.Pinned.Clear(); _input.Pinned.Add(containerId);                   // the transport (or the anchor) stays put: a drag over it takes a ghost or nothing
+            // The ghosts start around the container, clear of it and within the exit reach (MoveRuler.ExitStart): grabbable, and a commit as they stand leaves it.
             void StartExit()
             {
-                if (fromShelf)
-                {
-                    var layout = DeployView.Around(legal.ModelIds.Select(id => p.Models[id]).ToList(), at.Placement, p.Models[containerId].Slot.Base, _view.Size, legal.Separation);
-                    _view.ShowGhosts(layout);
-                    _proposed = layout.ToDictionary(r => r.ModelId, r => ((OnTable)r.To).Placement.Position);
-                    return;
-                }
-                _view.ShowExitGhosts(legal.ModelIds, containerId); _proposed = legal.ModelIds.ToDictionary(id => id, _ => at.Placement.Position);
+                var layout = MoveRuler.ExitStart(p, legal, _view.Volumes, _view.Size);
+                _view.ShowGhosts(layout);
+                _proposed = layout.ToDictionary(r => r.ModelId, r => ((OnTable)r.To).Placement.Position);
+                foreach (var r in layout) _turned[r.ModelId] = ((OnTable)r.To).Placement.Yaw;
             }
             StartExit();
             _onCancel = () => { StartExit(); _input.Violations.Clear(); _regate?.Invoke(); return true; };
@@ -126,8 +124,11 @@ public partial class DecisionBox
             // p.7 unit coherency, as the server measures it (CoherencyView): a mark where the server refuses it, else a warning.
             var coherency = CoherencyView.Of(p, placed, _s.Coherency, id => _input.Violations.Subject?.Invoke(id) ?? names.Model(id), judged: true);
             _view.Coherency.Show(coherency, _regionColour);
-            _input.Violations.Measure(legal.ModelIds, CoherencyView.With(KeepAwayArea.With(ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit, _regions), legal.Separation, names.Unit),
-                p, legal.KeepAway, placed, names.Unit), coherency));
+            // A disembarking ghost the exit does not allow where it stands (p.15: beyond 6" of the transport) is marked as its contacts are.
+            var contacts = ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit, _regions), legal.Separation, names.Unit)
+                .ToDictionary(kv => kv.Key, kv => kv.Value);
+            foreach (var (id, words) in MoveRuler.ExitWords(p, legal, placed, _view.Volumes, _view.Size, names.Piece)) contacts.TryAdd(id, words);
+            _input.Violations.Measure(legal.ModelIds, CoherencyView.With(KeepAwayArea.With(contacts, p, legal.KeepAway, placed, names.Unit), coherency));
             // Each moved model's path and footprints, and a warning where its swept base crosses dangerous ground: never holding the commit.
             var paths = pathCache?.Proposed(proposed.ToDictionary(kv => kv.Key, kv => kv.Value.Horizontal), unit < allowance) ?? [];
             _input.Violations.Warn(legal.ModelIds, CoherencyView.Warnings(MovePaths.Marks(paths), coherency));

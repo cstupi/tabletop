@@ -175,7 +175,7 @@ export class PlayDrags {
       const unitModels = [...p.models.values()].filter((m) => m.unitId === unit && (m.location.kind === 'table' || box.ghosts.has(m.id))).map((m) => m.id);
       const held = drag.start(p, hit.id, at, mods.shift ? [hit.id] : picks.isEmpty ? null : picks.held(hit.id, unitModels), box.proposing, box.ghosts);
       const proposing = held.ids.every((id) => box.proposing.has(id));
-      if (held.ids.length === 0 || !mayDrag({ kind: 'models', ids: held.ids }, isWatching(st), box.proposing, game.enforcement, game.status, p, this.#deps.locks)) {
+      if (held.ids.length === 0 || !mayDrag({ kind: 'models', ids: held.ids }, isWatching(st), box.proposing, game.enforcement, game.status, p, this.#deps.locks, box.pinned)) {
         drag.cancel();
         return false;
       }
