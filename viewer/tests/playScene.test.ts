@@ -22,6 +22,17 @@ describe('sceneOfPlay', () => {
     expect(ghosted.models.find((m) => m.id === s.rival.id)!.centre).toEqual({ x: 30, y: 20 });
   });
 
+  it('a ghost draws after every other model, so a passenger over its transport shows on top and is picked first', () => {
+    const transport = unitOf('Transport', [slotOf({ name: 'Hull', base: { shape: 'rect', a: 5, b: 3 } })]);
+    const board = boardOf([{ participantId: P1, units: [s.squad, transport] }]);
+    const hull = transport.models[0]!.id;
+    const inside = projectionOf(s.game, board, [moved(s.model.id, { kind: 'inside', containerId: hull }), moved(hull, onTable(20, 20))]);
+    expect(sceneOfPlay(inside.projection, s.game, zones, name, new Map([[s.model.id, at(20, 20)]])).models.map((m) => m.id)).toEqual([hull, s.model.id]);
+    const standing = projectionOf(s.game, board, [moved(s.model.id, onTable(10, 10)), moved(hull, onTable(20, 20))]);
+    expect(sceneOfPlay(standing.projection, s.game, zones, name, new Map([[s.model.id, at(20, 20)]])).models.map((m) => m.id)).toEqual([hull, s.model.id]);
+    expect(sceneOfPlay(standing.projection, s.game, zones, name).models.map((m) => m.id)).toEqual([s.model.id, hull]);
+  });
+
   it('shelf and inside models are off the table', () => {
     const transport = unitOf('Transport', [slotOf({ name: 'Hull' })]);
     const board = boardOf([{ participantId: P1, units: [s.squad, transport] }]);

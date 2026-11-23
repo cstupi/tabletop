@@ -54,7 +54,9 @@ export function sentence(words: string, subject: string): string {
     case 'overlaps a base': return `${subject} would be placed on another model's base`;
     case 'path crosses a model': return `${subject} would move through another model`;
     case 'ends in impassable terrain': return `${subject} would end its move in impassable terrain`;
-    default: return words.startsWith('within ') ? `${subject} would end ${words}` : words.startsWith('placed within ') ? `${subject} would be ${words}` : words;
+    case 'would leave the table': return `${subject} would leave the table`;
+    default: return words.startsWith('within ') ? `${subject} would end ${words}` : words.startsWith('placed within ') ? `${subject} would be ${words}`
+      : words.startsWith('beyond ') ? `${subject} would be placed ${words}` : words;
   }
 }
 

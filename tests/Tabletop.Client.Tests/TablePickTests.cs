@@ -26,6 +26,14 @@ public class TablePickTests
         Assert.Equal(1, TablePick.Best([new(HitKind.Model, 20, 0), new(HitKind.Model, 12, 0)], slop: 12));
     }
 
+    /// <summary>A move Ask's ghost (a disembark's passenger over its transport) is grabbed wherever the pointer enters it, before a nearer model.</summary>
+    [Fact]
+    public void A_proposed_ghost_under_the_pointer_beats_a_nearer_model_it_stands_on()
+    {
+        Assert.Equal(1, TablePick.Best([new(HitKind.Model, 10, 0), new(HitKind.Model, 12, 0, Proposed: true)], slop: 12));
+        Assert.Equal(0, TablePick.Best([new(HitKind.Model, 10, 0), new(HitKind.Model, 12, 4, Proposed: true)], slop: 12));   // beside it: the model entered
+    }
+
     [Fact]
     public void Without_a_model_the_nearest_other_hit_wins_and_a_miss_is_none()
     {

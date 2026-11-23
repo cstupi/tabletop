@@ -43,17 +43,6 @@ public class GhostLookTests
     }
 
     [Fact]
-    public void Disembark_ghosts_stand_on_the_container_facing_its_way_with_their_own_meshes()
-    {
-        var p = Play(new ModelsMoved([new ModelRelocation(Truck.Id, new OnShelf(), new OnTable(At(20, 20, 90))),
-            new ModelRelocation(Meshed.Id, new OnShelf(), new Inside(Truck.Id)), new ModelRelocation(Bare.Id, new OnShelf(), new Inside(Truck.Id))]));
-        var looks = GhostLooks.Exiting(p, [Meshed.Id, Bare.Id], Truck.Id);
-        Assert.All(looks, l => Assert.Equal(At(20, 20, 90), l.At));
-        Assert.Equal([Mesh, null], looks.Select(l => l.AssetId));
-        Assert.Empty(GhostLooks.Exiting(Play(), [Meshed.Id], Truck.Id));       // the container is not on the table
-    }
-
-    [Fact]
     public void Another_players_proposed_model_draws_that_models_mesh_where_and_as_they_turned_it()
     {
         var p = Play();

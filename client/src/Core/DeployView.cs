@@ -59,9 +59,12 @@ public static class DeployView
     /// <summary>
     /// Shelf models placed relative to a model on the table (a Spawn or Split reserve, placed "fully within 6\"" of its anchor): rings about the anchor's
     /// centre, the first clear of its base by the separation, each as many models as fit a pitch apart, yaw 0; a spot whose base would leave the table is skipped. A row of
-    /// <see cref="Layout"/> would reach past 6" for five wide bases; a ring keeps every model as close as it can go.
+    /// <see cref="Layout"/> would reach past 6" for five wide bases; a ring keeps every model as close as it can go. With `fit` a spot is taken only
+    /// at the facing it gives (a disembark's Containment.ExitYaw: within the exit reach, on the table, clear of impassable terrain), else skipped,
+    /// and the rings stop at `farthest` from the anchor's centre.
     /// </summary>
-    public static IReadOnlyList<ModelRelocation> Around(IReadOnlyList<ModelInPlay> models, Placement anchor, Base anchorBase, TableSize size, double? clearance = null)
+    public static IReadOnlyList<ModelRelocation> Around(IReadOnlyList<ModelInPlay> models, Placement anchor, Base anchorBase, TableSize size, double? clearance = null,
+        Func<ModelInPlay, Point2, Yaw?>? fit = null, double farthest = double.MaxValue)
     {
         if (models.Count == 0) return [];
         var widest = models.Max(m => Math.Max(m.Slot.Base.A, m.Slot.Base.B));
@@ -72,7 +75,7 @@ public static class DeployView
         var placed = new List<ModelRelocation>(models.Count);
         var next = 0;
         // Ring by ring outward: a spot whose base would leave the table is skipped (pulling it back on would bring it toward the anchor).
-        for (var rings = 0; next < models.Count && rings < MaxRings; rings++, radius += pitch)
+        for (var rings = 0; next < models.Count && rings < MaxRings && radius <= farthest; rings++, radius += pitch)
         {
             var room = Math.Max(1, (int)Math.Floor(2 * Math.PI * radius / pitch));
             for (var i = 0; i < room && next < models.Count; i++)
@@ -81,7 +84,9 @@ public static class DeployView
                 var m = models[next]; var half = Math.Max(m.Slot.Base.A, m.Slot.Base.B) / 2;
                 var x = anchor.Position.X + radius * Math.Cos(angle); var y = anchor.Position.Y + radius * Math.Sin(angle);
                 if (x < half || x > size.Width - half || y < half || y > size.Length - half) continue;
-                placed.Add(new ModelRelocation(m.Id, m.Location, new OnTable(new Placement(new Point3(x, y, anchor.Position.Z), new Yaw(0)))));
+                var yaw = new Yaw(0);
+                if (fit is not null) { if (fit(m, new Point2(x, y)) is { } fits) yaw = fits; else continue; }
+                placed.Add(new ModelRelocation(m.Id, m.Location, new OnTable(new Placement(new Point3(x, y, anchor.Position.Z), yaw))));
                 next++;
             }
         }

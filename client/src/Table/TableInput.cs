@@ -23,6 +23,8 @@ public partial class TableInput : Node
     public Selection? Selected { get; private set; }
     /// <summary>Models a declared move or a deployment placement is positioning: their drag streams proposed ghosts, and the release sends nothing (the decision box commits).</summary>
     public HashSet<Guid> Proposing { get; } = new();
+    /// <summary>Models the open Ask holds still: a disembark's transport (or a reserve's anchor). A drag on one does not start.</summary>
+    public HashSet<Guid> Pinned { get; } = new();
     /// <summary>The models in breach and why (ViolationMarks draws them): a hand move's are measured here as it drags, a move's or a deployment's
     /// ghosts by the decision box, which also puts a refused commit's reason on them.</summary>
     public Violations Violations { get; } = new();
@@ -166,7 +168,7 @@ public partial class TableInput : Node
                         }
                         break;
                     default:
-                        pieces.Add((piece, h)); hits.Add(new(isModel ? HitKind.Model : HitKind.Other, from.DistanceTo(h), 0));
+                        pieces.Add((piece, h)); hits.Add(new(isModel ? HitKind.Model : HitKind.Other, from.DistanceTo(h), 0, piece is PieceNode pn && Proposing.Contains(pn.ModelId)));
                         break;
                 }
                 continue;
@@ -407,7 +409,7 @@ public partial class TableInput : Node
     /// </summary>
     bool MayDrag(Node3D piece, IReadOnlyList<Guid> models) => !_session.IsWatching && piece switch
     {
-        PieceNode => models.All(Proposing.Contains) || _session.Game?.Enforcement != Enforcement.Strict,
+        PieceNode => !models.Any(Pinned.Contains) && (models.All(Proposing.Contains) || _session.Game?.Enforcement != Enforcement.Strict),
         MarkerNode m => Locks.MayDrag(_session.Game?.Status, _session.Projection, m.MarkerId),
         TerrainNode => TerrainLock.MayDrag(_session.Game?.Status),
         _ => true,
