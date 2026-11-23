@@ -5,13 +5,14 @@ namespace Tabletop.Client.Table;
 /// and the threat rings (ThreatRings over Session.Threats), in the unit's team colour, whatever V says, of the selected unit of another team than the one
 /// I act for (kept while I select and place my own units, ThreatRings.Pinned) and of the hovered one; and with T on, every such team's Charge and Shoot areas (ThreatRings.All),
 /// in deployment and play alike; and while I place a unit held over a distance from enemy units (the deploy pick's or the move Ask's KeepAway:
-/// an Ambusher, a 3.6 Scout, Reinforcement copy, Fanatic or Vanguard), the area it may not reach (KeepAwayArea) in a dark shade. Readable rings plan:
+/// an Ambusher, a 3.6 Scout, Reinforcement copy, Fanatic or Vanguard), the area it may not reach (KeepAwayArea) in a dark shade; and while I place a
+/// unit held within a reach of my zone (the deploy pick's ZoneReach: a Scout), the area it may stand in (ZoneReachArea) in my team colour. Readable rings plan:
 /// each ring fills its area in its kind's opacity (RingLook) under a screen-constant outline (RingMesh), and carries a screen-space label, the
 /// kind's icon and its words in the team colour, under the outline's point lowest on the screen (RingLabels), never over another label.</summary>
 public partial class RangeRingNode : Node3D
 {
     Session _s = null!; TableInput _input = null!;
-    readonly Layer _picked = new(), _hovered = new(), _range = new(), _keepAway = new(); readonly List<Layer> _all = new();
+    readonly Layer _picked = new(), _hovered = new(), _range = new(), _keepAway = new(), _reach = new(); readonly List<Layer> _all = new();
     bool _allOn; Guid? _pinned;
     readonly CanvasLayer _canvas = new(); readonly Control _labels = new() { MouseFilter = Control.MouseFilterEnum.Ignore };
     Action<RenderCause>? _onFrame; Action? _onChanged, _onTheme; Action<Intent>? _onIntent; Action<Guid?>? _onHover;
@@ -24,7 +25,7 @@ public partial class RangeRingNode : Node3D
     {
         _s = session; _input = input;
         AddChild(_canvas); _canvas.AddChild(_labels); _labels.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        _picked.Attach(this, _labels); _hovered.Attach(this, _labels); _range.Attach(this, _labels); _keepAway.Attach(this, _labels);
+        _picked.Attach(this, _labels); _hovered.Attach(this, _labels); _range.Attach(this, _labels); _keepAway.Attach(this, _labels); _reach.Attach(this, _labels);
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Facts | RenderCause.Game)) != 0) Draw(); }; _onChanged = Draw; _onHover = _ => Draw();
         _onTheme = () => { _labels.Theme = Ui.Theme; foreach (var l in Layers) l.Forget(); Draw(); };                           // the themed team colour, font and icons
         _onIntent = i =>
@@ -48,7 +49,7 @@ public partial class RangeRingNode : Node3D
     /// <summary>Every layer, in the order their labels claim room: the selected and hovered units' first, then T's areas, then V's rings. Rebuilt
     /// only when T adds a layer, so a frame walks it without allocating.</summary>
     Layer[] _layers = [];
-    Layer[] Layers => _layers.Length == _all.Count + 4 ? _layers : _layers = [_keepAway, _picked, _hovered, .. _all, _range];
+    Layer[] Layers => _layers.Length == _all.Count + 5 ? _layers : _layers = [_reach, _keepAway, _picked, _hovered, .. _all, _range];
 
     void Draw()
     {
@@ -65,6 +66,25 @@ public partial class RangeRingNode : Node3D
         _hovered.Show(hovered is { } b && b != _pinned && shown.Contains(b) ? ThreatOf(b) : null);
         _range.Show(RangeWanted());
         _keepAway.Show(KeepAwayWanted(), Ui.Text, Ui.Of(KeepAwayArea.Rim));
+        _reach.Show(ReachWanted());
+    }
+
+    /// <summary>My team's deploy pick's MidDeploy, a pick by any team of mine.</summary>
+    MidDeploy? MyMidDeploy(Tabletop.Protocol.Projection p) =>
+        new[] { _s.MyTeamId }.Concat(_s.MyTeamIds.Select(t => (Guid?)t)).Select(t => DeployView.MidDeploy(p, _s.Log, t)).FirstOrDefault(m => m is not null);
+
+    (object Key, Shaped Rings)? _reachKept;
+    /// <summary>The area my deploy pick's unit may stand in (ZoneReachArea): its zone grown by the pick's reach, in the team colour; built again only when
+    /// the unit, reach, zone, table or legs change.</summary>
+    (Shaped Rings, Color Colour)? ReachWanted()
+    {
+        if (_s.IsWatching || _s.Projection is not { } p || _s.Game is not { } game || MyMidDeploy(p) is not { ZoneReach: not null } mid
+            || ZoneReachArea.OrdinalOf(p, game, mid) is not { } ordinal) return null;
+        var colour = Palette.Team(ordinal);
+        var key = (mid.UnitId, mid.ZoneReach, ordinal, p.Board.Table.Size, p.Board.Table.Zones.Count, _s.Zones);
+        if (_reachKept is not { } kept || !Equals(kept.Key, key))
+            _reachKept = kept = (key, Shape(ZoneReachArea.Of(p, game, mid, _s.Zones) is { } ring ? [ring] : [], colour));
+        return kept.Rings.Rings.Count > 0 ? (kept.Rings, colour) : null;
     }
 
     /// <summary>The area the placement under way may not reach: my team's deploy pick's KeepAway (DeployView.MidDeploy, a pick by any team of mine), else
@@ -73,7 +93,7 @@ public partial class RangeRingNode : Node3D
     {
         if (_s.IsWatching || _s.Projection is not { } p) return null;
         var mine = _s.MyTeamIds;
-        var mid = new[] { _s.MyTeamId }.Concat(mine.Select(t => (Guid?)t)).Select(t => DeployView.MidDeploy(p, _s.Log, t)).FirstOrDefault(m => m is not null);
+        var mid = MyMidDeploy(p);
         var move = p.OpenAsks.Values.Select(o => o.Ask).FirstOrDefault(a => a.Legal is MoveRegion { KeepAway: not null } && a.Teams.Any(mine.Contains));
         if (KeepAwayArea.For(mid, move) is not { } keep) return null;
         var build = KeepAwayArea.Builder(p, keep);

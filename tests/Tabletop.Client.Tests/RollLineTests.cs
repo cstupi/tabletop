@@ -54,11 +54,24 @@ public class RollLineTests
         Assert.Equal("Morale failed → Shaken", morale.Chain);
     }
 
+    /// <summary>3.6.0 p.13 / p.13: "roll one die, and on 4+ resolve the spell's effect" and tokens "give the Caster +1/-1 to the roll per
+    /// token": the tokens change the die, never the 4+.</summary>
     [Fact]
-    public void A_passed_casting_roll_reads_cast()
+    public void A_casting_roll_adds_its_tokens_to_the_die_and_needs_4_plus()
     {
-        Assert.Equal("Casting · 4+ (tokens +1) → needs 3 · ⚅ · cast", Line(Record("casting", 4, [D(6, true)], null, null, new RollModifier("tokens", 1)), "casting"));
-        Assert.Equal("Casting · 4+ · ⚀ · failed", Line(Record("casting", 4, [D(1, false)]), "casting"));
+        Assert.Equal("Casting · needs 4+ (+1 token) · ⚅ · passed", Line(Record("casting", 4, [D(6, true)], null, null, new RollModifier("tokens", 1)), "casting"));
+        Assert.Equal("Casting · needs 4+ · ⚀ · failed", Line(Record("casting", 4, [D(1, false)]), "casting"));
+        Assert.Equal("Casting · needs 4+ (-2 tokens, +1 Spell Conduit) · ⚄ · passed",
+            Line(Record("casting", 4, [new Die(5, 4, true)], null, null, new RollModifier("tokens", -2), new RollModifier("Spell Conduit", 1)), "casting"));
+    }
+
+    [Fact]
+    public void A_casting_log_line_sums_the_die_and_its_tokens()
+    {
+        var failed = Entry(Record("casting", 4, [new Die(1, 2, false)], null, null, new RollModifier("tokens", 1)), "casting") with { Label = "Cast Hex" };
+        Assert.Equal("Cast Hex: rolled 1 +1 token = 2, needs 4+, failed", LogSheet.RollLine(failed, null));
+        var plain = Entry(Record("casting", 4, [D(5, true)]), "casting") with { Label = "Cast Hex" };
+        Assert.Equal("Cast Hex: rolled 5, needs 4+, passed", LogSheet.RollLine(plain, null));
     }
 
     [Fact]

@@ -98,9 +98,11 @@ public static partial class LogSheet
     static string Prefix(RollEntry r, Guid? actor) =>
         RollEntry.IsTest(r.Record, r.Sequence) && r.Unit is { } unit && r.Context.ActorUnitId != actor ? $"{unit} · " : "";
 
-    /// <summary>`{Label} {target}: rolled {faces}, {result}` and each live reroll or edit; a roll-off `Roll-off: Team 1 rolled 3 · Team 2 rolled 2, Team 1 wins`.</summary>
+    /// <summary>`{Label} {target}: rolled {faces}, {result}` (a roll its modifiers add to: `Cast Hex: rolled 1 +1 token = 2, needs 4+, failed`) and each live reroll or edit; a roll-off `Roll-off: Team 1 rolled 3 · Team 2 rolled 2, Team 1 wins`.</summary>
     public static string RollLine(RollEntry r, Guid? actor)
     {
+        if (r.Sum is { } sum && r.Record.Threshold is { } t)
+            return $"{Prefix(r, actor)}{r.Label}: {sum}, needs {t}+{(r.Outcome.Length == 0 ? "" : $", {r.Outcome}")}" + string.Concat(r.Amendments.Where(a => !a.Undone).Select(a => " · " + a.Text));
         var head = r.Target.Length == 0 ? r.Label : $"{r.Label} {r.Target}";
         var faces = Labelled(r) is { } labels
             ? string.Join(" · ", r.Dice.Select((d, i) => $"{labels[i]} rolled {d.Raw}"))

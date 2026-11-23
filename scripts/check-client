@@ -24,4 +24,8 @@ fi
 if grep -rnE --include='*.cs' --exclude=Space.cs 'AddThemeConstantOverride\([^;]*(separation|margin|side|edge)[^;]*\b[1-9][0-9]*\b|ContentMargin(Left|Right|Top|Bottom)\s*=\s*[^;,}]*\b[1-9][0-9]*\b|SetContentMarginAll\([^)]*\b[1-9][0-9]*\b' client/src/Hud client/src/Panels client/src/Screens client/src/Theme; then
     echo "check-client: a spacing literal in Hud, Panels, Screens or Theme; use a Space step" >&2; status=1
 fi
+# A wrapping label on the decision card or the dice tray sets a minimum width (HudBits.WrapMin): a container that gives it none lays it out one character per line.
+if perl -ne 'my $w = () = /AutowrapMode = /g; my $m = () = /CustomMinimumSize/g; print "$ARGV:$.: $_" if $w > $m; close ARGV if eof' client/src/Hud/Decision*.cs client/src/Hud/DiceTray.cs | grep .; then
+    echo "check-client: a wrapping card label without a minimum width; add CustomMinimumSize = HudBits.WrapMin" >&2; status=1
+fi
 exit $status

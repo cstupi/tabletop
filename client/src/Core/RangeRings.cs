@@ -2,8 +2,8 @@ using System.Globalization; using Tabletop.Content; using Tabletop.Geometry; usi
 namespace Tabletop.Client.Core;
 
 /// <summary>What a ring measures: a weapon's printed range (V), a threat's charge or shooting reach, or the area a placement keeps out of
-/// (<see cref="KeepAwayArea"/>). Its look follows (<see cref="RingLook"/>).</summary>
-public enum RingKind { Range, Charge, Shoot, KeepAway }
+/// (<see cref="KeepAwayArea"/>), or where a deploy pick's unit may stand (<see cref="ZoneReachArea"/>). Its look follows (<see cref="RingLook"/>).</summary>
+public enum RingKind { Range, Charge, Shoot, KeepAway, Reach }
 
 public sealed record RangeRing(double Inches, string Label, IReadOnlyList<(Point2 A, Point2 B)> Segments, RingKind Kind = RingKind.Range);
 

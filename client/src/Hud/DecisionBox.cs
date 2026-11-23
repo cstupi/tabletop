@@ -20,12 +20,15 @@ public partial class DecisionBox : PanelContainer
     /// <summary>The card's title band: the Ask's icon, its title in the display font, the unit it is about, "Team 2" for a client holding several, ⌨.</summary>
     readonly PanelContainer _band = new();
     readonly TextureRect _icon = DecisionTiles.Icon(null, 22);
-    readonly Label _title = new() { ThemeTypeVariation = Variation.Display, Uppercase = true, VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill },
+    readonly Label _title = new() { ThemeTypeVariation = Variation.Display, Uppercase = true, VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = HudBits.WrapMin, SizeFlagsHorizontal = SizeFlags.ExpandFill },
         _seat = new() { VerticalAlignment = VerticalAlignment.Center };
     readonly Button _keys = new() { FocusMode = FocusModeEnum.None, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Keys", ExpandIcon = true, CustomMinimumSize = new Vector2(28, 28) };
-    readonly Label _prompt = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _note = new() { ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart },
-        _refusalLabel = new() { ThemeTypeVariation = Variation.Failure, AutowrapMode = TextServer.AutowrapMode.WordSmart };
-    readonly HFlowContainer _reveal = new(), _footRow = new();
+    readonly Label _prompt = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = HudBits.WrapMin }, _note = new() { ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = HudBits.WrapMin },
+        _refusalLabel = new() { ThemeTypeVariation = Variation.Failure, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = HudBits.WrapMin };
+    readonly HFlowContainer _footRow = new();
+    /// <summary>A sealed Ask's reveal, a band per team at the card's width: in a flow a band takes its minimum width, and its wrapping
+    /// label's minimum is one character.</summary>
+    readonly VBoxContainer _reveal = new();
     readonly VBoxContainer _quiet = new(), _body = new();
     readonly MarginContainer _inset = new();
     MoveRegionNode? _region;
@@ -77,7 +80,7 @@ public partial class DecisionBox : PanelContainer
         foreach (var side in new[] { "left", "right", "top", "bottom" }) _inset.AddThemeConstantOverride($"margin_{side}", Space.M);   // a box of a title and several lines: M (spacing rule 5)
         _body.AddThemeConstantOverride("separation", Space.M); _inset.AddChild(_body);
         _footRow.AddThemeConstantOverride("h_separation", Space.S); _footRow.AddThemeConstantOverride("v_separation", Space.S);
-        _reveal.AddThemeConstantOverride("h_separation", Space.S); _reveal.AddThemeConstantOverride("v_separation", Space.XS);
+        _reveal.AddThemeConstantOverride("separation", Space.XS);
         _choices.AddThemeConstantOverride("separation", Space.S);
         foreach (var c in new Control[] { _reveal, _prompt, _note, _scroll, _refusalLabel, _footRow }) _body.AddChild(c);
         _reveal.Visible = false;                                                    // an empty row still takes the body's separation: a gap above the first line
@@ -229,8 +232,6 @@ public partial class DecisionBox : PanelContainer
             if (_s.Phase == SessionPhase.Reconnecting) KeepGhosts();
             Reset(); _renderedAsk = null; ClearHead(); _note.Text = ""; Quiet([]); return;
         }
-        var fresh = _reveals.Drain();                                           // every reveal since the last render, in order
-        if (fresh.Count > 0) _revealed = fresh;
         var mine = AskViewModel.Mine(p, game, _s.MyTeamId);
         if (mine?.Ask.Id != _refusalAsk) _refusal = null;                       // a different Ask, or none: the refusal is spent
         var names = new Names(game, p);
@@ -238,13 +239,15 @@ public partial class DecisionBox : PanelContainer
         {
             var mid = new[] { _s.MyTeamId }.Concat(_s.MyTeamIds.Select(t => (Guid?)t)).Select(t => DeployView.MidDeploy(p, _s.Log, t)).FirstOrDefault(m => m is not null);   // a pick by any team of mine is placed
             if (_renderedAsk is not null || mid?.UnitId != _deployUnit) { Reset(); _renderedAsk = null; ClearHead(); }
-            _note.Text = "";                                                    // a sealed Ask's reveal (its own line) stays up until the next Ask
+            _note.Text = "";
+            _revealed = _reveals.Shown(card: mid is not null);                  // a sealed Ask's reveal stays up until my next card
             if (mid is null && _s.WaitingTeams is { Count: > 0 }) Quiet([]);   // the waiting columns hold the slot (WaitingPanel)
             else if (mid is null) Quiet(DecisionCard.Quiet(p, game, _s.MyTeamIds).Select(b => (b.Ordinal, b.Mine ? "Your move" : b.Team, b.Doing)).ToList());
             else { Quiet([]); if (_deployUnit is null) StartDeploy(mid, names); }
             return;
         }
         Quiet([]);
+        _revealed = _reveals.Shown(card: true);                                 // a reveal is about the Ask that closed: never on this card
         var aside = SetAsideView.DrawnKey(_s.MaySetAside, _s.SetAsideRules);
         if (_renderedAsk == mine.Ask.Id && aside == _asideDrawn)
         {
@@ -254,7 +257,6 @@ public partial class DecisionBox : PanelContainer
         _asideDrawn = aside;
         var model = DecisionView.Of(p, game, names, _s.MyTeamId);   // only for an Ask not yet drawn: most renders keep the box as it is
         Reset(); _renderedAsk = mine.Ask.Id; _answering = _s.MyTeamId; _note.Text = "";
-        if (fresh.Count == 0) _revealed = null;                                 // a reveal is cleared only after a render has shown it
         _numbered = model.Numbered;
         _cardActions = CardActions.Of(mine.Ask, mine.Mode, p);
         Head(DecisionCard.Head(mine.Ask, p, names), MyOrdinal);
@@ -389,7 +391,7 @@ public partial class DecisionBox : PanelContainer
         foreach (var (id, max) in spendable)
         {
             var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", Space.S);
-            row.AddChild(new Label { Text = names.Piece(id), SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart, VerticalAlignment = VerticalAlignment.Center });
+            row.AddChild(new Label { Text = names.Piece(id), SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = HudBits.WrapMin, VerticalAlignment = VerticalAlignment.Center });
             row.AddChild(DecisionTiles.Pips(RosterView.Pips(p.Models.GetValueOrDefault(id)?.SpellTokens ?? max, p.Models.GetValueOrDefault(id)?.SpellTokens ?? max), MyOrdinal));
             var spin = new SpinBox { MinValue = 0, MaxValue = max }; row.AddChild(spin); spends[id] = spin;
             Add(row);

@@ -26,6 +26,7 @@ public static partial class LogSheet
         if (r.RequiredRaw is { } raw) return raw <= 1 ? "" : $"unmodified {raw}+";
         if (r.Threshold is not { } t) return "";
         if (r is { Roll: "dangerous-terrain", Threshold: 2, Basis: null, Modifiers.Count: 0 }) return "1 fails";
+        if (RollWords.AddsToRoll(r)) return string.Join(" · ", r.Modifiers.Select(RollWords.RollPart).Prepend($"needs {t}+"));
         var parts = new List<string> { r.Basis is { } b ? $"{b.Stat} {b.Printed}+" : $"{t}+" };
         if (r.Basis is { } basis)
         {
@@ -141,7 +142,7 @@ public static partial class LogSheet
         var th = Threshold(r.Record);
         var lines = new List<string> { $"{Prefix(r, actor)}{r.Label}{(th.Length > 0 ? $" · {th}" : "")}{(r.Dice.Count > 1 ? " " + Count(r) : "")}" };
         if (Labelled(r) is { } labels) lines.AddRange([.. r.Dice.Select((d, i) => $"{labels[i]} rolled {d.Raw}"), .. Amended(r)]);
-        else if (r.Dice.Count == 1) lines.AddRange([$"rolled {Rolled(r)[0]}", .. Amended(r), .. Always(r) is { } note ? [note] : Array.Empty<string>()]);
+        else if (r.Dice.Count == 1) lines.AddRange([r.Sum is { } sum && !r.Amendments.Any(a => !a.Undone) ? sum : $"rolled {Rolled(r)[0]}", .. Amended(r), .. Always(r) is { } note ? [note] : Array.Empty<string>()]);
         else lines.AddRange(Dice(r));
         if (r.Outcome.Length > 0) lines.Add(r.Outcome);
         lines.AddRange(Rules([r]));

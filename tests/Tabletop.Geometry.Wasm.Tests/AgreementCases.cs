@@ -203,6 +203,14 @@ public static class AgreementCases
         var straddle = Model(10, 36); var inside = Model(10, 44);
         Add("zone_holds_base_straddling", "ZoneHoldsBase", new ZoneRequest("frontline/1", size, null, straddle), ZoneStyles.BaseFullyWithin("frontline/1", size, straddle));
         Add("zone_holds_base_inside", "ZoneHoldsBase", new ZoneRequest("frontline/1", size, null, inside), ZoneStyles.BaseFullyWithin("frontline/1", size, inside));
+        // A Scout's reach (p.14 12", 3.6.0 p.15 9"): the zone grown by it, and a base fully within it.
+        var scout = Model(10, 27.4);
+        Add("zone_holds_base_beyond_reach", "ZoneHoldsBase", new ZoneRequest("frontline/1", size, null, scout, Reach: 9), ZoneStyles.BaseFullyWithin("frontline/1", size, scout, 9));
+        Add("zone_holds_base_within_reach", "ZoneHoldsBase", new ZoneRequest("frontline/1", size, null, scout, Reach: 12), ZoneStyles.BaseFullyWithin("frontline/1", size, scout, 12));
+        Add("zone_reach_outline_opposing_forces", "ZoneReachOutline", new ZoneRequest("opposing-forces/1", size, null, null, Reach: 9),
+            ZoneReach.Outline(ZoneStyles.Resolve("opposing-forces/1", size), 9, size).Select(s => new Segment(s.A, s.B)).ToArray());
+        Add("zone_reach_outline_disordered", "ZoneReachOutline", new ZoneRequest("disordered/2", size, null, null, Reach: 12),
+            ZoneReach.Outline(ZoneStyles.Resolve("disordered/2", size), 12, size).Select(s => new Segment(s.A, s.B)).ToArray());
         Add("table_holds_base_inside", "TableHoldsBase", new TableRequest(size, a), Table.ContainsBase(size, a));
         var edge = Model(0.2, 10);
         Add("table_holds_base_over_the_edge", "TableHoldsBase", new TableRequest(size, edge), Table.ContainsBase(size, edge));

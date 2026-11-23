@@ -45,6 +45,12 @@ const dropped = (p: EventPayload): boolean =>
 /** Adds the key; whether it was not there yet (C#'s HashSet.Add). */
 const firstOf = (set: Set<string>, key: string): boolean => (set.has(key) ? false : (set.add(key), true));
 
+/** A casting roll's label: `Cast {spell}` from the innermost open casting block that has picked its spell. */
+function castLabel(drafts: readonly Draft[]): { label?: string } {
+  const spell = [...drafts].reverse().find((d) => d.spell !== null)?.spell;
+  return spell != null ? { label: `Cast ${spell}` } : {};
+}
+
 export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
   const live = new Set(effectiveLog(log).map((e) => e.seq));
   const isDead = (e: GameEvent) => !live.has(e.seq) && e.payload.kind !== 'undone';
@@ -122,6 +128,7 @@ export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
           attack: first && roll.roll === 'hit' && firstOf(attacked, `${p.frameId}|${dead}`) ? attackLines(context, n) : null, stepIgnored: first ? ignored : null,
           inAttack: tree.tag(p, roll, context, n), hitMultiplier: roll.roll === 'hit' ? multiplier : 1,
           unit: context.actorUnitId !== undefined ? n.unit(context.actorUnitId) : null,
+          ...(roll.roll === 'casting' ? castLabel(drafts) : {}),
         };
         here.push(entry);
         chain(rollChain(entry));

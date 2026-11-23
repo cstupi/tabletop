@@ -36,6 +36,11 @@ static partial class SpecialGames
                         return reach <= 12.01 ? null : $"{ModelName(run, a.Model)} placed {reach:0.00}\" from its zone";
                     });
                 }),
+                Exact("p.14 Scout: \"fully within 12\" of their deployment zone\": the Scout pick carries 12\" from the zone and no distance from enemy units", ["Scout"], run =>
+                    Each(Payloads(run).OfType<AskOpened>().Where(o => o.Ask.Question == AskQuestions.DeployScouts).SelectMany(o => ((PieceSelection)o.Ask.Legal).Eligible
+                        .Select(u => (Unit: u, Pick: (PieceSelection)o.Ask.Legal))), "a Scout offered", x =>
+                        x.Pick.ZoneReach?.GetValueOrDefault(x.Unit) is not 12.0 ? $"{UnitName(run, x.Unit)} was offered with reach {x.Pick.ZoneReach?.GetValueOrDefault(x.Unit)}"
+                        : x.Pick.KeepAway?.ContainsKey(x.Unit) == true ? $"{UnitName(run, x.Unit)} was offered with a distance from enemy units" : null)),
                 Exact("p.13 Ambush: \"At the start of any round after the first, may be deployed anywhere over 9\" away from enemy units\"", ["Ambush"], run =>
                 {
                     var round = 0;

@@ -7,7 +7,7 @@ import type { Overlay } from '../board/interaction';
 import { measureOf, viewportWidthOf } from '../board/labelPlacement';
 import { placed, type Geometry, type Placement, type Segment } from '../geometry';
 import type { ModelInPlay, Projection } from '../live/apply';
-import { labelUnder, placeRingLabels, ringAnchor, ringLook, ringShapeOf, type Rect, type RingKind, type RingShape } from './ringShape';
+import { labelUnder, placeRingLabels, ringAnchor, ringLook, ringShapeOf, type Rect, type RingIcon, type RingKind, type RingShape } from './ringShape';
 
 /** `kind` is what the ring measures, which sets its look (`ringLook`): a printed range (V), or a threat's charge or shooting reach. */
 export interface RangeRing { readonly inches: number; readonly label: string; readonly segments: readonly Segment[]; readonly kind: RingKind }
@@ -89,11 +89,14 @@ function viewportHeightOf(ctx: CanvasRenderingContext2D): number {
 }
 
 /** The kind's icon in a box ICON wide, its top left at (x, y): a crosshair for shooting and ranges, two crossed blades for a charge, a warning
- *  triangle for a keep-away. */
-function drawIcon(ctx: CanvasRenderingContext2D, icon: 'charge' | 'shoot' | 'warning', x: number, y: number): void {
+ *  triangle for a keep-away, a framed band for a zone's reach. */
+function drawIcon(ctx: CanvasRenderingContext2D, icon: RingIcon, x: number, y: number): void {
   const c = ICON / 2;
   ctx.beginPath();
-  if (icon === 'warning') {
+  if (icon === 'zone') {
+    ctx.rect(x + 1, y + 1, ICON - 2, ICON - 2);
+    ctx.moveTo(x + 1, y + c); ctx.lineTo(x + ICON - 1, y + c);
+  } else if (icon === 'warning') {
     ctx.moveTo(x + c, y + 1); ctx.lineTo(x + ICON - 1, y + ICON - 1); ctx.lineTo(x + 1, y + ICON - 1); ctx.closePath();
     ctx.moveTo(x + c, y + c * 0.7); ctx.lineTo(x + c, y + c * 1.3); ctx.moveTo(x + c, y + ICON - 3.5); ctx.lineTo(x + c, y + ICON - 3);
   } else if (icon === 'shoot') {
@@ -112,7 +115,7 @@ function drawIcon(ctx: CanvasRenderingContext2D, icon: 'charge' | 'shoot' | 'war
  * kept apart, inside the canvas and off the HUD frame's obstacles (`placeRingLabels`), in layer order. */
 export const ringsOverlay = (layers: readonly RingLayer[], obstacles: readonly Rect[] = []): Overlay => (ctx, project) => {
   ctx.save();
-  const labels: { text: string; icon: 'charge' | 'shoot' | 'warning'; colour: string; at: { x: number; y: number } }[] = [];
+  const labels: { text: string; icon: RingIcon; colour: string; at: { x: number; y: number } }[] = [];
   const view: Rect = { x: 0, y: 0, w: viewportWidthOf(ctx), h: viewportHeightOf(ctx) };
   for (const { rings, colour, words, rim } of layers) for (const r of rings) {
     if (r.segments.length === 0) continue;

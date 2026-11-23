@@ -59,8 +59,12 @@ public sealed record Options(IReadOnlyList<AskOption> Choices) : LegalSet;
 /// (a model-grain spell, a Takedown's target model — rulebook p.14); nothing here distinguishes the two grains.
 /// KeepAway, at a deploy question, is the distance from enemy units each eligible unit is placed by, keyed by the unit; a unit it does not name
 /// has none. Null: no eligible unit has one.
+/// ZoneReach, at a deploy question, is how far from the placing team's deployment zone each eligible unit is placed, keyed by the unit: every
+/// base fully within that many inches of the zone (OPR p.14 Scout 12", 3.6.0 p.15 9"; 0 is fully within the zone). A unit it does not name, or
+/// null, is held to no reach the Ask states.
 /// </summary>
-public sealed record PieceSelection(IReadOnlyList<Guid> Eligible, int Min, int Max, IReadOnlyDictionary<Guid, KeepAway>? KeepAway = null) : LegalSet;
+public sealed record PieceSelection(IReadOnlyList<Guid> Eligible, int Min, int Max, IReadOnlyDictionary<Guid, KeepAway>? KeepAway = null,
+    IReadOnlyDictionary<Guid, double>? ZoneReach = null) : LegalSet;
 /// <summary>Distribute Amount over Targets, exactly (wound assignment, casualty removal): the counts sum to Amount, and at most
 /// MaxTargets targets get a count above zero (null: any number).</summary>
 public sealed record Allocation(IReadOnlyList<Guid> Targets, int Amount, int? MaxTargets = null) : LegalSet;

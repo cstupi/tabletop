@@ -118,7 +118,7 @@ public class DecisionCardTests
         var r = new SealedReveals(); var n = new Names(Game, null);
         var ask = Samples.Ask with { Id = Guid.CreateVersion7(), Teams = [Samples.Team1, Samples.Team2], Sealed = true };
         r.Read([new GameEvent(1, null, new AskOpened(ask), null), new GameEvent(2, null, new AskClosed(ask.Id, [new TeamAnswer(Samples.Team2, new Chosen("continue"))]), null)], n);
-        Assert.Equal(new RevealChip(2, "Team 2", "continue"), Assert.Single(Assert.Single(r.Drain())));
+        Assert.Equal(new RevealChip(2, "Team 2", "continue"), Assert.Single(Assert.Single(r.Shown(card: false)!)));
     }
 
     [Fact]

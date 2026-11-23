@@ -56,6 +56,17 @@ public class DetailedLogTests
         Assert.Contains("2 hits", lines);
     }
 
+    /// <summary>3.6.0 p.13: tokens give "+1/-1 to the roll per token", so the detail adds them to the die and keeps the 4+.</summary>
+    [Fact]
+    public void A_casting_roll_adds_its_tokens_to_the_die_and_keeps_its_4_plus()
+    {
+        var cast = new RollRecord(Guid.CreateVersion7(), "casting", 4, [new RollModifier("tokens", 1)], [D(1, 2, false)]);
+        var lines = Block(new StepCompleted(Samples.Frame, "roll", null, [cast], [])).SelectMany(p => p.Lines).ToList();
+        Assert.Contains("Casting · needs 4+ · +1 token", lines);
+        Assert.Contains("rolled 1 +1 token = 2", lines);
+        Assert.DoesNotContain(lines, l => l.Contains("needs 3", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void A_block_lists_each_change_what_was_ignored_and_each_modifier_with_its_sign_over_its_table()
     {

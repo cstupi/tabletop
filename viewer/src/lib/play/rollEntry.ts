@@ -87,6 +87,13 @@ export function result(r: RollEntry): string {
 
 export const chain = (r: RollEntry): string => (!judged(r) ? r.label : `${r.label} ${r.dice.length === 1 ? result(r) : successes(r).toString()}`);
 
+/** A roll its modifiers add to (RollWords.addsToRoll) of one die: `rolled 1 +1 token = 2`, `rolled 5` with none; else null. */
+export const sum = (r: RollEntry): string | null => {
+  if (!RollWords.addsToRoll(r.record) || r.dice.length !== 1) return null;
+  const d = r.dice[0]!; const mods = r.record.modifiers;
+  return `rolled ${d.raw}${mods.map((m) => ' ' + RollWords.rollPart(m)).join('')}${mods.length > 0 ? ` = ${d.modified}` : ''}`;
+};
+
 /** What follows the faces: the result, or an unjudged roll's consequence (a roll-off's winner). */
 export const outcome = (r: RollEntry): string => (judged(r) ? result(r) : r.consequence ?? '');
 
@@ -186,12 +193,23 @@ export const RollWords = {
   /** A roll made once per wound being dealt: one in a deal-wounds frame. */
   perWound(roll: string, sequence: string | null): boolean { return sequence === 'deal-wounds' && roll !== 'hit' && roll !== 'defense'; },
 
+  /** A roll whose modifiers change the die and leave the target as printed: casting (3.6.0 p.13, p.13: "roll one die, and on 4+
+   *  resolve the spell's effect", tokens "give the Caster +1/-1 to the roll per token"). */
+  addsToRoll(r: RollRecord): boolean { return r.roll === 'casting' && r.threshold !== undefined && r.requiredRaw === undefined; },
+
+  /** A modifier as an addition to the die: `+1 token`, `-2 tokens`, `+1 Spell Conduit`. */
+  rollPart(m: RollModifier): string {
+    return m.source === 'tokens' ? `${signed(m.amount)} token${Math.abs(m.amount) === 1 ? '' : 's'}`
+      : `${signed(m.amount)} ${m.via !== undefined ? m.via + ' ' : ''}${m.source}`;
+  },
+
   /** The printed value, the changes in parentheses, `→ needs N` when anything changed it. */
   target(r: RollRecord): string {
     if (r.requiredRaw !== undefined) return r.requiredRaw <= 1 ? '' : `unmodified ${r.requiredRaw}+`;
     if (r.threshold === undefined) return '';
     const t = r.threshold;
     if (r.roll === 'dangerous-terrain' && t === 2 && r.basis === undefined && r.modifiers.length === 0) return '1 fails';
+    if (RollWords.addsToRoll(r)) return `needs ${t}+` + (r.modifiers.length === 0 ? '' : ` (${r.modifiers.map(RollWords.rollPart).join(', ')})`);
     const printed = r.basis !== undefined ? `${r.basis.stat} ${r.basis.printed}+` : `${t}+`;
     const parts: string[] = [];
     const c = r.cover;
@@ -223,7 +241,7 @@ export const RollWords = {
     return lines;
   },
 
-  /** `4 hits (3 sixes: Rending)`, `1 blocked, 2 wounds`, `1 ignored, 2 wounds stand`, `passed` (`cast`), `2 of 3 passed`. */
+  /** `4 hits (3 sixes: Rending)`, `1 blocked, 2 wounds`, `1 ignored, 2 wounds stand`, `passed`, `2 of 3 passed`. */
   result(roll: string, dice: readonly DieView[], sequence: string | null = null): string {
     const ok = dice.filter((d) => d.success).length;
     const failures = dice.length - ok;
@@ -233,7 +251,7 @@ export const RollWords = {
     if (roll === 'hit') text = RollWords.plural(ok + extra('hit'), 'hit');
     else if (roll === 'defense') text = `${ok} blocked, ${RollWords.plural(failures + extra('wound'), 'wound')}`;
     else if (RollWords.perWound(roll, sequence)) text = `${ok} ignored, ${RollWords.plural(failures, 'wound')} ${failures === 1 ? 'stands' : 'stand'}`;
-    else if (dice.length === 1) text = ok === 1 ? (roll === 'casting' ? 'cast' : 'passed') : 'failed';
+    else if (dice.length === 1) text = ok === 1 ? 'passed' : 'failed';
     else if (roll === 'dangerous-terrain') text = RollWords.plural(failures, 'wound');
     else text = `${ok} of ${dice.length} passed`;
     return triggers.length === 0 ? text : `${text} (${triggers.map((g) => g.text).join('; ')})`;
