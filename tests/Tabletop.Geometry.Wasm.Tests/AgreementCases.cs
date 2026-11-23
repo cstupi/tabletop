@@ -263,6 +263,31 @@ public static class AgreementCases
                 var swept = SweptPath.Of(m.Start, path.Path, Volumes([smog]));
                 return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult, [.. swept.Footprints], [.. swept.Dangerous], [.. swept.Stretches]);
             }).ToArray());
+        // A kept move Ask, in call order (the browser replays the cases in order): the same table's 9" move kept, a rider's area whole and in two
+        // shares, a frame into the wood (the unit held to the 6" cap, each route the shortest within it), and the close.
+        var keptStart = new AskModel(routeModels[1].Id, routeModels[1].Start);
+        var keptOther = new AskModel(routeModels[2].Id, routeModels[2].Start);
+        var keptBodies = new[] { new ContactBody(keptStart.Id, Id(), keptStart.Start.Body, keptStart.Start.Placement), new ContactBody(keptOther.Id, Id(), keptOther.Start.Body, keptOther.Start.Placement),
+            new ContactBody(Id(), Id(), routeStanding[0].Body, routeStanding[0].Placement) };
+        Add("move_ask_open", "MoveAskOpen", new MoveAskRequest("agreement", [keptStart, keptOther], 9, [], [routeWood.Volumes[0].Id], 6, routeField, size, routeStanding, keptBodies,
+            Separation: 1, Dangerous: [routePit.Volumes[0].Id], Unstable: [routeRuin.Volumes[0].Id], UnstableOver: 6), true);
+        MoveReach KeptReach(AskModel m) => MoveReach.Build(m.Start, 9, [], Volumes([routeWood]), 6, size, routeStanding, routeVolumes, Volumes([routePit]), Volumes([routeRuin]), 6);
+        static double[] Flat(IReadOnlyList<Point2> p) => p.SelectMany(q => new[] { q.X, q.Y }).ToArray();
+        foreach (var (part, parts) in new[] { (0, 1), (0, 2), (1, 2) })
+        {
+            var area = KeptReach(keptStart).Bands(null, part, parts);
+            Add("move_ask_area_" + part + "_of_" + parts, "MoveAskArea", new MoveAreaRequest("agreement", keptStart.Id, part, parts),
+                new FlatBands(Flat(area.Clear), Flat(area.Difficult), Flat(area.Dangerous)));
+        }
+        var keptProposed = new Dictionary<Guid, Placement> { [keptStart.Id] = Pl(16, 10.5), [keptOther.Id] = keptOther.Start.Placement };
+        var through = KeptReach(keptStart).Route(new Point2(16, 10.5), true);
+        var throughSwept = SweptPath.Of(keptStart.Start, through.Points, SweptPath.DangerousTo(through.Distance, Volumes([routePit]), Volumes([routeRuin]), 6));
+        Add("move_ask_frame_capped_into_the_wood", "MoveAskFrame", new MoveFrameRequest("agreement", keptProposed),
+            new MoveFrame(6, [new RouteFound(keptStart.Id, [.. through.Points], through.Distance, through.EntersDifficult, [.. throughSwept.Footprints], [.. throughSwept.Dangerous],
+                [.. throughSwept.Stretches])],
+                Geometry.Contacts.Of(keptBodies, keptProposed, routeVolumes, new ContactTerms(1, false, true, new ContactMove(9, [], [routeWood.Volumes[0].Id], 6), size, 6))
+                    .Select(kv => new ContactFound(kv.Key, kv.Value.Kind, kv.Value.UnitId)).ToArray()));
+        Add("move_ask_close", "MoveAskClose", new MoveKeyRequest("agreement"), true);
         return cases;
     }
 

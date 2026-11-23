@@ -1,5 +1,5 @@
 <!-- viewer/src/lib/replay/ReplayPage.svelte -->
-<!-- A game's log replayed from the start (client design → Replay), the play page read-only: the top bar, the board with circles and
+<!-- A game's log replayed from the start (client design → Replay), the play page read-only: the top bar, the board with bases and
      names, the selected unit's card, the combat log, and the replay bar at the foot. It opens a watch socket (`?watch=1`) that sends
      nothing but the connect and reauths, and never replaces the account's play socket. Like the play page it loads the geometry for the
      deployment zones, so it lives outside the playback modules. -->
@@ -191,7 +191,7 @@
     <div class="stage">
       {#if scene !== null && !$tools.finished}<Loading strip text={tableToolsText($tools)} done={$tools.done} total={$tools.total} />{/if}
       {#if scene !== null}
-        <Board {scene} bind:view {extent} overlays={keptDrawn} models="circles" selected={drawnSelection} interaction={{ onSelect: (hit) => select(hit) }} />
+        <Board {scene} bind:view {extent} overlays={keptDrawn} models="bases" selected={drawnSelection} interaction={{ onSelect: (hit) => select(hit) }} />
       {:else if snap?.closeReason != null}
         <p class="pad" role="alert">{snap.closeReason}</p>
       {:else if loading}

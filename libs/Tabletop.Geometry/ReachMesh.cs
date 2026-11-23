@@ -32,12 +32,18 @@ internal static class ReachMesh
     public static double Fine(double reach) => Math.Max(0.25, 2 * reach / 256);
 
     public static List<Point2>[] Build(Point2 origin, double reach, int bands, Fields fields, Func<Point2, double, MoveSpace.Cover> cover) =>
-        Build(origin, origin - new Point2(reach, reach), origin + new Point2(reach, reach), Fine(reach), bands, fields, cover);
+        Build(origin, reach, bands, fields, cover, null);
+
+    /// <summary>`share`: only the coarse cells whose index is Part modulo Parts (Build's own order), so several walkers split one area.</summary>
+    public static List<Point2>[] Build(Point2 origin, double reach, int bands, Fields fields, Func<Point2, double, MoveSpace.Cover> cover, (int Part, int Parts)? share) =>
+        Build(origin, origin - new Point2(reach, reach), origin + new Point2(reach, reach), Fine(reach), bands, fields, cover, share);
 
     /// <summary>Over the box from `min` to `max`, rounded out to whole coarse cells about its centre, in fine cells of side `fine` whose corners are
-    /// `anchor` plus whole cells (one area's own grid is anchored on its origin).</summary>
-    public static List<Point2>[] Build(Point2 anchor, Point2 min, Point2 max, double fine, int bands, Fields fields, Func<Point2, double, MoveSpace.Cover> cover)
+    /// `anchor` plus whole cells (one area's own grid is anchored on its origin); with `share`, only the coarse cells c ≡ Part (mod Parts).</summary>
+    public static List<Point2>[] Build(Point2 anchor, Point2 min, Point2 max, double fine, int bands, Fields fields, Func<Point2, double, MoveSpace.Cover> cover,
+        (int Part, int Parts)? share = null)
     {
+        if (share is { } s && (s.Parts < 1 || s.Part < 0 || s.Part >= s.Parts)) throw new ArgumentOutOfRangeException(nameof(share), $"share {s.Part} of {s.Parts}");
         var top = 1 << Levels;
         (int First, int Count) Span(double lo, double hi, double at)
         {
@@ -171,9 +177,11 @@ internal static class ReachMesh
         // Coarse cells share nothing but the fields, which any thread may read, and each point's values are the same whichever cell asks: the
         // triangles are the same, in the same order, as one walk cell by cell. The browser's WebAssembly has one thread.
         var rows = along / top;
-        var columns = new List<Point2>[across / top * rows][];
-        void Walk(int c) => columns[c] = Coarse(c / rows * top, c % rows * top);
-        if (OperatingSystem.IsBrowser() || columns.Length == 1) for (var c = 0; c < columns.Length; c++) Walk(c);
+        var (part, parts) = share ?? (0, 1);
+        var cells = Enumerable.Range(0, across / top * rows).Where(c => c % parts == part).ToArray();
+        var columns = new List<Point2>[cells.Length][];
+        void Walk(int k) => columns[k] = Coarse(cells[k] / rows * top, cells[k] % rows * top);
+        if (OperatingSystem.IsBrowser() || columns.Length <= 1) for (var k = 0; k < columns.Length; k++) Walk(k);
         else Parallel.For(0, columns.Length, Walk);
         var triangles = new List<Point2>[bands];
         for (var k = 0; k < bands; k++)

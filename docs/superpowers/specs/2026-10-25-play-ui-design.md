@@ -18,7 +18,7 @@ DO it"*.
   buttons; destructive ones `.danger`; minor ones `.quiet`.
 - **Words, not ids.** Never show a raw id, an event kind, a declaration's snake_case name or a log line meant for developers.
   Units and models by name (`play/names.ts`), terrain by its catalog name, declarations as words ("Blocks line of sight").
-- **The board reads as a tabletop.** Models are circles in their team's colour; terrain is filled shapes by kind (a soft fill
+- **The board reads as a tabletop.** Models are their bases in their team's colour (a round base a circle, an oval or a rectangle its outline at its facing, so bases that touch never look overlapped); terrain is filled shapes by kind (a soft fill
   and an outline), labelled with its name only when zoomed in enough or selected; deployment zones as a tinted band; objective
   markers as clear discs. Details (declarations, notes) live in the hover label and the cards, not on the board.
 
@@ -40,7 +40,7 @@ saved), each a collapsible section. Centre, the board. Right, the selected piece
 Centre, the board. Right column (~22rem): the decision box at the top, prominent, styled as the panel that matters; then the
 unit card; then the log, which takes the rest and scrolls. Undo and dice sit with the log.
 
-**Replay**: the play page read-only, from the same parts: top bar, board with names and circles, the unit card on selection,
+**Replay**: the play page read-only, from the same parts: top bar, board with names and bases, the unit card on selection,
 the combat log (`play/combatLog.ts` words). A playback bar fixed at the foot: step back and forward by round, turn and action,
 Play/Pause, speed (0.5–8×), a scrubber with the position, all always visible. Play must work.
 

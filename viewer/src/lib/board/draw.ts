@@ -1,4 +1,4 @@
-import { circle, haloText, line, path, ringOutside, shapeCentre, SMALL_FONT } from './canvas';
+import { around, circle, haloText, line, path, ringOutside, shapeCentre, SMALL_FONT } from './canvas';
 import type { Scene } from './frame';
 import type { Overlay } from './interaction';
 import { GLOW, teamColour } from './palette';
@@ -172,14 +172,16 @@ function drawModel(ctx: Ctx, model: Scene['models'][number], scene: Scene, view:
   ctx.stroke();
   ctx.setLineDash([]);
   const glow = o.glow?.(model.id, model.unitId) ?? null;
+  // In circles the rings go round the circle; drawing bases, round the base itself, so touching bases never look overlapped.
+  const ring = (r: number): void => { if (circles || model.shape.kind === 'circle') circle(ctx, centre, r); else around(ctx, model.shape, view, scene.table, r - radius); };
   if (glow !== null) {
-    circle(ctx, centre, Math.max(5, radius + 3 + band));
+    ring(Math.max(5, radius + 3 + band));
     ctx.strokeStyle = GLOW[glow];
     ctx.lineWidth = 3;
     ctx.stroke();
   }
   if (picked) {                                                    // outside an Ask's glow, so a picked model stays outlined in a move
-    circle(ctx, centre, glow === null ? radius + 2.5 + band : Math.max(5, radius + 3 + band) + 3.5);
+    ring(glow === null ? radius + 2.5 + band : Math.max(5, radius + 3 + band) + 3.5);
     ctx.strokeStyle = c.select;
     ctx.lineWidth = 2;
     ctx.stroke();

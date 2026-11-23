@@ -55,3 +55,28 @@ describe('the activated band', () => {
     expect(radii(false, true, false)[0]).toBe(base + 2.5);            // no band: the pick ring where it was
   });
 });
+
+describe('rings round an oval base', () => {
+  // A 60 × 35 mm oval as the frame builds it: 64 points about (x, 5), the long axis along y.
+  const oval = (id: string, x: number): ModelShape => {
+    const points = Array.from({ length: 64 }, (_, i) => { const t = (2 * Math.PI * i) / 64; return { x: x + 0.689 * Math.cos(t), y: 5 + 1.181 * Math.sin(t) }; });
+    return { ...model(id, x, false), shape: { kind: 'polygon', points }, circle: { kind: 'circle', centre: { x, y: 5 }, radius: 1.181 } };
+  };
+
+  it('drawing bases, the pick ring and the glow follow the oval, so ovals abreast 1.58" apart never ring each other', () => {
+    const { ctx, calls } = recorder();
+    draw(ctx, scene([oval('a', 5), oval('b', 6.578)]), view, { width: 800, height: 600 },
+      { ...options, selected: new Set(['a', 'b']), glow: () => 'hovered' as const });
+    expect(calls.filter((c) => c.op === 'arc')).toHaveLength(0);
+    // Every ring point of model a lies left of the gap between the two, at most the glow's and the pick ring's 10 px past the base's half width.
+    const xs = calls.filter((c) => c.op === 'lineTo' || c.op === 'moveTo').map((c) => c.args[0] as number);
+    const halfway = ((5 + 6.578) / 2) * view.scale;
+    expect(xs.filter((x) => x < halfway).every((x) => x <= (5 + 0.689) * view.scale + 10)).toBe(true);
+  });
+
+  it('drawing circles, the rings stay round the circle', () => {
+    const { ctx, calls } = recorder();
+    draw(ctx, scene([oval('a', 5)]), view, { width: 800, height: 600 }, { ...options, models: 'circles', selected: new Set(['a']) });
+    expect(calls.filter((c) => c.op === 'arc').at(-1)!.args[2]).toBe(1.181 * view.scale + 2.5);
+  });
+});

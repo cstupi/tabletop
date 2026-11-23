@@ -26,6 +26,35 @@ const inches = (d: number): string => String(Math.round(d * 10) / 10);
 export const gapText = (g: CoherencyGap): string => `${g.distance.toFixed(1)}" apart, needs ${inches(g.needed)}"`;
 
 /** `judged`: the server judges this placement's coherency (a move answer); a deployment's ghosts only warn. */
+/** Each ring's outline about its base's centre, by geometry, base, facing and distance: a ghost's ring is that outline moved to it, so a drag frame
+ *  builds none (an oval's outline costs the browser's WebAssembly a tenth of a second or more). */
+const outlines = new WeakMap<Geometry, Map<string, Segment[]>>();
+function ringOf(g: Geometry, body: PlacedModel, chain: number): Segment[] {
+  let known = outlines.get(g);
+  if (known === undefined) { known = new Map(); outlines.set(g, known); }
+  const { base } = body.body, yaw = body.placement.yaw.degrees;
+  const key = `${base.shape} ${base.a} ${base.b} ${yaw} ${chain}`;
+  let about = known.get(key);
+  if (about === undefined) {
+    if (known.size >= 256) known.clear();
+    about = g.rangeOutline([{ body: body.body, placement: { position: { x: 0, y: 0, z: 0 }, yaw: body.placement.yaw } }], chain);
+    known.set(key, about);
+  }
+  const { x, y } = body.placement.position;
+  return about.map((s) => ({ a: { x: s.a.x + x, y: s.a.y + y }, b: { x: s.b.x + x, y: s.b.y + y } }));
+}
+
+/** Whether the unit stood in coherency before the move, by geometry and where its models stood: the same every drag frame of an Ask. */
+const stood = new WeakMap<Geometry, { key: string; inCoherency: boolean }>();
+function stoodInCoherency(g: Geometry, before: readonly PlacedModel[], c: UnitCoherency): boolean {
+  const key = JSON.stringify([c.chain, c.elevated, c.spread, before]);
+  const known = stood.get(g);
+  if (known !== undefined && known.key === key) return known.inCoherency;
+  const inCoherency = g.coherencyGaps(before, c.chain, c.elevated, c.spread).length === 0;
+  stood.set(g, { key, inCoherency });
+  return inCoherency;
+}
+
 export function coherencyOf(g: Geometry, p: Projection, placed: ReadonlyMap<string, Placement>, coherency: UnitCoherency | null | undefined,
   name: (id: string) => string, judged: boolean): CoherencyPicture {
   if (coherency == null || placed.size === 0) return NO_COHERENCY;
@@ -40,11 +69,11 @@ export function coherencyOf(g: Geometry, p: Projection, placed: ReadonlyMap<stri
       const at = placed.get(m.id) ?? (m.location.kind === 'table' ? m.location.placement : null);
       return at === null ? [] : [{ id: m.id, body: body(m.id, at) }];
     });
-    for (const x of now) if (placed.has(x.id)) rings.push({ modelId: x.id, segments: g.rangeOutline([x.body], c.chain), z: x.body.placement.position.z });
+    for (const x of now) if (placed.has(x.id)) rings.push({ modelId: x.id, segments: ringOf(g, x.body, c.chain), z: x.body.placement.position.z });
     const gaps = g.coherencyGaps(now.map((x) => x.body), c.chain, c.elevated, c.spread);
     if (gaps.length === 0) continue;
     const before = members.flatMap((m) => m.location.kind === 'table' ? [body(m.id, m.location.placement)] : []);
-    blocks ||= judged && g.coherencyGaps(before, c.chain, c.elevated, c.spread).length === 0;
+    blocks ||= judged && stoodInCoherency(g, before, c);
     for (const gap of gaps) {
       const id = now[gap.model]!.id, to = now[gap.to]!.id;
       const zFrom = now[gap.model]!.body.placement.position.z, zTo = now[gap.to]!.body.placement.position.z;
