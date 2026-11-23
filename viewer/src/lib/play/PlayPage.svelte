@@ -551,7 +551,7 @@
     {#if scene === null || snap === null}
       <Loading text={waitText(snap)} />
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...(keptDrawn === null ? [] : [keptDrawn]), ...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} floating={woundFloats} {resetAt}>
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...(keptDrawn === null ? [] : [keptDrawn]), ...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="bases" {glow} {marks} floating={woundFloats} {resetAt}>
         {#snippet above(project, scale, size)}
           {#if unitActions !== null && box !== null}<UnitActions actions={unitActions} targets={unitTargets} {box} {panel} {scene} woundLine={actionWoundLine} {project} {scale} {size}
             names={unitName} onHoverUnit={(u) => { pointedUnit = u; }} obstacles={frame.obstacles} />{/if}
