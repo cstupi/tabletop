@@ -18,11 +18,11 @@ public static class ArmyForgeImport
 {
     // Grimdark Future and Age of Fantasy are the same mechanics on different content, so both map to the one rules implementation.
     public static readonly IReadOnlyDictionary<string, string> GameRules = new Dictionary<string, string> { ["gf"] = "grimdark-future", ["aof"] = "grimdark-future" };
-    /// <summary>What an entry with no published base gets: a vehicle hull, 221 x 119 x 113 mm. Army Forge publishes bases.round
-    /// reliably for infantry, so a missing base means a vehicle or monster in practice, and a 32 mm circle would be wrong for
-    /// exactly those models — a tank measured from a 1.26" circle at its hull centre. The player corrects it per slot, and
-    /// the height comes with the base because HeightFromBase would scale 221 mm into a 13" tall tank.</summary>
-    public static readonly ModelBody DefaultBody = new(Base.Rect(221 / 25.4, 119 / 25.4), 113 / 25.4);
+    /// <summary>What an entry with no published base gets: a vehicle hull, 120 x 80 x 60 mm (a troop carrier's). Army Forge publishes
+    /// bases.round reliably for infantry, so a missing base means a vehicle or monster in practice, and a 32 mm circle would be wrong
+    /// for exactly those models — a tank measured from a 1.26" circle at its hull centre. The player corrects it per slot, and
+    /// the height comes with the base because HeightFromBase would scale 120 mm into a 7" tall tank.</summary>
+    public static readonly ModelBody DefaultBody = new(Base.Rect(120 / 25.4, 80 / 25.4), 60 / 25.4);
     public const double HeightScale = 1.5;
 
     /// <summary>A starting height for a base that *was* published, scaled off its larger dimension because nothing publishes a height:

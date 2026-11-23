@@ -13,7 +13,7 @@ public class StarterMeshesTests
     public void Five_figures_on_import_s_round_bases_and_the_default_hull()
     {
         var all = StarterMeshes.All;
-        Assert.Equal(["Figure, 25mm round", "Figure, 32mm round", "Figure, 40mm round", "Figure, 50mm round", "Figure, 60mm round", "Hull, 221 × 119mm"], all.Select(m => m.Name));
+        Assert.Equal(["Figure, 25mm round", "Figure, 32mm round", "Figure, 40mm round", "Figure, 50mm round", "Figure, 60mm round", "Hull, 120 × 80mm"], all.Select(m => m.Name));
         Assert.Equal(Base.Circle(32 / 25.4), all[1].ModelledBase);
         Assert.Equal(ArmyForgeImport.DefaultBody.Base, all[5].ModelledBase);
     }

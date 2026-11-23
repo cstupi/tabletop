@@ -304,6 +304,7 @@ public class ArmyForgeImportTests
         Assert.Equal((Base.Circle(32 / 25.4), ArmyForgeImport.HeightFromBase(Base.Circle(32 / 25.4))), (M("RoundOnly").Base, M("RoundOnly").Height));
         Assert.Equal((Base.Rect(100 / 25.4, 60 / 25.4), ArmyForgeImport.HeightFromBase(Base.Rect(100 / 25.4, 60 / 25.4))), (M("SquareOnly").Base, M("SquareOnly").Height));
         Assert.Equal(ArmyForgeImport.DefaultBody, new ModelBody(M("Neither").Base, M("Neither").Height));
+        Assert.Equal(new ModelBody(Base.Rect(120 / 25.4, 80 / 25.4), 60 / 25.4), ArmyForgeImport.DefaultBody);   // the vehicle hull: 120 x 80 mm, 60 mm tall
     }
 
     /// <summary>Army Forge publishes no base for a vehicle ("bases": {"round": "none", "square": "none"}: it stands on its hull); a monster on a
