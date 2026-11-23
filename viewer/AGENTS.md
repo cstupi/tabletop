@@ -82,13 +82,14 @@ held at an Ask on a worktree's own server: `sim/AGENTS.md` → A game left at an
 1. Clone a dev game cut at an activation Ask holding the move (`client/AGENTS.md` → Driving a game by eye: `/tmp/clone.sql` in the Postgres
    container, `game.game_event` past that seq deleted, the game set `playing`, every seat and `created_by` the dev account), and mint that
    account's session (`POST /v1/dev/sessions`).
-2. Run the worktree's viewer dev server against the stack (`VITE_GAME_SOCKET=ws://127.0.0.1:5200/ws TABLETOP_API_PROXY_TARGET=http://127.0.0.1:5100 npx vite --port <p> --strictPort`);
-   the game server is unchanged by a viewer change. For a before run, `git archive origin/main viewer web/src web/package.json client/content/builtin/catalog.json`
+2. Run the worktree's game server on a spare port (`sim/AGENTS.md` → A game left at an Ask, step 1; never restart the compose `game`
+   service, other players and agents are on it) and the worktree's viewer dev server against it
+   (`VITE_GAME_SOCKET=ws://127.0.0.1:<game port>/ws TABLETOP_API_PROXY_TARGET=http://127.0.0.1:5100 npx vite --port <p> --strictPort`). For a before run, `git archive origin/main viewer web/src web/package.json client/content/builtin/catalog.json`
    into a scratch folder, its `node_modules`, `web/node_modules`, `web/.svelte-kit` and `public/geometry/_framework` linked from the worktree.
 3. In Playwright (above), an init script records the gaps between animation frames over 50 ms (main-thread blocks) and wraps `window.Worker`
    to stamp each `MoveAsk*` call's answer; click the option's tile (`button[title="Flayer Cavalry: Rush"]`), wait for `.decision .bar` (the card),
-   then drag a model after Reset view (the camera follows the acting unit, so take coordinates from a Reset view screenshot). Delete the
-   events past the cut and restart the `game` container between runs.
+   then drag a model after Reset view (the camera follows the acting unit, so take coordinates from a Reset view screenshot). Between runs
+   delete the events past the cut and restart your own game server (it holds the game in memory). Delete the clone's rows after.
 
 ## Moving or adding a HUD part
 
