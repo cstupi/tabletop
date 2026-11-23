@@ -34,8 +34,12 @@
 
   const paragraphs = $derived(sheetOf(entries, detailed));
   let picked = $state('');
-  let scroller: HTMLPreElement | undefined = $state();
+  // bind:this sets null on unmount, and a tick or a ResizeObserver callback may land after it: every use goes through `live()`.
+  let scroller: HTMLPreElement | null | undefined = $state();
   let toEnd = true;
+  let gone = false;
+  const live = (): HTMLPreElement | null => (gone ? null : scroller ?? null);
+  $effect(() => () => { gone = true; });
 
   const keyOf = (e: LogEntry): string => (e.type === 'roll' ? `r${e.record.id}` : `${e.type}${e.seq}`);
   const pickedEntry = $derived(paragraphs.find((p) => keyOf(p.entry) === picked)?.entry ?? null);
@@ -57,22 +61,24 @@
   }
 
   function onScroll(): void {
-    if (scroller !== undefined) toEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
+    const el = live();
+    if (el !== null) toEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
   }
 
   // The newest entry stays in view; scrolling away from the end lets go, scrolling back to it follows again.
   $effect(() => {
     void paragraphs;
-    if (toEnd) void tick().then(() => { if (scroller !== undefined) scroller.scrollTop = scroller.scrollHeight; });
+    if (toEnd) void tick().then(() => { const el = live(); if (el !== null) el.scrollTop = el.scrollHeight; });
   });
 
   // A change of the panel's height (the card above it coming or going) keeps the newest entry in view too.
   $effect(() => {
     const el = scroller;
-    if (el === undefined) return;
-    const observer = new ResizeObserver(() => { if (toEnd) el.scrollTop = el.scrollHeight; });
+    if (el == null) return;
+    let on = true;
+    const observer = new ResizeObserver(() => { if (on && !gone && toEnd) el.scrollTop = el.scrollHeight; });
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => { on = false; observer.disconnect(); };
   });
 
   $effect(() => {
@@ -82,7 +88,7 @@
     if (i < 0) return;
     picked = keyOf(paragraphs[i]!.entry);
     toEnd = false;
-    void tick().then(() => scroller?.querySelector(`[data-p="${i}"]`)?.scrollIntoView({ block: 'nearest' }));
+    void tick().then(() => live()?.querySelector(`[data-p="${i}"]`)?.scrollIntoView({ block: 'nearest' }));
   });
 
   const titleOf = (e: LogEntry): string => (e.type === 'block' && e.spell !== null ? spellTooltip(rules, e.spell, e.spellCost) ?? '' : '');

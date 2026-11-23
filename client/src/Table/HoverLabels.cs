@@ -104,7 +104,7 @@ public partial class HoverLabels : Node3D
         var eligible = _input.Eligible.Contains(unit) || nodes.Any(n => _input.Eligible.Contains(n.ModelId));
         _name.Text = (eligible ? $"{info.Name} · Click to target" : info.Distance is { } d ? $"{info.Name} · {d:0.0}\"" : info.Name)
             + (HoverView.WoundsLine(info.Wounds) is { } wounds ? $"\n{wounds}" : "")    // one label, so the wounds never overlap the name
-            + (info.Model is { } model ? $"\nThis model: {model}" : "");                // the model under the pointer, when it is not like the rest
+            + (info.Model is { } model ? $"\n{model}" : "");                // the model under the pointer, when it is not like the rest
         _name.Modulate = Palette.Team(info.TeamOrdinal);
         _name.Position = at;
         _name.Visible = true;

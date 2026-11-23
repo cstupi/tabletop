@@ -8,15 +8,15 @@ namespace Tabletop.Client.Core;
 /// </summary>
 public static class SightSummary
 {
-    /// <summary>"4 of 5 models can see Red Warriors · 2 of 3 clear lines screened", and while targets are declared how many can shoot and each range
+    /// <summary>"4 of 5 see Red Warriors · 2 screened" (the models that see it, then the clear lines a model screens), and while targets are declared how many can shoot and each range
     /// a rule changed against this target: "· 1 can shoot · Carbine 18" → 14" (Shadowborn)".</summary>
     public static string Text(SightAnswer answer, string target, bool shooting)
     {
         var observers = answer.Lines.Select(l => l.FromModelId).Distinct().Count();
         var seeing = answer.Lines.Where(l => l.Clear).Select(l => l.FromModelId).Distinct().Count();
         var clear = answer.Lines.Count(l => l.Clear);
-        var text = $"{seeing} of {observers} models can see {target}";
-        if (clear > 0) text += $" · {answer.Lines.Count(l => l.Clear && l.Screened)} of {clear} clear lines screened";
+        var text = $"{seeing} of {observers} see {target}";
+        if (clear > 0) text += $" · {answer.Lines.Count(l => l.Clear && l.Screened)} screened";
         if (!shooting) return text;
         text += $" · {answer.CanShoot.Count} can shoot";
         var changed = (answer.Ranges ?? []).Where(r => r.Inches != r.Printed).ToList();

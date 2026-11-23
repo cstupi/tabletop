@@ -12,13 +12,15 @@
   import Icon from '../../../../web/src/lib/components/Icon.svelte';
   import HudIcon from './HudIcon.svelte';
 
-  let { snap, shown, myTeam, myTeams, selected = null, onPick, onMenu }: {
+  let { snap, shown, myTeam, myTeams, selected = null, onPick, onMenu, hasMenu = () => true }: {
     snap: ConnectionState; shown: Projection; myTeam: string | null;
     /** Every team the account holds, each marked ★ you. */
     myTeams?: readonly string[];
     /** The selected unit, lit in its row. */
     selected?: string | null;
     onPick: (unitId: string) => void; onMenu: (unitId: string, at: { x: number; y: number }) => void;
+    /** The unit's menu has an item (menus.rosterMenu); a row without one draws no ▸ and opens nothing. */
+    hasMenu?: (unitId: string) => boolean;
   } = $props();
 
   let collapsed = $state(false);
@@ -54,7 +56,7 @@
               <li>
                 <button type="button" class="row" class:off={row.offTable} class:on={row.unitId === selected} tabindex="-1"
                   onmousedown={(e) => e.preventDefault()} onclick={() => onPick(row.unitId)}
-                  oncontextmenu={(e) => { e.preventDefault(); onMenu(row.unitId, { x: e.clientX, y: e.clientY }); }}>
+                  oncontextmenu={(e) => { e.preventDefault(); if (hasMenu(row.unitId)) onMenu(row.unitId, { x: e.clientX, y: e.clientY }); }}>
                   <span class="line">
                     <span class="acting" aria-label={row.acting ? 'Acting' : undefined}>{row.acting ? '▶' : ''}</span>
                     <span class="name">{row.name}</span>
@@ -63,7 +65,7 @@
                     {:else}<span class="mark off" title="Off the table">—</span>{/if}
                     <span class="wounds" title="Wounds left">{woundsText(row)}</span>
                     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-                    <span class="menu" title="Unit menu" onclick={(e) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); onMenu(row.unitId, { x: r.right, y: r.top }); }}>▸</span>
+                    <span class="menu" class:none={!hasMenu(row.unitId)} title="Unit menu" onclick={(e) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); onMenu(row.unitId, { x: r.right, y: r.top }); }}>▸</span>
                   </span>
                   {#if row.conditions.length > 0 || row.inside !== null || row.reserve !== null || row.setAside !== null}
                     <span class="tags">
@@ -105,6 +107,7 @@
   .menu { flex: none; visibility: hidden; color: var(--dim); padding: 0 var(--space-1); }
   .row:hover .menu { visibility: visible; }
   .menu:hover { color: var(--accent); }
+  .menu.none, .row:hover .menu.none { visibility: hidden; pointer-events: none; }
   @media (hover: none) { .menu { visibility: visible; } }
   ul { list-style: none; margin: 0; padding: 0; }
   /* A row is a plain list entry, not a themed button. */

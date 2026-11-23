@@ -64,7 +64,7 @@ never changes a selection, and an enemy activation never takes the card: the hea
 
 **Hovered enemy.** With one of my units on the card and the pointer over an enemy unit, a compact strip appears above
 the card, inside the left column: the enemy's name, Defense, models alive, the distance (`HoverView`'s, closest base to closest base) and each of
-my weapons' printed range, shown within or beyond that distance. The strip makes no claim about shooting; the sight
+its own ranged weapons' printed range, shown within or beyond that distance. The strip makes no claim about shooting; the sight
 check (L) answers that.
 
 The *This round* tab goes; its content is the combat log's *This unit* filter.

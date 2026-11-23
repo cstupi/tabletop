@@ -102,8 +102,9 @@ describe('HoverView', () => {
 
   it('the wounds are one line under the name, like ones counted', () => {
     const w = (left: number, max: number) => ({ modelId: newId(), left, max });
-    expect(woundsLine([w(3, 3), w(1, 3), w(3, 3), w(2, 3)])).toBe('3/3 ×2 · 1/3 · 2/3');
-    expect(woundsLine([w(2, 2)])).toBe('2/2');
+    expect(woundsLine([w(3, 3), w(1, 3), w(3, 3), w(2, 3)])).toBe('Wounds 3/3 · 1/3 · 3/3 · 2/3');
+    expect(woundsLine([w(3, 3), w(1, 3), w(3, 3), w(2, 3), w(3, 3)])).toBe('Wounds 12/15 on 5 models');
+    expect(woundsLine([w(2, 2)])).toBe('Wounds 2/2');
     expect(woundsLine([])).toBeNull();
   });
 });

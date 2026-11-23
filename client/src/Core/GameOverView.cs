@@ -9,8 +9,8 @@ public enum GameOverStage { None, Choose, Waiting, Ended }
 public sealed record GameOverModel(GameOverStage Stage, Guid? AskId, string? Result, string Reason, IReadOnlyList<AskOption> Choices, string? Note,
     int Rounds = 0, IReadOnlyList<Guid>? WaitingFor = null)
 {
-    /// <summary>`Team 1 wins · 4 rounds`; the result alone before a round is played; null before the end.</summary>
-    public string? Headline => Result is null ? null : Rounds > 0 ? $"{Result} · {Rounds} round{(Rounds == 1 ? "" : "s")}" : Result;
+    /// <summary>`Team 1 wins`: the result alone, since the reason under the scores says why and after how many rounds; null before the end.</summary>
+    public string? Headline => Result;
 }
 
 public static class GameOverView

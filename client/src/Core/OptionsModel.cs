@@ -41,6 +41,11 @@ public sealed class OptionsModel
 
     public OptionsModel(ClientSettings applied) { Applied = applied; Pending = applied; }
 
+    /// <summary>The settings as the window stands: windowed, its rect now (the saved one may lag a resize by up to a second, or a start the OS
+    /// clamped), so the Resolution row reads the real size; outside a window the settings as saved.</summary>
+    public static ClientSettings WithWindow(ClientSettings s, WindowRect? window) =>
+        s.Display == DisplayMode.Windowed && window is { } w ? s with { Window = w } : s;
+
     public static IReadOnlyList<OptionCategory> Categories { get; } = Enum.GetValues<OptionCategory>();
 
     public static string Title(OptionCategory c) => c.ToString();

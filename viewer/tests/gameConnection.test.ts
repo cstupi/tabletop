@@ -318,7 +318,7 @@ describe('GameConnection', () => {
     await run(first);
     expect(first.closed).toBe(true);
     expect(h.conn.state.phase).toBe('reconnecting');
-    expect(h.conn.state.closeReason).toBe('The table fell out of step with the server; rebuilding it from the log…');
+    expect(h.conn.state.closeReason).toBe('Rebuilding the table from the log…');
     await vi.advanceTimersByTimeAsync(0);
     expect(h.sockets).toHaveLength(2);                // at once, no backoff
     const second = await open(h);

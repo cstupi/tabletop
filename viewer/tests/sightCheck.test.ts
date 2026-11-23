@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Names } from '../src/lib/play/names';
-import { SightCheck, type SightBox } from '../src/lib/play/sightCheck';
+import { SightCheck, summaryAt, type SightBox } from '../src/lib/play/sightCheck';
 import type { EventPayload, SightAnswer } from '../src/lib/protocol/wire.generated';
 import { ASK_ID, FRAME, P1, P2, TEAM1, askOf, at, boardOf, gameOf, newId, option, projectionOf, slotOf, unitOf } from './play';
 
@@ -114,7 +114,7 @@ describe('SightCheck', () => {
     const v = check.view(p, game, names(p), true);
     expect(v.lines.map((l) => l.tone)).toEqual(['clear', 'screened', 'blocked']);
     expect(v.blockers).toEqual(['wall']);
-    expect(v.summary?.text).toBe('2 of 2 models can see Orcs · 1 of 2 clear lines screened · 1 can shoot');
+    expect(v.summary?.text).toBe('2 of 2 see Orcs · 1 screened · 1 can shoot');
     const orc = p.models.get(o)!.location as { placement: { position: { y: number } } };
     expect(v.summary?.at.y).toBe(orc.placement.position.y - 2);                       // under the target, clear of the hover label over it
     expect(v.dimmed).toEqual(new Set([b]));
@@ -137,5 +137,18 @@ describe('SightCheck', () => {
     const v = check.view(p, game, names(p), true);
     const orc = p.models.get(o)!.location as { placement: { position: { x: number; y: number } } };
     expect(v.lines.map((l) => l.to)).toEqual([{ x: 40.5, y: 7.25 }, { x: orc.placement.position.x, y: orc.placement.position.y }]);
+  });
+});
+
+describe('summaryAt', () => {
+  const boxOf = (at: { x: number; y: number }) => ({ left: at.x - 50, right: at.x + 50, top: at.y, bottom: at.y + 16 });
+  it('keeps the summary under the target while nothing lies there', () => {
+    expect(summaryAt([{ x: 100, y: 200 }, { x: 100, y: 20 }], boxOf, [{ x: 100, y: 100, r: 10 }])).toEqual({ x: 100, y: 200 });
+  });
+  it('slides it clear of a Hud panel', () => {
+    expect(summaryAt([{ x: 100, y: 200 }], boxOf, [], [{ x: 0, y: 150, w: 120, h: 300 }])).toEqual({ x: 178, y: 200 });
+  });
+  it('moves it over the target when models lie under the text', () => {
+    expect(summaryAt([{ x: 100, y: 200 }, { x: 100, y: 20 }], boxOf, [{ x: 90, y: 205, r: 10 }, { x: 120, y: 210, r: 10 }])).toEqual({ x: 100, y: 20 });
   });
 });

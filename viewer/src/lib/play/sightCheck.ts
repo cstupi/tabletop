@@ -6,11 +6,12 @@
 
 import type { Scene } from '../board/frame';
 import type { Overlay } from '../board/interaction';
-import { drawLabel } from '../board/labelPlacement';
+import { drawLabel, measureOf, placeLabel, viewportWidthOf } from '../board/labelPlacement';
 import type { Projection } from '../live/apply';
 import type { AskOption, GameInfo, SightAnswer } from '../protocol/wire.generated';
 import type { Names } from './names';
 import { SightCache, SightKey } from './sightKey';
+import type { Rect } from './hudFrame';
 import { dimmed, summaryText } from './sightSummary';
 
 interface XY { readonly x: number; readonly y: number }
@@ -20,7 +21,8 @@ export interface SightView {
   readonly lines: readonly { from: XY; to: XY; tone: Tone }[];
   /** Ids a blocked line names: a model, a unit (a unit perimeter blocks as one) or a terrain volume. */
   readonly blockers: readonly string[];
-  readonly summary: { at: XY; text: string } | null;
+  /** Under the target (`at`), or over it (`over`) when fewer models lie under the text there (summaryAt). */
+  readonly summary: { at: XY; over: XY; text: string } | null;
   readonly dimmed: ReadonlySet<string>;
 }
 
@@ -129,14 +131,35 @@ export class SightCheck {
     const summary = targets.length === 0 ? null : {
       // Under the target, 2" below its lowest model: the hover label sits over its first model, so the two never share a line.
       at: { x: targets.reduce((a, c) => a + c.x, 0) / targets.length, y: Math.min(...targets.map((c) => c.y)) - 2 },
+      over: { x: targets.reduce((a, c) => a + c.x, 0) / targets.length, y: Math.max(...targets.map((c) => c.y)) + 2 },
       text: summaryText(hovered.answer, n.unit(hovered.target), shooting),
     };
     return { lines, blockers, summary, dimmed: dim };
   }
 }
 
+export interface Box { readonly left: number; readonly right: number; readonly top: number; readonly bottom: number }
+
+/** The first candidate whose text box covers the fewest model circles (screen pixels) and no Hud panel, so the summary sits off the models
+ *  and the panels where it can: each candidate also slid sideways clear of a panel it meets. */
+export function summaryAt(candidates: readonly XY[], boxOf: (at: XY) => Box, circles: readonly { x: number; y: number; r: number }[],
+  obstacles: readonly Rect[] = []): XY {
+  const meets = (b: Box, o: Rect): boolean => b.right > o.x && b.left < o.x + o.w && b.bottom > o.y && b.top < o.y + o.h;
+  const covered = (b: Box): number => circles.filter((c) =>
+    c.x + c.r > b.left && c.x - c.r < b.right && c.y + c.r > b.top && c.y - c.r < b.bottom).length
+    + PANEL_WEIGHT * obstacles.filter((o) => meets(b, o)).length;
+  const tried = candidates.flatMap((c) => {
+    const b = boxOf(c), half = (b.right - b.left) / 2;
+    return [c, ...obstacles.filter((o) => meets(b, o)).flatMap((o) => [{ x: o.x + o.w + half + SUMMARY_GAP, y: c.y }, { x: o.x - half - SUMMARY_GAP, y: c.y }])];
+  });
+  let best = tried[0]!, least = Number.POSITIVE_INFINITY;
+  for (const c of tried) { const n = covered(boxOf(c)); if (n < least) { least = n; best = c; } }
+  return best;
+}
+const PANEL_WEIGHT = 1000, SUMMARY_GAP = 8;
+
 /** The lines, the blockers outlined (model circles, or a volume's outline) at 35 % and the summary under the target. */
-export function sightOverlay(view: SightView, scene: Scene): Overlay {
+export function sightOverlay(view: SightView, scene: Scene, obstacles: readonly Rect[] = []): Overlay {
   return (ctx, project) => {
     ctx.save();
     const trace = (shape: Scene['models'][number]['circle']): void => {
@@ -162,9 +185,20 @@ export function sightOverlay(view: SightView, scene: Scene): Overlay {
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
     if (view.summary !== null) {
-      const at = project(view.summary.at);
       ctx.font = '600 13px ui-monospace, SFMono-Regular, Menlo, monospace';
       ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.lineWidth = 3;
+      const measure = measureOf(ctx), width = viewportWidthOf(ctx);
+      const circles = scene.models.map((m) => m.circle.kind === 'circle'
+        ? (() => { const c = project(m.circle.centre), e = project({ x: m.circle.centre.x + m.circle.radius, y: m.circle.centre.y }); return { x: c.x, y: c.y, r: Math.abs(e.x - c.x) }; })()
+        : (() => { const pts = m.circle.points.map(project); const x = pts.reduce((a, q) => a + q.x, 0) / pts.length, y = pts.reduce((a, q) => a + q.y, 0) / pts.length;
+          return { x, y, r: Math.max(...pts.map((q) => Math.hypot(q.x - x, q.y - y))) }; })());
+      const boxOf = (at: XY): Box => {
+        const lines = placeLabel(view.summary!.text, at, measure, width, { lineHeight: 16, grow: 'down' });
+        const half = Math.max(0, ...lines.map((l) => measure(l.text))) / 2;
+        return { left: (lines[0]?.x ?? at.x) - half, right: (lines[0]?.x ?? at.x) + half, top: at.y, bottom: at.y + 16 * lines.length };
+      };
+      const under = project(view.summary.at), over = project(view.summary.over);
+      const at = summaryAt([under, { x: over.x, y: over.y - 16 * placeLabel(view.summary.text, over, measure, width, { lineHeight: 16, grow: 'down' }).length }], boxOf, circles, obstacles);
       drawLabel(ctx, view.summary.text, at, '#ffffff', { lineHeight: 16, grow: 'down', halo: 'rgba(0, 0, 0, 0.85)' });
     }
     ctx.restore();

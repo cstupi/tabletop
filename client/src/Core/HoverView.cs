@@ -17,10 +17,15 @@ public static class HoverView
     /// one of my units, else null. Distance is null without one, when it is the hovered unit, or when none of its models is on the table.
     /// Team ordinal 0: the unit's participant has no team. An id absent from <paramref name="maxWounds"/> takes one wound.
     /// </summary>
-    /// <summary>The multi-wound models' wounds left as one line under the name, like ones counted (`3/3 ×2 · 1/3`), in model order; null when
-    /// none takes more than one.</summary>
-    public static string? WoundsLine(IReadOnlyList<(Guid ModelId, int Left, int Max)> wounds) =>
-        wounds.Count == 0 ? null : string.Join(" · ", wounds.GroupBy(w => (w.Left, w.Max)).Select(g => g.Count() > 1 ? $"{g.Key.Left}/{g.Key.Max} ×{g.Count()}" : $"{g.Key.Left}/{g.Key.Max}"));
+    /// <summary>The multi-wound models' wounds left as one line under the name: each model's in model order up to four (`Wounds 3/3 · 1/3`),
+    /// past that summed (`Wounds 12/15 on 5 models`); null when none takes more than one.</summary>
+    public static string? WoundsLine(IReadOnlyList<(Guid ModelId, int Left, int Max)> wounds) => wounds.Count switch
+    {
+        0 => null,
+        <= WoundsListed => "Wounds " + string.Join(" · ", wounds.Select(w => $"{w.Left}/{w.Max}")),
+        _ => $"Wounds {wounds.Sum(w => w.Left)}/{wounds.Sum(w => w.Max)} on {wounds.Count} models",
+    };
+    const int WoundsListed = 4;
 
     public static HoverInfo? Of(Projection p, GameInfo game, Names n, Guid hoveredUnit, Guid? selectedUnit, IReadOnlyDictionary<Guid, int> maxWounds, Guid? hoveredModel = null)
     {
