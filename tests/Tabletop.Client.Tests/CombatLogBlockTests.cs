@@ -94,8 +94,8 @@ public class CombatLogBlockTests
         Assert.True(nested.Nested);
         Assert.Equal($"Cast Hex (3) → {Foe}", nested.Header);
         Assert.Equal(("hex", (int?)3), (nested.Spell, nested.SpellCost));
-        Assert.Equal("Casting · 4+ · ⚄ · cast", Assert.IsType<RollEntry>(Assert.Single(nested.Entries)).Collapsed(CombatLog.Pip));
-        Assert.Equal("Casting cast", block.Chain);
+        Assert.Equal("Cast Hex · needs 4+ · ⚄ · passed", Assert.IsType<RollEntry>(Assert.Single(nested.Entries)).Collapsed(CombatLog.Pip));
+        Assert.Equal("Cast Hex passed", block.Chain);
         Assert.Equal(casting.Id, CombatLog.Latest(log, n)!.Record.Id);
         var rolls = Assert.IsType<ActivationBlock>(Assert.Single(CombatLog.Filter(entries, LogFilter.Rolls, _ => true, null)));
         Assert.IsType<RollEntry>(Assert.Single(Assert.IsType<ActivationBlock>(Assert.Single(rolls.Entries)).Entries));
