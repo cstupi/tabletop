@@ -17,7 +17,7 @@ const weapon = (count: number): SheetWeapon => ({ name: 'Rifle', count, range: '
 
 describe('cardText', () => {
   it('the headline counts models and wounds', () => {
-    const c = unitCardOf(sheet([model(3, 3), model(1, 3), model(0, 3, true)]), 1, null);
+    const c = unitCardOf(sheet([model(3, 3), model(1, 3), model(0, 3, true)]), 1);
     expect(cardHeadline(c)).toBe('Squad · 2/3 models · Wounds 4/9');
     expect(badges(c.sheet)).toEqual(['Quality 4+', 'Defense -']);
     expect(WEAPON_HEADINGS).toEqual(['Weapon', 'Range', 'Attacks', 'AP', 'Rules']);

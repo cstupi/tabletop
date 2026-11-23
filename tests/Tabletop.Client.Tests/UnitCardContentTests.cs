@@ -21,28 +21,27 @@ public class UnitCardContentTests
 
     [Fact]
     public void The_same_sheet_built_again_is_the_same_content() =>
-        Assert.Equal(new UnitCardContent(Sheet(), 1, null), new UnitCardContent(Sheet(), 1, null));
+        Assert.Equal(new UnitCardContent(Sheet(), 1), new UnitCardContent(Sheet(), 1));
 
     [Fact]
     public void A_wound_a_chip_a_weapon_rule_the_team_or_the_note_is_a_change()
     {
-        var before = new UnitCardContent(Sheet(), 1, null);
-        Assert.NotEqual(before, new UnitCardContent(Sheet(left: 1), 1, null));
-        Assert.NotEqual(before, new UnitCardContent(Sheet(chip: "Shaken"), 1, null));
-        Assert.NotEqual(before, new UnitCardContent(Sheet(weaponRule: "AP(2)"), 1, null));
-        Assert.NotEqual(before, new UnitCardContent(Sheet(), 2, null));
-        Assert.NotEqual(before, new UnitCardContent(Sheet(), 1, "Shaken: may only Idle."));
+        var before = new UnitCardContent(Sheet(), 1);
+        Assert.NotEqual(before, new UnitCardContent(Sheet(left: 1), 1));
+        Assert.NotEqual(before, new UnitCardContent(Sheet(chip: "Shaken"), 1));
+        Assert.NotEqual(before, new UnitCardContent(Sheet(weaponRule: "AP(2)"), 1));
+        Assert.NotEqual(before, new UnitCardContent(Sheet(), 2));
     }
 
     [Fact]
     public void The_cover_shield_shows_exactly_when_the_facts_put_the_unit_in_cover()
     {
-        var open = new UnitCardContent(Sheet(), 1, null);
-        var covered = new UnitCardContent(Sheet(), 1, null, InCover: true);
+        var open = new UnitCardContent(Sheet(), 1);
+        var covered = new UnitCardContent(Sheet(), 1, InCover: true);
         Assert.Null(open.CoverTip);
         Assert.Equal("In cover", covered.CoverTip);
         Assert.NotEqual(open, covered);
-        Assert.Equal(covered, new UnitCardContent(Sheet(), 1, null, InCover: true));
+        Assert.Equal(covered, new UnitCardContent(Sheet(), 1, InCover: true));
     }
 
     [Fact]
@@ -50,13 +49,13 @@ public class UnitCardContentTests
     {
         var models = new[] { M(Ids[0], "Warrior", 1, 1, false, "w", ["Rifle"]), M(Ids[1], "Warrior", 1, 1, false, "w", ["Rifle"]),
             M(Ids[2], "Sergeant", 1, 1, false, "s", ["Pistol"]) };
-        var none = new UnitCardContent(Sheet(models: models), 1, null);
+        var none = new UnitCardContent(Sheet(models: models), 1);
         Assert.All(none.Groups, g => Assert.False(none.Marked(g)));
-        var picked = new UnitCardContent(Sheet(models: models), 1, null, [Ids[1]]);
+        var picked = new UnitCardContent(Sheet(models: models), 1, [Ids[1]]);
         Assert.Equal([true, false], picked.Groups.Select(picked.Marked));
         Assert.NotEqual(none, picked);
-        Assert.Equal(picked, new UnitCardContent(Sheet(models: models), 1, null, [Ids[1]]));
-        Assert.NotEqual(picked, new UnitCardContent(Sheet(models: models), 1, null, [Ids[2]]));
+        Assert.Equal(picked, new UnitCardContent(Sheet(models: models), 1, [Ids[1]]));
+        Assert.NotEqual(picked, new UnitCardContent(Sheet(models: models), 1, [Ids[2]]));
     }
 
     /// <summary>Eight warriors, one more with a Field Doctor upgrade, and a sergeant with a plasma pistol; two warriors removed.</summary>
@@ -67,12 +66,21 @@ public class UnitCardContentTests
         var models = Enumerable.Range(0, 8).Select(i => M(Ids[i], "Orc Warrior", i < 2 ? 0 : 1, 1, i < 2, "w", warrior))
             .Append(M(Ids[8], "Orc Warrior", 1, 1, false, "d", doctor))
             .Append(M(Ids[9], "Sergeant", 1, 1, false, "s", sergeant)).ToList();
-        var c = new UnitCardContent(Sheet(models: models), 1, null);
+        var c = new UnitCardContent(Sheet(models: models), 1);
         Assert.Equal([("Orc Warrior", "", 6, 8), ("Orc Warrior", "Field Doctor", 1, 1), ("Sergeant", "Plasma Pistol", 1, 1)],
             c.Groups.Select(g => (g.Label, g.Loadout, g.Alive, g.Size)));
         Assert.Equal(Ids[2..8], c.Groups[0].Standing);                     // removed models are counted, not listed
         Assert.Equal(["6/8 Orc Warrior", "1/1 Orc Warrior — Field Doctor", "1/1 Sergeant — Plasma Pistol"], c.Groups.Select(g => g.Line));
         Assert.Equal((8, 10), (c.WoundsLeft, c.WoundsMax));                // one-wound models: the wound total is the alive count
+    }
+
+    [Fact]
+    public void A_model_named_after_its_unit_with_a_part_in_brackets_reads_the_part()
+    {
+        var models = new[] { M(Ids[0], "Squad", 1, 1, false, "t", ["Rifle"]), M(Ids[1], "Squad", 1, 1, false, "t", ["Rifle"]),
+            M(Ids[2], "Squad (Weapon Team)", 1, 1, false, "w", ["Rifle", "Mortar"]), M(Ids[3], "Squad Leader", 1, 1, false, "l", ["Rifle"]) };
+        var c = new UnitCardContent(Sheet(models: models), 1);
+        Assert.Equal(["Squad", "Weapon Team · Mortar", "Squad Leader"], c.Groups.Select(g => g.Name));
     }
 
     [Fact]
@@ -84,7 +92,7 @@ public class UnitCardContentTests
             M(Ids[2], "Brute", 0, 3, true, "b", ["Pick"]), M(Ids[3], "Brute", 3, 3, false, "b", ["Pick"]),
             M(Ids[4], "Champion", 2, 3, false, "h", ["Great Weapon", "Quality 3+"], hero: true),
         };
-        var c = new UnitCardContent(Sheet(models: models), 1, null);
+        var c = new UnitCardContent(Sheet(models: models), 1);
         Assert.Equal([("Brute", false, 3, 4, 7, 12), ("Champion", true, 1, 1, 2, 3)],
             c.Groups.Select(g => (g.Label, g.Hero, g.Alive, g.Size, g.WoundsLeft, g.WoundsMax)));
         Assert.Equal(["3/4 Brute · Wounds 7/12", "1/1 Champion — Great Weapon, Quality 3+ · Wounds 2/3"], c.Groups.Select(g => g.Line));
@@ -96,12 +104,12 @@ public class UnitCardContentTests
     public void A_group_click_cycles_through_its_standing_models()
     {
         var models = Enumerable.Range(0, 3).Select(i => M(Ids[i], "Trooper", i == 1 ? 0 : 1, 1, i == 1, "t", ["Rifle"])).ToList();
-        var g = new UnitCardContent(Sheet(models: models), 1, null).Groups.Single();
+        var g = new UnitCardContent(Sheet(models: models), 1).Groups.Single();
         Assert.Equal(Ids[0], g.Next(null));
         Assert.Equal(Ids[2], g.Next(Ids[0]));
         Assert.Equal(Ids[0], g.Next(Ids[2]));
         Assert.Equal(Ids[0], g.Next(Ids[11]));                              // a model of another group starts at the first
-        var gone = new UnitCardContent(Sheet(models: [M(Ids[0], "Trooper", 0, 1, true, "t", [])]), 1, null).Groups.Single();
+        var gone = new UnitCardContent(Sheet(models: [M(Ids[0], "Trooper", 0, 1, true, "t", [])]), 1).Groups.Single();
         Assert.Null(gone.Next(null));
     }
 
@@ -109,7 +117,7 @@ public class UnitCardContentTests
     public void A_change_in_a_group_is_a_change()
     {
         SheetModel[] Two(string kind) => [M(Ids[0], "Trooper", 1, 1, false, "t", ["Rifle"]), M(Ids[1], "Trooper", 1, 1, false, kind, ["Rifle"])];
-        Assert.NotEqual(new UnitCardContent(Sheet(models: Two("t")), 1, null), new UnitCardContent(Sheet(models: Two("u")), 1, null));
+        Assert.NotEqual(new UnitCardContent(Sheet(models: Two("t")), 1), new UnitCardContent(Sheet(models: Two("u")), 1));
     }
 
     /// <summary>The owner, 2026-11-14: "Add the amount of points to the unit details card so a user can see how much something was worth from
@@ -119,7 +127,7 @@ public class UnitCardContentTests
     {
         var sheet = new UnitSheetModel(Guid.CreateVersion7(), "Team 1", "Squad", 2, 2, "4+", "5+", [], [], [],
             [new SheetModel(Guid.CreateVersion7(), "Trooper", 1, 1, false, "t", [], false), new SheetModel(Guid.CreateVersion7(), "Trooper", 1, 1, false, "t", [], false)]);
-        Assert.Equal("2 models", new UnitCardContent(sheet, 1, null).CountNote);
-        Assert.Equal("2 models · 170 pts", new UnitCardContent(sheet with { Points = 170 }, 1, null).CountNote);
+        Assert.Equal("2 models", new UnitCardContent(sheet, 1).CountNote);
+        Assert.Equal("2 models · 170 pts", new UnitCardContent(sheet with { Points = 170 }, 1).CountNote);
     }
 }

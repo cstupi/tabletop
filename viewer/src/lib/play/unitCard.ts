@@ -64,22 +64,27 @@ export const chipText = (c: { kind: string; text: string }): string =>
 /** UnitCardContent.Marked: the group holds a picked model (the selection's model ids), so its row is marked. */
 export const groupMarked = (g: ModelGroup, picked: readonly string[]): boolean => g.standing.some((id) => picked.includes(id));
 
-/** The sheet, the team's ordinal for its colour bar, the limited-choice note, the model groups and the unit's wound total. inCover: the
+/** The sheet, the team's ordinal for its colour bar, the model groups and the unit's wound total. inCover: the
  * server's ModelFacts names the unit in cover where it stands, and the Quality / Defense line ends in a shield. */
 export interface UnitCardContent {
-  readonly sheet: UnitSheetModel; readonly team: number; readonly note: string | null;
+  readonly sheet: UnitSheetModel; readonly team: number;
   readonly groups: readonly ModelGroup[]; readonly woundsLeft: number; readonly woundsMax: number; readonly inCover: boolean;
 }
 
-export function unitCardOf(sheet: UnitSheetModel, team: number, note: string | null, inCover = false): UnitCardContent {
-  const groups = groupModels(sheet.models);
-  return { sheet, team, note, groups, woundsLeft: groups.reduce((s, g) => s + g.woundsLeft, 0), woundsMax: groups.reduce((s, g) => s + g.woundsMax, 0), inCover };
+export function unitCardOf(sheet: UnitSheetModel, team: number, inCover = false): UnitCardContent {
+  const groups = groupModels(sheet.models, sheet.name);
+  return { sheet, team, groups, woundsLeft: groups.reduce((s, g) => s + g.woundsLeft, 0), woundsMax: groups.reduce((s, g) => s + g.woundsMax, 0), inCover };
 }
 
 /** UnitCardContent.CoverTip: the cover shield's tooltip, its only words; null when the unit is not in cover and no shield shows. */
 export const coverTip = (c: UnitCardContent): string | null => (c.inCover ? 'In cover' : null);
 
-function groupModels(models: readonly SheetModel[]): ModelGroup[] {
+/** UnitCardContent.Short: a model named after its unit with a part in brackets ("Infantry Squad (Weapon Team)" in Infantry Squad) reads the part. */
+function shortLabel(label: string, unit: string): string {
+  return label.length > unit.length + 3 && label.startsWith(`${unit} (`) && label.endsWith(')') ? label.slice(unit.length + 2, -1) : label;
+}
+
+function groupModels(models: readonly SheetModel[], unit: string): ModelGroup[] {
   const byKind = new Map<string, SheetModel[]>();
   for (const m of models) {
     const g = byKind.get(m.kind);
@@ -90,7 +95,7 @@ function groupModels(models: readonly SheetModel[]): ModelGroup[] {
   const main = kinds.reduce((best, k) => (k.length > best.length ? k : best));   // stable: the first on a tie
   const common = new Set(main[0]!.loadout);
   return kinds.map((k): ModelGroup => ({
-    label: k[0]!.label, loadout: k === main ? '' : k[0]!.loadout.filter((i) => !common.has(i)).join(', '), hero: k[0]!.hero,
+    label: shortLabel(k[0]!.label, unit), loadout: k === main ? '' : k[0]!.loadout.filter((i) => !common.has(i)).join(', '), hero: k[0]!.hero,
     alive: k.filter((m) => !m.removed).length, size: k.length, woundsLeft: k.reduce((s, m) => s + m.left, 0), woundsMax: k.reduce((s, m) => s + m.max, 0),
     standing: k.filter((m) => !m.removed).map((m) => m.id),
   }));
@@ -117,5 +122,5 @@ function sameSheet(a: UnitSheetModel, b: UnitSheetModel): boolean {
 
 export function sameCard(a: UnitCardContent | null, b: UnitCardContent | null): boolean {
   if (a === null || b === null) return a === b;
-  return a.team === b.team && a.note === b.note && a.inCover === b.inCover && sameSheet(a.sheet, b.sheet) && sameList(a.groups, b.groups, sameGroup);
+  return a.team === b.team && a.inCover === b.inCover && sameSheet(a.sheet, b.sheet) && sameList(a.groups, b.groups, sameGroup);
 }

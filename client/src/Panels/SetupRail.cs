@@ -33,7 +33,7 @@ public partial class SetupRail : PanelContainer
             var badge = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore, Visible = false };
             badge.AddThemeStyleboxOverride("panel", BadgeBox());
             var count = new Label { MouseFilter = MouseFilterEnum.Ignore, HorizontalAlignment = HorizontalAlignment.Center };
-            count.AddThemeFontSizeOverride("font_size", 10); count.AddThemeColorOverride("font_color", Ui.Background with { A = 1 });
+            count.AddThemeFontSizeOverride("font_size", Ui.Current.Body.Size * 2 / 3);   // readable: two thirds of the body text, scaled with Text size count.AddThemeColorOverride("font_color", Ui.Background with { A = 1 });
             badge.AddChild(count); b.AddChild(badge);
             column.AddChild(b);
             _buttons[tool] = (b, badge, count);
@@ -54,10 +54,10 @@ public partial class SetupRail : PanelContainer
             if (!IsInstanceValid(b.Badge)) continue;
             var n = SetupTools.Badge(tool, _s.Draft);
             b.Badge.Visible = n is not null; b.Count.Text = n?.ToString() ?? "";
-            // Its bottom-left on the icon's top-right corner: the icon stays whole, the badge reaches into the rail's padding.
+            // Centred on the icon's top-right corner, reaching into the rail's padding.
             b.Badge.SetAnchorsPreset(LayoutPreset.TopLeft);
             b.Badge.Size = b.Badge.GetCombinedMinimumSize();
-            b.Badge.Position = new Vector2((ButtonSize + IconSize) / 2f, (ButtonSize - IconSize) / 2f - b.Badge.Size.Y);
+            b.Badge.Position = new Vector2((ButtonSize + IconSize) / 2f, (ButtonSize - IconSize) / 2f) - b.Badge.Size / 2;
         }
     }
 

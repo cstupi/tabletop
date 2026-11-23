@@ -11,7 +11,6 @@
   import { filter as filterEntries } from './combatLog';
   import { CombatLogCache } from './combatLogState';
   import CombatLogPanel from './CombatLogPanel.svelte';
-  import { noteOf } from './decisionView';
   import DiceTray from './DiceTray.svelte';
   import { enemyStripOf, measuredUnit, stripShows } from './enemyStrip';
   import EnemyStrip from './EnemyStrip.svelte';
@@ -80,7 +79,7 @@
 
   const playing = $derived(snap.game !== null && (snap.game.status === 'playing' || snap.game.status === 'ended'));
   const watching = $derived(isWatching(snap));
-  const log = $derived(snap.game !== null && playing && shown !== null ? cache.of(snap.log, pendingUndoTo, snap.game, shown) : null);
+  const log = $derived(snap.game !== null && playing && shown !== null ? cache.of(snap.log, pendingUndoTo, snap.game, shown, snap.participantId) : null);
 
   const focus = $derived(shown !== null && snap.game !== null && playing ? sheetFocusOf(shown, snap.game, myTeam, selection?.pieceId ?? null, pickHovered, placing) : null);
 
@@ -93,7 +92,7 @@
   const card = $derived.by(() => {
     const s = sheet;
     if (s === null || shown === null || snap.game === null || focus === null) { lastCard = null; return null; }
-    const next = unitCardOf(s, teamOf(shown, snap.game, focus)?.ordinal ?? 0, noteOf(shown, snap.game, myTeam, focus), snap.inCover.has(focus));
+    const next = unitCardOf(s, teamOf(shown, snap.game, focus)?.ordinal ?? 0, snap.inCover.has(focus));
     if (sameCard(lastCard, next)) return lastCard;
     lastCard = next;
     return next;

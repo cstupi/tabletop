@@ -88,8 +88,8 @@ test). A condition always names its unit (`Red unit 1 · Fatigued`); a test's co
 Army roster) draws no line: the header's `moved 2"` says it. A grant reads `[unit] gets [rule]`.
 
 **Outside any action:** `Round 1`, `Round 2` (deployment's round 0 and the phase starts draw none); deployment, one line per unit
-placed; an objective seized or contested; a menu edit, tagged
-`by hand`; `Undone to: [the action's header]`, the undone lines struck through; the game's end.
+placed; an objective seized or contested; a menu or hand edit as what changed, subject first (`War Talon Harpies set aside`), naming
+the player only when it is another player than the reader; `Undone to: [the action's header]`, the undone lines struck through; the game's end.
 
 **Not in the log:** `ask_opened`, `ask_answered`, `ask_closed`, a step completion with no roll and no change,
 `sequence_started` without an action, `sequence_finished`, `sequence_abandoned`, `turn_started`, `turn_ended`, `phase_started`, and a passed

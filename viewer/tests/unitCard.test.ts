@@ -1,7 +1,7 @@
 import { render } from 'svelte/server';
 import { describe, expect, it } from 'vitest';
 import UnitCard from '../src/lib/play/UnitCard.svelte';
-import { coverTip, groupLine, groupMarked, groupTitle, groupWounds, nextModel, sameCard, unitCardOf } from '../src/lib/play/unitCard';
+import { coverTip, groupLine, groupMarked, groupName, groupTitle, groupWounds, nextModel, sameCard, unitCardOf } from '../src/lib/play/unitCard';
 import type { SheetModel, UnitSheetModel } from '../src/lib/play/unitSheet';
 import { newId } from './play';
 
@@ -24,26 +24,25 @@ const sheet = (o: { left?: number; chip?: string; weaponRule?: string; models?: 
 
 describe('UnitCardContent', () => {
   it('the same sheet built again is the same content', () => {
-    expect(sameCard(unitCardOf(sheet(), 1, null), unitCardOf(sheet(), 1, null))).toBe(true);
+    expect(sameCard(unitCardOf(sheet(), 1), unitCardOf(sheet(), 1))).toBe(true);
     expect(sameCard(null, null)).toBe(true);
-    expect(sameCard(unitCardOf(sheet(), 1, null), null)).toBe(false);
+    expect(sameCard(unitCardOf(sheet(), 1), null)).toBe(false);
   });
 
-  it('a wound a chip a weapon rule the team or the note is a change', () => {
-    const before = unitCardOf(sheet(), 1, null);
-    expect(sameCard(before, unitCardOf(sheet({ left: 1 }), 1, null))).toBe(false);
-    expect(sameCard(before, unitCardOf(sheet({ chip: 'Shaken' }), 1, null))).toBe(false);
-    expect(sameCard(before, unitCardOf(sheet({ weaponRule: 'AP(2)' }), 1, null))).toBe(false);
-    expect(sameCard(before, unitCardOf(sheet(), 2, null))).toBe(false);
-    expect(sameCard(before, unitCardOf(sheet(), 1, 'Shaken: may only Idle.'))).toBe(false);
+  it('a wound a chip a weapon rule or the team is a change', () => {
+    const before = unitCardOf(sheet(), 1);
+    expect(sameCard(before, unitCardOf(sheet({ left: 1 }), 1))).toBe(false);
+    expect(sameCard(before, unitCardOf(sheet({ chip: 'Shaken' }), 1))).toBe(false);
+    expect(sameCard(before, unitCardOf(sheet({ weaponRule: 'AP(2)' }), 1))).toBe(false);
+    expect(sameCard(before, unitCardOf(sheet(), 2))).toBe(false);
   });
 
   it('the cover shield shows exactly when the facts put the unit in cover', () => {
-    const open = unitCardOf(sheet(), 1, null), covered = unitCardOf(sheet(), 1, null, true);
+    const open = unitCardOf(sheet(), 1), covered = unitCardOf(sheet(), 1, true);
     expect(coverTip(open)).toBeNull();
     expect(coverTip(covered)).toBe('In cover');
     expect(sameCard(open, covered)).toBe(false);
-    expect(sameCard(covered, unitCardOf(sheet(), 1, null, true))).toBe(true);
+    expect(sameCard(covered, unitCardOf(sheet(), 1, true))).toBe(true);
     const shields = (body: string) => body.match(/title="In cover"/g)?.length ?? 0;
     expect(shields(render(UnitCard, { props: { card: open, onPick: () => {} } }).body)).toBe(0);
     const body = render(UnitCard, { props: { card: covered, onPick: () => {} } }).body;
@@ -52,9 +51,15 @@ describe('UnitCardContent', () => {
     expect(body).not.toMatch(/>In cover</);                                                        // the tooltip is its only words
   });
 
+  it('a model named after its unit with a part in brackets reads the part', () => {
+    const models = [m(ids[0]!, 'Squad', 1, 1, false, 't', ['Rifle']), m(ids[1]!, 'Squad', 1, 1, false, 't', ['Rifle']),
+      m(ids[2]!, 'Squad (Weapon Team)', 1, 1, false, 'w', ['Rifle', 'Mortar']), m(ids[3]!, 'Squad Leader', 1, 1, false, 'l', ['Rifle'])];
+    expect(unitCardOf(sheet({ models }), 1).groups.map(groupName)).toEqual(['Squad', 'Weapon Team · Mortar', 'Squad Leader']);
+  });
+
   it('a group holding a picked model is marked', () => {
     const models = [m(ids[0]!, 'Warrior', 1, 1, false, 'w', ['Rifle']), m(ids[1]!, 'Warrior', 1, 1, false, 'w', ['Rifle']), m(ids[2]!, 'Sergeant', 1, 1, false, 's', ['Pistol'])];
-    const c = unitCardOf(sheet({ models }), 1, null);
+    const c = unitCardOf(sheet({ models }), 1);
     expect(c.groups.map((g) => groupMarked(g, []))).toEqual([false, false]);
     expect(c.groups.map((g) => groupMarked(g, [ids[1]!]))).toEqual([true, false]);
     expect(c.groups.map((g) => groupMarked(g, [ids[2]!]))).toEqual([false, true]);
@@ -67,7 +72,7 @@ describe('UnitCardContent', () => {
       ...Array.from({ length: 8 }, (_, i) => m(ids[i]!, 'Orc Warrior', i < 2 ? 0 : 1, 1, i < 2, 'w', warrior)),
       m(ids[8]!, 'Orc Warrior', 1, 1, false, 'd', doctor), m(ids[9]!, 'Sergeant', 1, 1, false, 's', sergeant),
     ];
-    const c = unitCardOf(sheet({ models }), 1, null);
+    const c = unitCardOf(sheet({ models }), 1);
     expect(c.groups.map((g) => [g.label, g.loadout, g.alive, g.size])).toEqual([['Orc Warrior', '', 6, 8], ['Orc Warrior', 'Field Doctor', 1, 1], ['Sergeant', 'Plasma Pistol', 1, 1]]);
     expect(c.groups[0]!.standing).toEqual(ids.slice(2, 8));                     // removed models are counted, not listed
     expect(c.groups.map(groupLine)).toEqual(['6/8 Orc Warrior', '1/1 Orc Warrior — Field Doctor', '1/1 Sergeant — Plasma Pistol']);
@@ -80,7 +85,7 @@ describe('UnitCardContent', () => {
       m(ids[2]!, 'Brute', 0, 3, true, 'b', ['Pick']), m(ids[3]!, 'Brute', 3, 3, false, 'b', ['Pick']),
       m(ids[4]!, 'Champion', 2, 3, false, 'h', ['Great Weapon', 'Quality 3+'], true),
     ];
-    const c = unitCardOf(sheet({ models }), 1, null);
+    const c = unitCardOf(sheet({ models }), 1);
     expect(c.groups.map((g) => [g.label, g.hero, g.alive, g.size, g.woundsLeft, g.woundsMax])).toEqual([['Brute', false, 3, 4, 7, 12], ['Champion', true, 1, 1, 2, 3]]);
     expect(c.groups.map(groupLine)).toEqual(['3/4 Brute · Wounds 7/12', '1/1 Champion — Great Weapon, Quality 3+ · Wounds 2/3']);
     expect(c.groups.map((g) => [groupTitle(g), groupWounds(g)])).toEqual([['3/4 Brute', 'Wounds 7/12'], ['1/1 Champion — Great Weapon, Quality 3+', 'Wounds 2/3']]);
@@ -89,17 +94,17 @@ describe('UnitCardContent', () => {
 
   it('a group click cycles through its standing models', () => {
     const models = Array.from({ length: 3 }, (_, i) => m(ids[i]!, 'Trooper', i === 1 ? 0 : 1, 1, i === 1, 't', ['Rifle']));
-    const g = unitCardOf(sheet({ models }), 1, null).groups[0]!;
+    const g = unitCardOf(sheet({ models }), 1).groups[0]!;
     expect(nextModel(g, null)).toBe(ids[0]);
     expect(nextModel(g, ids[0]!)).toBe(ids[2]);
     expect(nextModel(g, ids[2]!)).toBe(ids[0]);
     expect(nextModel(g, ids[11]!)).toBe(ids[0]);                              // a model of another group starts at the first
-    const gone = unitCardOf(sheet({ models: [m(ids[0]!, 'Trooper', 0, 1, true, 't', [])] }), 1, null).groups[0]!;
+    const gone = unitCardOf(sheet({ models: [m(ids[0]!, 'Trooper', 0, 1, true, 't', [])] }), 1).groups[0]!;
     expect(nextModel(gone, null)).toBeNull();
   });
 
   it('a change in a group is a change', () => {
     const two = (kind: string) => [m(ids[0]!, 'Trooper', 1, 1, false, 't', ['Rifle']), m(ids[1]!, 'Trooper', 1, 1, false, kind, ['Rifle'])];
-    expect(sameCard(unitCardOf(sheet({ models: two('t') }), 1, null), unitCardOf(sheet({ models: two('u') }), 1, null))).toBe(false);
+    expect(sameCard(unitCardOf(sheet({ models: two('t') }), 1), unitCardOf(sheet({ models: two('u') }), 1))).toBe(false);
   });
 });

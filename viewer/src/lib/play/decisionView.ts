@@ -104,13 +104,6 @@ export function rows(shown: readonly AskOption[]): ChoiceRow[] {
 
 const sameIds = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 
-/** The note on a unit's choices in my open Options Ask (activate: why its actions are limited), for the unit card; null when no Ask is open for my team or none of the unit's choices carries one. */
-export function noteOf(p: Projection, game: GameInfo, myTeam: string | null, unitId: string): string | null {
-  const l = myAsk(p, game, myTeam)?.ask.legal;
-  if (l === undefined || l.kind !== 'options') return null;
-  return choicesOf(l, p, unitId).map((c) => c.note).find((x) => x !== undefined && x !== null) ?? null;
-}
-
 /**
  * The stop button of a move that may stop (MoveRegion.stoppable, p.13 Caster "at any point before attacking"): the window after the stop
  * offers a cast when a moving model holds spell tokens, else whatever else it offers. Null when the move cannot stop.

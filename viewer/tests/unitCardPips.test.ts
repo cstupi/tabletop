@@ -9,7 +9,7 @@ const m = (label: string, left: number, max: number, removed: boolean, kind: str
 const card = (...models: SheetModel[]) => unitCardOf({
   unitId: newId(), team: 'Team 1', name: 'Warriors', alive: models.filter((x) => !x.removed).length, size: models.length, quality: '4+', defense: '4+',
   chips: [{ kind: 'activated', text: 'Activated: Advance' }, { kind: 'condition', text: 'Shaken', condition: 'shaken' }], weapons: [], rules: [], models,
-}, 1, null);
+}, 1);
 
 describe('UnitCardContent pips', () => {
   it('wound pips as the roster draws them and a note naming the one tough model\'s wounds', () => {

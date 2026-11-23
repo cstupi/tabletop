@@ -103,7 +103,7 @@ public partial class UnitCard : VBoxContainer
         var names = new Names(game!, p!);
         var sheet = UnitSheet.Of(p!, names, u, _s.Rules, _s.MaxWounds);
         _sheet = sheet; _names = names;
-        var content = new UnitCardContent(sheet, SheetFocus.TeamOf(p!, game!, u)?.Ordinal ?? 0, DecisionView.NoteOf(p!, game!, _s.MyTeamId, u),
+        var content = new UnitCardContent(sheet, SheetFocus.TeamOf(p!, game!, u)?.Ordinal ?? 0,
             _input.Selected is { } sel && sel.PieceId == u ? sel.ModelIds : null, _s.InCover.Contains(u));
         if (content != _content)
         {
@@ -129,8 +129,7 @@ public partial class UnitCard : VBoxContainer
     }
 
     /// <summary>The card (UX redesign part 2 → Unit card): the band and the name alone, with the eye that centres the camera on the unit; a pip
-    /// per model and the count note; Quality and Defense as badges with their icons and the state chips with theirs; the limited-choice note
-    /// (why my open choice limits this unit, AskOption.Note), the model groups, the weapons and the rules. Each part is its own box in the body,
+    /// per model and the count note; Quality and Defense as badges with their icons and the state chips with theirs; the model groups, the weapons and the rules. Each part is its own box in the body,
     /// set again only when UnitCardParts names it, and its controls stand across renders (Kept): a render sets their text, colours and
     /// visibility, so a new selection makes no controls once the card has drawn a unit as large.</summary>
     /// <summary>The parts a render still has to draw, from the latest content: a new unit's card draws its parts within a few milliseconds in the
@@ -186,8 +185,7 @@ public partial class UnitCard : VBoxContainer
         var largest = p.Units.Keys.Select(u => UnitSheet.Of(p, names, u, _s.Rules, _s.MaxWounds))
             .MaxBy(s => s.Weapons.Count + s.Weapons.Sum(w => w.Rules.Count) + s.Rules.Count + s.Models.Count + s.Chips.Count);
         if (largest is null) return;
-        // A note too (an activation choice limited for the unit), so its wrapped warning line has been shaped once.
-        RenderCard(new UnitCardContent(largest, SheetFocus.TeamOf(p, game, largest.UnitId)?.Ordinal ?? 0, "No Charge: no enemy unit within charge distance", null, true), Enum.GetValues<UnitCardPart>());
+        RenderCard(new UnitCardContent(largest, SheetFocus.TeamOf(p, game, largest.UnitId)?.Ordinal ?? 0, null, true), Enum.GetValues<UnitCardPart>());
         _body.GetCombinedMinimumSize();   // shapes the text while hidden
         _content = null;                  // the first real render sets every part
     }
@@ -237,9 +235,6 @@ public partial class UnitCard : VBoxContainer
                 if (c.CoverTip is { } coverTip) Shield(chips, coverTip);
                 foreach (var chip in m.Chips) StatusChip(chips, chip);
                 chips.End();
-                break;
-            case UnitCardPart.Note:
-                if (c.Note is { } note) Look.Text(box.Take("note", () => Wrap("", Variation.Warning)), $"⚠ {note}", Variation.Warning);
                 break;
             case UnitCardPart.Models:
                 if (c.Groups.Count == 0) break;
@@ -301,9 +296,12 @@ public partial class UnitCard : VBoxContainer
         public readonly HBoxContainer Row = new();
         public readonly Label Pips = new() { CustomMinimumSize = new Vector2(56, 0) }, Wounds = new() { TooltipText = "Wounds left" }, WoundCount = new() { ThemeTypeVariation = Variation.Dim };
         public readonly PanelContainer Hero = Badge("Hero");
-        public readonly Button Title = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, ClipText = true, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        // Wraps at word boundaries: a long name or loadout reads whole on two lines, never cut mid-word.
+        public readonly Button Title = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, AutowrapMode = TextServer.AutowrapMode.WordSmart, Alignment = HorizontalAlignment.Left,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(TitleMinWidth, 0) };
         public ModelGroup? Group;
         public UnitCard? Card;
+        const int TitleMinWidth = 96;
 
         public GroupControls()
         {

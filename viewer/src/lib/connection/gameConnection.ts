@@ -225,6 +225,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
     reset();
     if (userClosed) return;
     if (was && code === 1000) return closeForGood(closedText(code, reason, false));
+    if (code === null) console.info(`game socket closed without a code${reason ? `: ${reason}` : ''}${sawError ? ' (error)' : ''}`);
     publish({ phase: 'reconnecting', closeReason: closedText(code, reason, true, false, sawError) });
     const wait = backoff(attempt++);
     retryTimer = setTimeout(() => connect('reconnecting'), wait);

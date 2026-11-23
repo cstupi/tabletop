@@ -155,15 +155,4 @@ public class DecisionViewTests
         var two = DecisionView.Rows([new AskOption("h", "Gun: Hold", [Samples.Unit], "Artillery"), new AskOption("x", "Gun: Advance", [Samples.Unit], "Artillery")]);
         Assert.Equal([("h", null), ("x", null), (null, "Artillery")], two.Select(r => (r.Option?.Id, r.Note)));
     }
-
-    [Fact]
-    public void The_selected_unit_s_note_is_read_off_my_open_choice()
-    {
-        var ask = AskOf(AskQuestions.Activate, new Options([new AskOption("i", "Squad: Idle", [Samples.Unit], ShakenNote), new AskOption("o", "Other: Hold", [Guid.CreateVersion7()])]));
-        var a = new EventApplier(Samples.Board, Game);
-        a.Apply(new GameEvent(1, null, new AskOpened(ask), null));
-        Assert.Equal(ShakenNote, DecisionView.NoteOf(a.Projection, Game, Samples.Team1, Samples.Unit));
-        Assert.Null(DecisionView.NoteOf(a.Projection, Game, Samples.Team2, Samples.Unit));          // not my Ask
-        Assert.Null(DecisionView.NoteOf(a.Projection, Game, Samples.Team1, Guid.CreateVersion7()));  // a unit with no choice
-    }
 }

@@ -27,7 +27,8 @@ public static class Feedback
     }
 
     /// <summary>The toast for a closed socket or a resync, by close code (the game server's codes: 1000 a replaced socket, 1001 shutting
-    /// down, 1008 the JWT's expiry, 1009 a frame too large, 1011 a server failure, 1013 a client too far behind).</summary>
+    /// down, 1008 the JWT's expiry, 1009 a frame too large, 1011 a server failure, 1013 a client too far behind). A socket that closed
+    /// with no code (unreachable, dropped) reads "Reconnecting…": its exception text goes to the log, not the player.</summary>
     public static string Closed(SocketClosed c, bool willReconnect)
     {
         if (c.Error is ProjectionDesyncException)
@@ -42,11 +43,13 @@ public static class Feedback
             1009 => "A message was larger than the server accepts",
             1011 => reason is null ? "The game server failed" : $"The game server failed ({reason})",
             1013 => "The connection fell too far behind the game",
-            null when c.Error is not null => reason is null ? "Cannot reach the game server" : $"Cannot reach the game server ({reason})",
+            null when willReconnect => "Reconnecting…",
+            null when c.Error is not null => "Cannot reach the game server",
             null => "The connection dropped",
             _ => reason is null ? $"Disconnected (code {c.Code})" : $"Disconnected: {reason}",
         };
         if (!willReconnect) return what + ".";
+        if (c.Code is null) return what;
         return c.Code == 1008 ? what + "; reconnecting with a fresh one…" : what + "; reconnecting…";
     }
 

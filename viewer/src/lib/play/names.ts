@@ -7,15 +7,26 @@ import type { GameInfo, Team, Weapon } from '../protocol/wire.generated';
 export class Names {
   readonly #game: GameInfo;
   readonly #projection: Projection | null;
+  readonly #me: string | null;
 
-  constructor(game: GameInfo, projection: Projection | null) {
+  /** me: the reader's participant row, whose account's own rows `other` leaves unnamed; null names every participant (a replay, a fixture). */
+  constructor(game: GameInfo, projection: Projection | null, me: string | null = null) {
     this.#game = game;
     this.#projection = projection;
+    this.#me = me;
   }
 
   participant(id: string | null | undefined): string {
     if (id === null || id === undefined) return 'the game';
     return this.#game.participants.find((p) => p.id === id)?.name ?? Names.short(id);
+  }
+
+  /** The participant's name when it is another player than the reader (another account), else null. */
+  other(id: string | null | undefined): string | null {
+    if (id === null || id === undefined) return null;
+    const mine = this.#me === null ? undefined : this.#game.participants.find((p) => p.id === this.#me)?.accountId;
+    const row = this.#game.participants.find((p) => p.id === id);
+    return mine !== undefined && row?.accountId === mine ? null : this.participant(id);
   }
 
   /** The game's teams by ordinal. */

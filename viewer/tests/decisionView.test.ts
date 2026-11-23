@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { choicesOf, clickAnswers, narrowed as narrowedTo, decisionOf, noteOf, number, rows, stopLabel, unitNamed } from '../src/lib/play/decisionView';
+import { choicesOf, clickAnswers, narrowed as narrowedTo, decisionOf, number, rows, stopLabel, unitNamed } from '../src/lib/play/decisionView';
 import { Names } from '../src/lib/play/names';
 import type { Ask, LegalSet, MoveRegion } from '../src/lib/protocol/wire.generated';
 import { TEAM1, TEAM2, askOf, newId, option, projectionOf, sample } from './play';
@@ -115,13 +115,5 @@ describe('DecisionView', () => {
     expect(list.map((r) => [r.option?.id ?? null, r.note])).toEqual([['i', null], [null, SHAKEN], ['h', null], ['a', null]]);
     const two = rows([option('h', 'Gun: Hold', [s.squad.id], 'Artillery'), option('x', 'Gun: Advance', [s.squad.id], 'Artillery')]);
     expect(two.map((r) => [r.option?.id ?? null, r.note])).toEqual([['h', null], ['x', null], [null, 'Artillery']]);
-  });
-
-  it('the selected unit\'s note is read off my open choice', () => {
-    const a = ask('activate', { kind: 'options', choices: [option('i', 'Squad: Idle', [s.squad.id], SHAKEN), option('o', 'Other: Hold', [newId()])] });
-    const p = projectionOf(s.game, s.board, [{ kind: 'ask_opened', ask: a }]).projection;
-    expect(noteOf(p, s.game, TEAM1, s.squad.id)).toBe(SHAKEN);
-    expect(noteOf(p, s.game, TEAM2, s.squad.id)).toBeNull();
-    expect(noteOf(p, s.game, TEAM1, newId())).toBeNull();
   });
 });

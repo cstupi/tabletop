@@ -4,11 +4,13 @@ using Tabletop.Geometry;
 
 namespace Tabletop.Client.Table;
 
-/// <summary>A line from where a piece started to where it is, with the distance in inches and, in a declared move, what is left.</summary>
+/// <summary>A line from where a piece started to where it is, with the distance in inches and, in a declared move, what is left. The
+/// reading is screen-sized (as the hover name, Palette.ScreenPixel) times the UI scale, over the terrain, so it reads at any zoom and
+/// resolution.</summary>
 public partial class RulerNode : Node3D
 {
     readonly ImmediateMesh _mesh = new();
-    readonly MeshInstance3D _line = new(); readonly Label3D _label = new() { Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 48, PixelSize = 0.01f };
+    readonly MeshInstance3D _line = new(); readonly Label3D _label = new() { Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = Palette.ScreenPixel, FixedSize = true, OutlineSize = 10, NoDepthTest = true };
     public override void _Ready() { _line.Mesh = _mesh; AddChild(_line); AddChild(_label); Hide(); }
 
     public void Show(Point3 from, Point3 to, RulerReadout readout, Color colour) => Show([from, to], readout, colour);
@@ -35,6 +37,8 @@ public partial class RulerNode : Node3D
         _line.MaterialOverride = Palette.Unshaded(line);
         _label.Position = points[points.Count / 2 - (points.Count % 2 == 0 ? 1 : 0)].Lerp(points[points.Count / 2], 0.5f) + Vector3.Up * 0.8f;
         if (_label.Text != text) _label.Text = text;
+        var size = Palette.ScreenPixel * GetWindow().ContentScaleFactor;
+        if (!Mathf.IsEqualApprox(_label.PixelSize, size)) _label.PixelSize = size;
         _label.Modulate = label;
         Visible = true;
     }

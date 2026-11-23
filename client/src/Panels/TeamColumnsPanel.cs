@@ -13,6 +13,7 @@ namespace Tabletop.Client.Panels;
 /// </summary>
 public partial class TeamColumnsPanel : MarginContainer
 {
+    const int NameMinWidth = 64;   // a name or army shrinks to this before it wraps
     readonly bool _compact;
     readonly Container _flow;
     Session _s = null!;
@@ -140,7 +141,8 @@ public partial class TeamColumnsPanel : MarginContainer
         var lines = new VBoxContainer(); lines.AddThemeConstantOverride("separation", _compact ? 0 : Space.XS); row.AddChild(lines);
         var top = new HBoxContainer(); top.AddThemeConstantOverride("separation", Space.S); lines.AddChild(top);
         top.AddChild(Icon("player", column.Ordinal > 0 ? Ui.Team(column.Ordinal) : Ui.DimText, _compact ? 16 : 22));
-        top.AddChild(new Label { Text = m.Name, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
+        // Names and armies read whole: they wrap to a second line rather than end in an ellipsis.
+        top.AddChild(new Label { Text = m.Name, SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(NameMinWidth, 0),
             TooltipText = m.Name, MouseFilter = MouseFilterEnum.Pass });
         var editing = Icon("editing", Ui.Accent, 16); editing.Visible = false; editing.TooltipText = "Editing the table"; editing.MouseFilter = MouseFilterEnum.Pass;
         top.AddChild(editing); _editing[m.ParticipantId] = editing;
@@ -162,13 +164,14 @@ public partial class TeamColumnsPanel : MarginContainer
         // My picker: always in the lobby; in setup only while my seat has no army.
         if (m.MyArmy is { } seat && (!_compact || seat.ArmyId is null))
         {
-            var picker = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, FitToLongestItem = false, TooltipText = seat.Label };
+            var picker = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart, FitToLongestItem = false, TooltipText = seat.Label,
+                CustomMinimumSize = new Vector2(NameMinWidth, 0) };
             picker.AddItem(TeamColumns.NoArmy);
             army.AddChild(picker); _pickers.Add((seat, picker));
         }
         else
             army.AddChild(new Label { Text = m.Army ?? TeamColumns.NoArmy, ThemeTypeVariation = warn ? Variation.Warning : m.Army is null ? Variation.Dim : "",
-                SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, TooltipText = m.Army ?? "",
+                SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(NameMinWidth, 0), TooltipText = m.Army ?? "",
                 MouseFilter = MouseFilterEnum.Pass });
         return row;
     }

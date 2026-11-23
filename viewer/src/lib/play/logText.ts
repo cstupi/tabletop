@@ -81,6 +81,54 @@ export function roundChange(c: StateChange, n: Names): string {
   return c.kind;
 }
 
+/** LogText.HandEdit: a player's own edit (the menus, a hand move) as what changed, subject first: "War Talon Harpies set aside". The player
+ * is named only when it is another player than the reader (`Names.other`). */
+export function handEdit(e: GameEvent, n: Names): string {
+  const p = e.payload;
+  let text: string;
+  switch (p.kind) {
+    case 'models_moved': text = handMoved(p.moves, n); break;
+    case 'wounds_set': text = `${n.model(p.modelId)} set to ${p.wounds} wound${p.wounds === 1 ? '' : 's'}`; break;
+    case 'condition_set': {
+      const subject = p.subject.kind === 'unit' ? n.unit(p.subject.id) : n.model(p.subject.id);
+      const word = p.condition.replaceAll('-', ' ');
+      text = p.present ? `${subject} ${word}` : p.condition === 'set-aside' ? `${subject} returned to deployment` : `${subject} no longer ${word}`;
+      break;
+    }
+    case 'action_recorded': text = `${n.unit(p.unitId)} recorded as ${p.action}`; break;
+    case 'action_record_cleared': text = `${n.unit(p.unitId)}'s action record cleared`; break;
+    case 'grant_added': text = `${n.unit(p.unitId)} granted ${p.grant.entryName}`; break;
+    case 'grant_removed': text = `${n.unit(p.unitId)} lost a grant`; break;
+    case 'spell_tokens_set': text = `${n.model(p.modelId)} set to ${p.tokens} spell token${p.tokens === 1 ? '' : 's'}`; break;
+    case 'wounds_this_activation_set': text = `${n.unit(p.unitId)}'s wounds this activation set to ${p.wounds}`; break;
+    case 'score_set': text = `${n.team(p.teamId)}'s score set to ${p.score}`; break;
+    case 'marker_moved': text = `${n.piece(p.markerId)} moved`; break;
+    case 'objective_control_set':
+      text = p.teamId !== undefined ? `${n.marker(p.markerId)} given to ${n.team(p.teamId)}` : `${n.marker(p.markerId)} made neutral`; break;
+    default: text = (p as { kind: string }).kind;
+  }
+  text = text.charAt(0).toUpperCase() + text.slice(1);
+  const who = n.other(e.actor);
+  if (who !== null) text += ` · by ${who}`;
+  return text + (e.warning === undefined ? '' : ` — ${e.warning}`);
+}
+
+function handMoved(moves: readonly ModelRelocation[], n: Names): string {
+  const first = moves[0]!;
+  const unitId = n.unitOfModel(first.modelId);
+  const unit = unitId !== null ? n.unit(unitId) : Names.short(first.modelId);
+  const { from, to } = first;
+  if (from.kind === 'table' && to.kind === 'table') {
+    const a = from.placement.position, b = to.placement.position;
+    return `${unit} moved ${Math.hypot(b.x - a.x, b.y - a.y).toFixed(1)}"`;
+  }
+  if (from.kind === 'shelf' && to.kind === 'table') return `${unit} deployed`;
+  if (from.kind === 'inside' && to.kind === 'table') return `${unit} taken out of ${n.piece(from.containerId)}`;
+  if (to.kind === 'shelf') return `${unit} moved to the shelf`;
+  if (to.kind === 'inside') return `${unit} put inside ${n.piece(to.containerId)}`;
+  return `${unit} moved`;
+}
+
 function moved(moves: readonly ModelRelocation[], n: Names): string {
   const first = moves[0]!;
   const unitId = n.unitOfModel(first.modelId);

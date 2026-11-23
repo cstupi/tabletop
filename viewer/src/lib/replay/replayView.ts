@@ -46,7 +46,7 @@ export function replayCardOf(
 ): UnitCardContent | null {
   if (unitId === null || !p.units.has(unitId)) return null;
   const sheet = unitSheetOf(p, new Names(game, p), unitId, rules, maxWounds);
-  return unitCardOf(sheet, teamOf(p, game, unitId)?.ordinal ?? 0, null);
+  return unitCardOf(sheet, teamOf(p, game, unitId)?.ordinal ?? 0);
 }
 
 /** A model click selects its whole unit: the unit and the models of it the projection holds. */

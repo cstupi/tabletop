@@ -43,16 +43,17 @@ public sealed class CombatLogState
 /// another pending undo, another game record or another projection instance (a prediction, a rebuild after an Undone).</summary>
 public sealed class CombatLogCache
 {
-    (IReadOnlyList<GameEvent> Log, int Count, long LastSeq, long? Pending, GameInfo Game, Projection? Projection)? _key;
+    (IReadOnlyList<GameEvent> Log, int Count, long LastSeq, long? Pending, GameInfo Game, Projection? Projection, Guid? Me)? _key;
     CombatLogState? _state;
 
-    public CombatLogState Of(IReadOnlyList<GameEvent> log, long? pendingUndoTo, GameInfo game, Projection? projection)
+    /// <summary><paramref name="me"/>: the reader's participant row, so an edit of my own does not name me (<see cref="Names.Other"/>).</summary>
+    public CombatLogState Of(IReadOnlyList<GameEvent> log, long? pendingUndoTo, GameInfo game, Projection? projection, Guid? me = null)
     {
         var lastSeq = log.Count == 0 ? 0 : log[^1].Seq;
         if (_state is not null && _key is { } k && ReferenceEquals(k.Log, log) && k.Count == log.Count && k.LastSeq == lastSeq
-            && k.Pending == pendingUndoTo && ReferenceEquals(k.Game, game) && ReferenceEquals(k.Projection, projection))
+            && k.Pending == pendingUndoTo && ReferenceEquals(k.Game, game) && ReferenceEquals(k.Projection, projection) && k.Me == me)
             return _state;
-        _key = (log, log.Count, lastSeq, pendingUndoTo, game, projection);
-        return _state = new CombatLogState(log, pendingUndoTo, new Names(game, projection));
+        _key = (log, log.Count, lastSeq, pendingUndoTo, game, projection, me);
+        return _state = new CombatLogState(log, pendingUndoTo, new Names(game, projection, me));
     }
 }

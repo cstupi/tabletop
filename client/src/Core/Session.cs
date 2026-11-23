@@ -104,7 +104,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     readonly CombatLogCache _combatLog = new();
     /// <summary>The combat log of the current log state, built once and shared by the log panel, the dice tray and the undo button.
     /// Null without a game.</summary>
-    public CombatLogState? CombatLog => Game is { } game ? _combatLog.Of(Log, PendingUndoTo, game, Projection) : null;
+    public CombatLogState? CombatLog => Game is { } game ? _combatLog.Of(Log, PendingUndoTo, game, Projection, Replaying ? null : ParticipantId) : null;
 
     /// <summary>The Hud's frame as the last layout pass built it (GameScreen.Layout, one per pass): every part's rect and the Obstacles every
     /// overlay over the table keeps off. HudChanged is raised when a pass changed it.</summary>
@@ -263,7 +263,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
 
     // ---- the game ----------------------------------------------------------------------------------------------------
     /// <summary>Plays the game: Home's Join. ReplayAsync opens it read-only instead.</summary>
-    public Task ConnectAsync(Guid gameId) { _replay = false; _resumeAt = 0; return ConnectAsync(gameId, resync: false); }
+    public Task ConnectAsync(Guid gameId) { _replay = false; _resumeAt = 0; _attempt = 0; return ConnectAsync(gameId, resync: false); }
 
     /// <summary>A resync keeps the desync floor and shows as Reconnecting; a player-initiated connect starts clean.</summary>
     async Task ConnectAsync(Guid gameId, bool resync)
@@ -293,7 +293,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
         _userClosed = true;
         LastCloseReason = null;             // the player asked to leave: Home has nothing to explain
         await TearDownSocket();
-        GameId = null; Reset(); _replay = false; _resumeAt = 0;
+        GameId = null; Reset(); _replay = false; _resumeAt = 0; _attempt = 0;
         if (Phase is not (SessionPhase.LoggedOut or SessionPhase.UpdateRequired)) SetPhase(SessionPhase.LoggedIn);
     }
 

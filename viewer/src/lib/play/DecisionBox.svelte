@@ -53,7 +53,7 @@
               {#if g.unit !== null}<p class="group-head"><strong>{g.unit}</strong>{#if g.pips !== null}<span class="pips">{g.pips}</span>{/if}</p>{/if}
               <div class="tiles" style:--cols={Math.min(4, Math.max(1, control.tiles.length))}>
                 {#each control.tiles as tile (tile.id)}
-                  <button type="button" class="tile" class:lit={lit(panel, tile.id)} tabindex="-1" disabled={tile.disabled} title={tile.tooltip ?? tile.label} onmousedown={noFocus}
+                  <button type="button" class="tile" class:bare={tile.icon === null} class:lit={lit(panel, tile.id)} tabindex="-1" disabled={tile.disabled} title={tile.tooltip ?? tile.label} onmousedown={noFocus}
                     onclick={() => box.press(tile.id)} onpointerenter={() => box.hover(tile.id)} onpointerleave={() => box.hover(null)}>
                     {#if tile.icon !== null}<DecisionIcon name={tile.icon} size={26} />{/if}
                     <span class="word">{tile.word}</span>
@@ -154,6 +154,7 @@
   .tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); padding: var(--space-2) var(--space-2);
     min-height: 0; white-space: normal; text-align: center; }
   .tile kbd { position: absolute; top: 4px; right: 4px; }
+  .tile.bare:has(kbd) .word { padding-inline: var(--space-5); }   /* no icon row: the word clears the key cap on both sides, centred */
   .tile.lit:not(:disabled) { border-image: var(--mat-button-hover); }
   .pick-line { display: flex; gap: var(--space-2); align-items: stretch; }
   .pick-line .tile.row { flex: 1; min-width: 0; }

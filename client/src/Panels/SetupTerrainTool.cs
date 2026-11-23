@@ -15,6 +15,7 @@ namespace Tabletop.Client.Panels;
 /// </summary>
 public partial class SetupTerrainTool : SetupToolBody
 {
+    const int TileWidth = 74, TileHeight = 80;   // a tile's least size; a long name makes it taller
     LineEdit _search = null!; GridContainer _tiles = null!; HFlowContainer _legend = null!; Label _full = null!;
     IReadOnlySet<string> _hidden = new HashSet<string>();
     Action? _onBuiltins, _onTheme;
@@ -113,10 +114,10 @@ public partial class SetupTerrainTool : SetupToolBody
         if (tiles.Count == 0) { _tiles.AddChild(new Label { Text = "No terrain matches", ThemeTypeVariation = Variation.Dim }); return; }
         foreach (var tile in tiles)
         {
-            // A tile of one height: the group's icon over the name, two lines at most.
+            // A tile: the group's icon over the whole name, wrapped at its words; a row of tiles is as tall as its tallest name.
             var button = new TerrainTileButton(tile.Entry.Name, tile.Entry.Label, Ui.Icon(tile.Kind.Key))
             {
-                CustomMinimumSize = new Vector2(74, 80), SizeFlagsHorizontal = SizeFlags.ExpandFill,
+                CustomMinimumSize = new Vector2(TileWidth, TileHeight), SizeFlagsHorizontal = SizeFlags.ExpandFill,
                 TooltipText = $"{tile.Entry.Label}: {tile.Summary}\nClick: beside the table · Drag: onto the table",
                 Disabled = SetupLimits.CannotAddTerrain(S.Draft) is not null,
             };
@@ -124,10 +125,11 @@ public partial class SetupTerrainTool : SetupToolBody
             face.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect, LayoutPresetMode.Minsize, Space.XS);
             face.AddThemeConstantOverride("separation", Space.XS);
             var glyph = Icon(tile.Kind.Key, Ui.Of(tile.Kind.Colour), 28); glyph.SizeFlagsHorizontal = SizeFlags.ShrinkCenter; face.AddChild(glyph);
-            var label = new Label { Text = tile.Entry.Label, AutowrapMode = TextServer.AutowrapMode.WordSmart, MaxLinesVisible = 2, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
+            var label = new Label { Text = tile.Entry.Label, AutowrapMode = TextServer.AutowrapMode.WordSmart,
                 HorizontalAlignment = HorizontalAlignment.Center, MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(60, 0) };
             label.AddThemeFontSizeOverride("font_size", 12); face.AddChild(label);
             button.AddChild(face);
+            face.MinimumSizeChanged += () => { if (IsInstanceValid(button)) button.CustomMinimumSize = new Vector2(TileWidth, Math.Max(TileHeight, face.GetCombinedMinimumSize().Y + 2 * Space.XS)); };
             var name = tile.Entry.Name;
             button.Pressed += () => { if (SetupLimits.CannotAddTerrain(S.Draft) is null) Guarded.Send(S, SetupEdits.AddBuiltin(name, SizeNow(S), Random.Shared.NextDouble)); };
             _tiles.AddChild(button);

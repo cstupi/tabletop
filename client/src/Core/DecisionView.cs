@@ -96,13 +96,6 @@ public static class DecisionView
         return rows;
     }
 
-    /// <summary>The note on a unit's choices in my open Options Ask (activate: why its actions are limited), for the unit card; null
-    /// when no Ask is open for my team or none of the unit's choices carries one.</summary>
-    public static string? NoteOf(Projection p, GameInfo game, Guid? myTeam, Guid unitId) =>
-        AskViewModel.Mine(p, game, myTeam)?.Ask.Legal is Options o
-            ? ChoicesOf(o, p, unitId).Select(c => c.Note).FirstOrDefault(n => n is not null)
-            : null;
-
     /// <summary>The stop button of a move that may stop (MoveRegion.Stoppable, p.13 Caster "at any point before attacking"): the window after the
     /// stop offers a cast when a moving model holds spell tokens, else whatever else it offers. Null when the move cannot stop.</summary>
     public static string? StopLabel(Projection p, MoveRegion m) =>
