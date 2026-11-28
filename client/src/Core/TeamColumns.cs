@@ -11,7 +11,7 @@ public enum ColumnState { Ready, NeedsPlayer, NeedsArmy, Watching }
 public sealed record ColumnMember(Guid ParticipantId, string Name, string? Army, bool NoArmyWarns, bool You, ArmySeat? MyArmy,
     IReadOnlyList<ColumnMove> Moves);
 
-/// <summary>A row's ▸ menu entry and drop: the menu text and its edit (PickTeam, or LeaveTeam on my row while I hold several); TeamId null is Watching.</summary>
+/// <summary>A row's move (its Move to menu entry, or on my row Leave team) and drop: the menu text and its edit (PickTeam, or LeaveTeam on my row while I hold several); TeamId null is Watching.</summary>
 public sealed record ColumnMove(Guid? TeamId, string Text, LobbyEdit Edit);
 
 /// <summary>A column's one button: Join (or Watch on Watching), enabled or not with the line that says why.</summary>
@@ -30,13 +30,17 @@ public sealed record TeamColumn(Guid? TeamId, int Ordinal, string Title, ColumnS
 /// <summary>
 /// The lobby's and setup's team columns (spec 2026-11-07-lobby-and-setup-redesign-design.md): one column per team, then Watching. Every move is a
 /// PickTeam (or LeaveTeam) the game server's lobby authority accepts. A column's Join takes the team for my teamless row or adds a seat for my
-/// account (one account, several teams), on a team other accounts hold as on an empty one; it never moves a seat. Moving a seat is its row's ▸ menu or drag; the creator places anyone anywhere.
+/// account (one account, several teams), on a team other accounts hold as on an empty one; it never moves a seat. Moving a seat is its row's Move to menu or drag; the creator places anyone anywhere.
 /// Nothing is offered that the server would refuse.
 /// </summary>
 public static class TeamColumns
 {
     public const string Watching = "Watching", WatchingState = "Watches once play starts", Join = "Join", Watch = "Watch",
-        JoinCompact = "+", NoArmy = "no army yet", AddTeam = "+ Add team", AddTeamCompact = "+ Team", You = "(you)";
+        JoinCompact = "+", NoArmy = "no army yet", AddTeam = "+ Add team", AddTeamCompact = "+ Team", You = "(you)",
+        MoveMenu = "Move to…", LeaveTeam = "Leave team", LeaveCompact = "Leave";
+
+    /// <summary>My row's Leave team tooltip: the seat goes (Leave Team N, while I hold several), or my only seat watches.</summary>
+    public static string LeaveTip(ColumnMove leave, string team) => leave.Edit is LeaveTeam ? $"Give up {team}; your other teams stay" : $"Leave {team} and watch";
 
     public static string StateText(ColumnState s) => s switch
     {

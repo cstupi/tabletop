@@ -168,4 +168,11 @@ public class TeamColumnsTests
         var editing = TeamColumns.Editing([P(Ann), P(Ben, new Selection(piece, [])), P(Cid, null, new PresencePlacement(piece, new(1, 1, 0), new(0), PlacementKind.Held))]);
         Assert.Equal(new HashSet<Guid> { Ben, Cid }, editing);
     }
+
+    [Fact]
+    public void Leave_team_says_whether_my_only_seat_watches_or_one_of_several_goes()
+    {
+        Assert.Equal("Leave Team 1 and watch", TeamColumns.LeaveTip(new ColumnMove(null, TeamColumns.Watch, new PickTeam(null, Ann)), "Team 1"));
+        Assert.Equal("Give up Team 2; your other teams stay", TeamColumns.LeaveTip(new ColumnMove(null, "Leave Team 2", new LeaveTeam(T2)), "Team 2"));
+    }
 }
