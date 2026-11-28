@@ -7,31 +7,53 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 /// <summary>The move answer's geometry breaches (IGameRules.AnswerBreach): each move judged along the path its base takes.</summary>
 public static partial class GfMoves
 {
+    /// <summary>The models on the table a moving model's path goes round, with each one's unit (MoveUnits.Of runs over Models).</summary>
+    internal sealed record Others(IReadOnlyList<PlacedModel> Models, IReadOnlyList<Guid> Units)
+    {
+        public static readonly Others None = new([], []);
+
+        /// <summary>Every model on the table but these, with its unit.</summary>
+        public static Others Except(GameState state, IReadOnlySet<Guid> moving)
+        {
+            var standing = state.Projection.Models.Values.Where(x => !moving.Contains(x.Id) && x.Location is OnTable).ToList();
+            return new([.. standing.Select(x => Battlefield.Placed(state, x.Id)!.Value)], [.. standing.Select(x => x.UnitId)]);
+        }
+
+        /// <summary>p.7 as the path holds it: the mover's own unit and `bases` (a charge's target) as their models' bases, every other unit as its
+        /// perimeter, grown by `separation` (null in a Charge).</summary>
+        public MoveUnits For(Guid unit, double? separation, IReadOnlyList<Guid>? bases) => new(Units, unit, separation, bases);
+    }
+
     /// <summary>
     /// p.7 "may never move through other models or units": the models on the table this answer does not move, which a moving model's path goes round;
     /// none for a region that PassesModels (p.13 Flying, Aircraft).
     /// </summary>
-    static IReadOnlyList<PlacedModel> Standing(GameState state, MoveRegion region, IReadOnlyList<ModelRelocation> moves)
-    {
-        if (region.PassesModels) return [];
-        var moving = moves.Select(m => m.ModelId).ToHashSet();
-        return state.Projection.Models.Values.Where(x => !moving.Contains(x.Id) && x.Location is OnTable).Select(x => Battlefield.Placed(state, x.Id)!.Value).ToList();
-    }
+    static Others Standing(GameState state, MoveRegion region, IReadOnlyList<ModelRelocation> moves) =>
+        region.PassesModels ? Others.None : Others.Except(state, moves.Select(m => m.ModelId).ToHashSet());
+
+    /// <summary>The units of a charge's target (MoveRegion.ContactWith's models), which a path reaches as their models' bases; null for any other move.</summary>
+    internal static IReadOnlyList<Guid>? TargetUnits(GameState state, MoveRegion region) =>
+        region.ContactWith is { Count: > 0 } contact
+            ? [.. contact.Where(state.Projection.Models.ContainsKey).Select(id => state.Projection.Models[id].UnitId).Distinct()]
+            : null;
 
     /// <summary>
     /// One model's move along the path its base takes (Movement.Check), against the region's own parameters: its impassable volumes, its difficult
     /// volumes and cap (or, with `limit`, that length and no cap: the unit is held to it), the standing models in plan and height over the terrain,
-    /// and the table. p.5: "always measure so that no part of its base moves further than the total distance". The region's steep volumes are difficult
-    /// for a model that starts outside one (Movement.SteepEntering, 3.6.0 p.12 Steep); with `limit` they are left out as the difficult ones are.
+    /// each other unit as its perimeter grown by the region's Separation (`bases`, a charge's target, as its models' bases; p.7 "may never be within 1”
+    /// of models from other units ... and may never move through other models or units", owner ruling: along the whole path), and the table. p.5:
+    /// "always measure so that no part of its base moves further than the total distance". The region's steep volumes are difficult for a model that
+    /// starts outside one (Movement.SteepEntering, 3.6.0 p.12 Steep); with `limit` they are left out as the difficult ones are.
     /// </summary>
-    static MoveCheck Route(GameState state, MoveRegion region, PlacedModel start, Point2 to, IReadOnlyList<PlacedModel> standing, double? limit = null)
+    static MoveCheck Route(GameState state, MoveRegion region, Guid model, PlacedModel start, Point2 to, Others standing, IReadOnlyList<Guid>? bases,
+        double? limit = null)
     {
         var terrain = Battlefield.Terrain(state);
         var impassable = terrain.Where(v => region.ImpassableVolumeIds.Contains(v.Id)).ToList();
         var difficult = limit is null ? terrain.Where(v => region.DifficultVolumeIds.Contains(v.Id)).ToList() : [];
         var steep = limit is null && region.SteepVolumeIds is { Count: > 0 } ids ? terrain.Where(v => ids.Contains(v.Id)).ToList() : null;
         return Movement.Check(start, to, limit ?? region.Allowance, impassable, difficult, limit is null ? region.DifficultCap : null, state.Board.Table.Size,
-            standing, terrain, steep: steep);
+            standing.Models, terrain, steep: steep, units: standing.For(state.Projection.Models[model].UnitId, region.Separation, bases));
     }
 
     /// <summary>
@@ -44,10 +66,10 @@ public static partial class GfMoves
     /// </summary>
     public static AnswerBreachFound? DifficultCapBreach(GameState state, Ask ask, MoveRegion region, Destinations answer) =>
         DifficultCapBreach(state, state.Projection.Stack.FirstOrDefault(f => f.Id == ask.FrameId)?.Steps.Any(s => s.Values?.GetValueOrDefault(GfNames.EnteredDifficultKey) > 0) ?? false,
-            region, answer);
+            region, answer, TargetUnits(state, region));
 
-    /// <summary>The cap's breach with `earlier` saying whether an earlier segment of the move entered difficult ground.</summary>
-    internal static AnswerBreachFound? DifficultCapBreach(GameState state, bool earlier, MoveRegion region, Destinations answer)
+    /// <summary>The cap's breach with `earlier` saying whether an earlier segment of the move entered difficult ground; `bases`, a charge's target units.</summary>
+    internal static AnswerBreachFound? DifficultCapBreach(GameState state, bool earlier, MoveRegion region, Destinations answer, IReadOnlyList<Guid>? bases)
     {
         if (region.DifficultCap is not { } cap || region.Containment?.ExitingId is not null) return null;
         var moves = GfAnswers.Moves(state, region, answer);
@@ -55,10 +77,10 @@ public static partial class GfMoves
         var starts = moves.Where(m => m.To is OnTable && Battlefield.Placed(state, m.ModelId) is not null)
             .Select(m => (m.ModelId, Start: Battlefield.Placed(state, m.ModelId)!.Value, To: ((OnTable)m.To).Placement.Position.Horizontal))
             .Where(m => m.Start.Placement.Position.Horizontal.DistanceTo(m.To) > 1e-6).ToList();
-        if (!earlier && !starts.Any(m => Route(state, region, m.Start, m.To, standing).EntersDifficult)) return null;
+        if (!earlier && !starts.Any(m => Route(state, region, m.ModelId, m.Start, m.To, standing, bases).EntersDifficult)) return null;
         var limit = Math.Min(region.Allowance, cap);
         foreach (var (id, start, to) in starts)
-            if (Route(state, region, start, to, standing, limit) is { } check && check.Distance > limit + 1e-6)
+            if (Route(state, region, id, start, to, standing, bases, limit) is { } check && check.Distance > limit + 1e-6)
                 return new(GfNames.DifficultCapRule, $"the unit moved in or through difficult terrain, so no model may move more than {limit:0.#}\"{(cap < GfNames.DifficultCap - 1e-6 ? " more" : "")}; {state.Projection.Models[id].Slot.Name} moved {check.Distance:0.0}\"");
         return null;
     }

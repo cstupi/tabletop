@@ -213,7 +213,9 @@ public static class GfMelee
     /// p.13: Aircraft "can't be charged", so an Aircraft unit is never a target. A charging model reaches a target model only at a landing in base
     /// contact within p.9's vertical strike reach of it (Movement.ContactInReach, GfEdition.MeleeVertical; owner ruling: "The fight cant happen if no
     /// one can strike so the charge should be rejected if nothing would reach the 3" threshold."), the landing resting where a move sent at the
-    /// target's level settles it.
+    /// target's level settles it. The path goes round the other models as the charge's move is judged (p.7 "may never move through other models or
+    /// units ... even if they are using a Charge action"): every unit but the charger and the target as its perimeter, those two as their bases;
+    /// none for a Flying charger.
     /// </summary>
     /// <summary>The charge distance at a target: the charger's own, and what the target's rules take from it ("Enemies get -3\" movement to a min. of 6\" when trying
     /// to charge units where all models have this rule").</summary>
@@ -239,6 +241,8 @@ public static class GfMelee
         var terrain = Battlefield.Terrain(state);
         var vertical = GfEdition.Of(state).MeleeVertical;
         bool? standsIn = null;
+        var standing = live.Has(Side.Attacker, "Flying") ? GfMoves.Others.None
+            : GfMoves.Others.Except(state, state.Projection.Models.Values.Where(m => m.UnitId == unit).Select(m => m.Id).ToHashSet());
         return state.Projection.Units.Values.Where(u => Teams.Of(state, u.Id) != team && !Lookup.UnitHas(state, props, u.Id, GfNames.Aircraft)).Select(u => u.Id).Where(t =>
         {
             var enemies = Lookup.LivingModels(state, t);
@@ -252,7 +256,8 @@ public static class GfMelee
             if (inside is { } container) return enemies.Any(e => Battlefield.Distance(state, container, e) <= GfNames.ExitWithin);
             return own.Any(m => enemies.Any(e => Battlefield.Placed(state, m) is { } from && Battlefield.Placed(state, e) is { } to
                 && Battlefield.Distance(state, m, e) <= distance
-                && Movement.ContactInReach(from, to, distance, impassable, state.Board.Table.Size, terrain, vertical, slow?.Difficult, slow?.Cap, slow?.Steep)));
+                && Movement.ContactInReach(from, to, distance, impassable, state.Board.Table.Size, terrain, vertical, slow?.Difficult, slow?.Cap, slow?.Steep,
+                    standing.Models, standing.For(unit, null, [t]))));
         }).ToList();
     }
 
