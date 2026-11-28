@@ -81,16 +81,16 @@ public sealed class GameRepository(Database db) : IGameRepository
         await using var c = await db.Open();
         // A named record, not a ValueTuple: Dapper maps to constructor parameters by column name and cannot map tuple element names.
         var rows = await c.QueryAsync<SummaryRow>(@"select g.id as Id, g.name as Name, g.status as Status, g.created_by as CreatedBy, g.created_at as CreatedAt,
-            (select count(distinct p.account_id) from participant p where p.game_id = g.id)::int as Participants,
-            array(select a.name from (select distinct on (p.account_id) p.account_id, p.id from participant p where p.game_id = g.id order by p.account_id, p.id) p
+            (select count(distinct p.account_id) from participant p where p.game_id = g.id and p.left_at is null)::int as Participants,
+            array(select a.name from (select distinct on (p.account_id) p.account_id, p.id from participant p where p.game_id = g.id and p.left_at is null order by p.account_id, p.id) p
                   join account a on a.id = p.account_id order by p.id) as ParticipantNames,
-            exists(select 1 from participant p where p.game_id = g.id and p.account_id = @viewer) as Joined,
+            exists(select 1 from participant p where p.game_id = g.id and p.account_id = @viewer and p.left_at is null) as Joined,
             (select pr.name from properties pr where pr.content_hash = g.properties_hash) as RuleSet,
             (select count(*) from team t where t.game_id = g.id)::int as Teams,
             (select count(*) from team t where t.game_id = g.id and exists(select 1 from participant p where p.team_id = t.id and p.army_id is not null))::int as TeamsReady,
             g.round as Round, g.acting_team as ActingTeam, g.waiting_on as WaitingOn, g.outcome as Outcome, g.ended_at as EndedAt
             from game g where (@after::uuid is null or g.id < @after::uuid)
-              and (not @joinedOnly or exists(select 1 from participant p where p.game_id = g.id and p.account_id = @viewer))
+              and (not @joinedOnly or exists(select 1 from participant p where p.game_id = g.id and p.account_id = @viewer and p.left_at is null))
             order by g.id desc limit @limit", new { after = page.After, limit = page.Limit, viewer, joinedOnly });
         return rows.Select(r => new GameSummary(r.Id, r.Name, Enum.Parse<GameStatus>(r.Status, true), r.CreatedBy, new DateTimeOffset(r.CreatedAt, TimeSpan.Zero), r.Participants,
             r.ParticipantNames.Cast<string>().ToList(), r.Joined, r.RuleSet, r.Teams, r.TeamsReady,
@@ -114,7 +114,7 @@ public sealed class GameRepository(Database db) : IGameRepository
     public async Task<bool> IsParticipant(Guid id, Guid accountId)
     {
         await using var c = await db.Open();
-        return await c.ExecuteScalarAsync<bool>("select exists(select 1 from participant where game_id = @id and account_id = @accountId)", new { id, accountId });
+        return await c.ExecuteScalarAsync<bool>("select exists(select 1 from participant where game_id = @id and account_id = @accountId and left_at is null)", new { id, accountId });
     }
 
     /// <summary>Ending and deleting are the creator's, and stay the creator's after they leave: created_by has no on-delete action and outlives the participant row.</summary>
@@ -125,11 +125,13 @@ public sealed class GameRepository(Database db) : IGameRepository
     }
 
     /// <summary>Joining the game is a participant row with no team, at any status; an account already in the game (on any team) adds nothing.
-    /// Two joins at once are one row: unique nulls not distinct (game_id, account_id, team_id) takes only one teamless row.</summary>
+    /// Two joins at once are one row: unique nulls not distinct (game_id, account_id, team_id) takes only one teamless row. An account that
+    /// left seats whose armies are in play takes them back instead (Leave keeps them).</summary>
     /// <remarks>Taking a team is a game-server lobby edit before play, not this. See the game-flow spec, "Teams are frozen at the flip, and a team is a slot".</remarks>
     public async Task<GameInfo?> Join(Guid id, Guid accountId)
     {
         await using var c = await db.Open();
+        await c.ExecuteAsync("update participant set left_at = null where game_id = @id and account_id = @accountId and left_at is not null", new { id, accountId });
         await c.ExecuteAsync("insert into participant (id, game_id, account_id) select @pid, @id, @accountId where exists (select 1 from game where id = @id) and not exists (select 1 from participant where game_id = @id and account_id = @accountId) on conflict do nothing",
             new { pid = Guid.CreateVersion7(), id, accountId });
         return await Get(id);
@@ -139,14 +141,18 @@ public sealed class GameRepository(Database db) : IGameRepository
     /// Locks the game row first so two concurrent last-leaves can't both see the other's not-yet-committed
     /// delete under READ COMMITTED and skip ending the game. The lock serializes them: the second leave's
     /// existence check runs only after the first has committed its delete.
+    /// A seat whose army is in play (an army snapshot, from the end of setup on) is not deleted: the log names its units and hydration reads
+    /// its snapshot. It is marked left, which takes the game off the account's list and closes the game server to it until the account joins again.
     /// </summary>
     public async Task<bool> Leave(Guid id, Guid accountId)
     {
         await using var c = await db.Open();
         await using var tx = await c.BeginTransactionAsync();
         if (await c.ExecuteScalarAsync<int?>("select 1 from game where id = @id for update", new { id }, tx) is null) return false;
-        if (await c.ExecuteAsync("delete from participant where game_id = @id and account_id = @accountId", new { id, accountId }, tx) == 0) return false;
-        await c.ExecuteAsync("update game set status = 'ended', ended_at = coalesce(ended_at, now()) where id = @id and not exists (select 1 from participant where game_id = @id)", new { id }, tx);
+        var left = await c.ExecuteAsync("update participant set left_at = now() where game_id = @id and account_id = @accountId and left_at is null and army_snapshot is not null", new { id, accountId }, tx)
+            + await c.ExecuteAsync("delete from participant where game_id = @id and account_id = @accountId and left_at is null and army_snapshot is null", new { id, accountId }, tx);
+        if (left == 0) return false;
+        await c.ExecuteAsync("update game set status = 'ended', ended_at = coalesce(ended_at, now()) where id = @id and not exists (select 1 from participant where game_id = @id and left_at is null)", new { id }, tx);
         await tx.CommitAsync();
         return true;
     }

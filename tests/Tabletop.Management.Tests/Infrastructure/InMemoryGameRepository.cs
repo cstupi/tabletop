@@ -9,6 +9,7 @@ namespace Tabletop.Management.Tests;
 public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
 {
     private List<InMemoryRows.ParticipantRow> Seated(Guid gameId) => rows.Participants.Where(p => p.GameId == gameId).OrderBy(p => p.Id).ToList();
+    private List<InMemoryRows.ParticipantRow> Present(Guid gameId) => Seated(gameId).Where(p => !p.Left).ToList();
 
     private GameInfo? Info(Guid id)
     {
@@ -72,12 +73,12 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
         lock (rows.Gate)
             return Task.FromResult<IReadOnlyList<GameSummary>>(rows.Games
                 .Where(g => page.After is null || g.Key.CompareTo(page.After.Value) < 0)
-                .Where(g => !joinedOnly || Seated(g.Key).Any(p => p.AccountId == viewer))
+                .Where(g => !joinedOnly || Present(g.Key).Any(p => p.AccountId == viewer))
                 .OrderByDescending(g => g.Key).Take(page.Limit)
                 .Select(g =>
                 {
                     var seated = Seated(g.Key);
-                    var accounts = seated.Select(p => p.AccountId).Distinct().ToList();   // an account holding several teams is one participant to the browser
+                    var accounts = Present(g.Key).Select(p => p.AccountId).Distinct().ToList();   // an account holding several teams is one participant to the browser
                     var teams = rows.Teams.Where(t => t.GameId == g.Key).ToList();
                     var ready = teams.Count(t => seated.Any(p => p.TeamId == t.Id && p.ArmyId is not null));
                     return new GameSummary(g.Key, g.Value.Name, g.Value.Status, g.Value.CreatedBy, g.Value.CreatedAt, accounts.Count, accounts.Select(a => rows.Accounts[a].Name).ToList(), accounts.Contains(viewer),
@@ -92,7 +93,7 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
 
     public Task<bool> IsParticipant(Guid id, Guid accountId)
     {
-        lock (rows.Gate) return Task.FromResult(rows.Participants.Any(p => p.GameId == id && p.AccountId == accountId));
+        lock (rows.Gate) return Task.FromResult(rows.Participants.Any(p => p.GameId == id && p.AccountId == accountId && !p.Left));
     }
 
     public Task<bool> IsCreator(Guid id, Guid accountId)
@@ -104,6 +105,7 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
     {
         lock (rows.Gate)
         {
+            foreach (var p in rows.Participants.Where(p => p.GameId == id && p.AccountId == accountId)) p.Left = false;
             if (rows.Games.ContainsKey(id) && !rows.Participants.Any(p => p.GameId == id && p.AccountId == accountId))
             {
                 rows.RequireAccount(accountId);
@@ -118,8 +120,10 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
         lock (rows.Gate)
         {
             if (!rows.Games.TryGetValue(id, out var g)) return Task.FromResult(false);
-            if (rows.Participants.RemoveAll(p => p.GameId == id && p.AccountId == accountId) == 0) return Task.FromResult(false);
-            if (!rows.Participants.Any(p => p.GameId == id)) { g.Status = GameStatus.Ended; g.EndedAt ??= DateTimeOffset.UtcNow; }
+            var mine = rows.Participants.Where(p => p.GameId == id && p.AccountId == accountId && !p.Left).ToList();
+            if (mine.Count == 0) return Task.FromResult(false);
+            foreach (var p in mine) if (p.Snapshot is not null) p.Left = true; else rows.Participants.Remove(p);
+            if (!rows.Participants.Any(p => p.GameId == id && !p.Left)) { g.Status = GameStatus.Ended; g.EndedAt ??= DateTimeOffset.UtcNow; }
             return Task.FromResult(true);
         }
     }

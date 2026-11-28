@@ -339,4 +339,17 @@ public class InMemoryGameRowsTests : GameRowsContract
 public class PostgresGameRowsTests(PostgresFixture pg) : GameRowsContract
 {
     protected override IRowSeeder Seeder => pg;
+
+    /// <summary>Management's Leave marks a seat whose army is in play as left instead of deleting it: the game server admits no socket for it.</summary>
+    [Fact]
+    public async Task A_left_seat_is_not_found()
+    {
+        var seeded = await pg.SeedGameAsync(GameStatus.Lobby);
+        await using (var cmd = pg.Db.CreateCommand("update management.participant set left_at = now() where game_id = $1"))
+        {
+            cmd.Parameters.AddWithValue(seeded.GameId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        Assert.Null(await pg.Rows.FindParticipantAsync(seeded.GameId, seeded.CreatorAccountId, CancellationToken.None));
+    }
 }

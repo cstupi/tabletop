@@ -512,7 +512,10 @@ only those no other account's `blob` row names (an accepted copy, or a copy from
 [accounts](superpowers/specs/2026-08-29-accounts-design.md) requires deleting **every game it
 hosted** (`game.created_by`), which reaches *upward* to the game and then back down to other
 people's participants and into the game schema's event log, and **leaving every game it joined**
-as `POST /v1/games/{id}/leave` does: its `participant` row goes and the last leave ends the game.
+as `POST /v1/games/{id}/leave` does: its `participant` row goes and the last leave ends the game. A row holding an `army_snapshot`
+(an army in play) does not go: the log names its units and hydration reads the snapshot, so Leave sets `left_at`
+(migration 037) instead. A left row is no longer the account's (not `Joined`, no socket), still the game's seat; the account's next
+Join clears it, and the last leave counts only rows not left.
 
 Postgres cascades do not run that way. It is a deliberate multi-step operation in the delete
 path rather than a constraint or a trigger: a trigger would hide a destructive cross-schema

@@ -117,6 +117,36 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
+    public async Task Game_leave_keeps_a_seat_whose_army_is_in_play_and_join_takes_it_back()
+    {
+        var hash = await NewProperties();
+        var (a, b) = (await NewAccount("A"), await NewAccount("B"));
+        var game = (await Games.Create(a, GameRequest(hash)))!.Id;
+        await Games.Join(game, b);
+        await SeedTeam(game, b, 1);
+        var army = SmallArmy();
+        await FreezeArmy(game, b, ArmySnapshot.Of(army, Guid.CreateVersion7()));
+        var seat = (await Games.Get(game))!.Participants.Single(p => p.AccountId == b).Id;
+
+        Assert.True(await Games.Leave(game, b));
+        Assert.False(await Games.Leave(game, b));
+        Assert.False(await Games.IsParticipant(game, b));
+        Assert.False((await Games.List(new Keyset(50, null), b)).Single(g => g.Id == game).Joined);
+        Assert.DoesNotContain(await Games.List(new Keyset(50, null), b, joinedOnly: true), g => g.Id == game);
+        Assert.Equal(1, (await Games.List(new Keyset(50, null), a)).Single(g => g.Id == game).Participants);
+        Assert.Contains((await Games.Get(game))!.Participants, p => p.Id == seat);       // the seat and its army stay in the game
+        Assert.Equal(GameStatus.Lobby, (await Games.Get(game))!.Status);
+
+        var rejoined = (await Games.Join(game, b))!;
+        Assert.Equal([seat], rejoined.Participants.Where(p => p.AccountId == b).Select(p => p.Id));
+        Assert.True(await Games.IsParticipant(game, b));
+
+        Assert.True(await Games.Leave(game, b));
+        Assert.True(await Games.Leave(game, a));                                          // the last player out ends it; the left seat does not hold it open
+        Assert.Equal(GameStatus.Ended, (await Games.Get(game))!.Status);
+    }
+
+    [Fact]
     public async Task Game_last_leave_ends_a_lobby_game_under_concurrent_leaves()
     {
         var hash = await NewProperties();
