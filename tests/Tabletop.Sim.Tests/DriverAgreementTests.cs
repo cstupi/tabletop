@@ -268,7 +268,8 @@ public class DriverAgreementTests
     [Fact]
     public async Task Undoing_and_redoing_over_the_socket_draws_fresh_dice()
     {
-        const ulong seed = 23;
+        // A skirmish whose units come within range and roll in play (most of its seeds end with no attack at all).
+        const ulong seed = 20;
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(seed));
         using var factory = new GameServerFactory(db);
         var (seeder, credentials) = Prepare(c);
@@ -281,7 +282,7 @@ public class DriverAgreementTests
 
             // A target after deployment: the first dice-bearing step is a play step, and the event before it is live.
             var diceSteps = loop.Log.Where(e => e.Payload is StepCompleted { Rolls.Count: > 0 }).ToList();
-            Assert.NotEmpty(diceSteps);
+            Assert.True(diceSteps.Count > 1, "the game rolls in play, not only for the roll-off");
             var target = diceSteps[diceSteps.Count / 2].Seq - 1;
             var before = loop.Log.Where(e => e.Seq > target).ToList();
 
