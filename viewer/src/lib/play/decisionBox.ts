@@ -14,7 +14,7 @@ import type {
 import { confirmLabel, mine as myAsk, spendableBy, answeredBy, type AskView } from './askView';
 import { actionsOf, numberActions, type CardAction } from './cardActions';
 import { CasualtyPick } from './casualtyPick';
-import { groupsOf, headOf, keyCap, quietOf, unitPips, type AllowanceBar, type CardHead, type OptionGroup, type OptionTile, type RevealChip } from './decisionCard';
+import { groupsOf, headOf, keyCap, quietOf, unitPips, waitingFor, type AllowanceBar, type CardHead, type OptionGroup, type OptionTile, type RevealChip } from './decisionCard';
 import { choicesOf, clickAnswers, narrowed, othersPiece, decisionOf, number as numberChoices, unitNamed, type Numbered } from './decisionView';
 import { midDeploy, offTable, pickable, type MidDeploy } from './deployView';
 import { drawnKey, setAsideChipOf, setAsideCommand, type SetAsideChip } from './setAsideView';
@@ -282,7 +282,7 @@ export class DecisionBox {
       this.#revealed = this.#reveals.shown(mid !== null);                   // a sealed Ask's reveal stays up until my next card
       const waits = game.status === 'playing' && waitHolds(game, p.board, p.lastSeq) ? waitingTeams(game, p.board) : [];
       if (mid === null && waits.length > 0) this.#quiet = waits.map((w) => ({ ordinal: w.ordinal, team: `Team ${w.ordinal}`, doing: w.hasPlayer ? 'no army' : 'waiting for a player' }));
-      else if (mid === null) this.#quiet = quietOf(p, game, names, myTeams).map((b) => ({ ordinal: b.ordinal, team: b.mine ? 'Your move' : b.team, doing: b.doing }));
+      else if (mid === null) this.#quiet = quietOf(p, game, names, myTeams).map((b) => ({ ordinal: b.ordinal, team: b.mine ? 'Your move' : waitingFor(b.team), doing: b.doing }));
       else { this.#quiet = []; if (this.#deployUnit === null) this.#moves?.startDeploy(this, mid, names); }
       return;
     }
