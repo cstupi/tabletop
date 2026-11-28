@@ -6,12 +6,14 @@ public sealed record MarkerIcon(string? Key, string Text);
 public sealed record UnitMarker(Guid UnitId, Point3 Anchor, IReadOnlyList<MarkerIcon> Icons, bool Focus = false);
 public sealed record FloatingResult(Guid UnitId, string Text, Point3? At);
 
-/// <summary>Spec → Markers: over each unit on the table, at its models' centroid above the tallest model: activated and each condition the
-/// roster shows (not Bookkeeping's). A unit in focus (selected or hovered) shows every such condition; any other only those the theme has an
+/// <summary>Spec → Markers: over each unit on the table, at its models' centroid above the tallest model: activated, the cover shield while the
+/// server names the unit in cover where it stands (ModelFacts.InCover, the unit card's badge), and each condition the roster shows (not Bookkeeping's). A unit in focus (selected or hovered) shows every such condition; any other only those the theme has an
 /// icon for, so no text chip stands over the table unasked. Per-model marks are ModelMarks.</summary>
 public static class UnitMarkers
 {
-    public static IReadOnlyList<UnitMarker> Of(Projection p, Func<string, bool> hasIcon, IReadOnlyCollection<Guid>? focus = null)
+    public const string Cover = "cover";
+
+    public static IReadOnlyList<UnitMarker> Of(Projection p, Func<string, bool> hasIcon, IReadOnlyCollection<Guid>? focus = null, IReadOnlySet<Guid>? inCover = null)
     {
         var list = new List<UnitMarker>();
         foreach (var u in p.Units.Values)
@@ -20,6 +22,7 @@ public static class UnitMarkers
             var focused = focus?.Contains(u.Id) == true;
             var icons = new List<MarkerIcon>();
             if (u.Actions.Count > 0) icons.Add(new("activated", "✓"));
+            if (inCover?.Contains(u.Id) == true) icons.Add(new(Cover, "Cover"));
             icons.AddRange(u.Conditions.Concat(on.SelectMany(m => m.Conditions)).Where(Bookkeeping.Shown).Where(c => focused || hasIcon(c)).Distinct()
                 .Order(StringComparer.Ordinal).Select(c => new MarkerIcon(c, RosterView.Words(c))));
             if (on.Count == 0 || icons.Count == 0) continue;
