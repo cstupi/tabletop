@@ -6,7 +6,7 @@
 // disembark or a shelf placement) each held model's target is held to the Ask's allowance from its origin on the straight line (clampToReach)
 // before it lands.
 
-import type { Abutment, Geometry, HeldEnd, HeldModel, PlacedModel, Placement, Point3, XY } from '../geometry';
+import type { Abutment, Geometry, HeldEnd, HeldModel, MoveUnits, PlacedModel, Placement, Point3, XY } from '../geometry';
 import { wallsOf } from '../geometry';
 import type { Projection } from '../live/apply';
 import type { MoveRegion } from '../protocol/wire.generated';
@@ -33,6 +33,22 @@ export function stationary(p: Projection, held: ReadonlySet<string>, ghosts: Rea
     if (at !== undefined) out.push({ body: { base: m.slot.base, height: m.slot.height }, placement: at });
   }
   return out;
+}
+
+/** DragBodies.StationaryUnits: the unit of each of stationary's models, in its order. */
+export function stationaryUnits(p: Projection, held: ReadonlySet<string>, ghosts: ReadonlyMap<string, Placement> = new Map()): string[] {
+  const out: string[] = [];
+  for (const m of p.models.values()) if (!held.has(m.id) && (ghosts.has(m.id) || m.location.kind === 'table')) out.push(m.unitId);
+  return out;
+}
+
+/** DragBodies.Units: p.7 as the server's GfMoves.Route holds a move Ask's paths: the Ask's unit and its ContactWith models' units (a charge's target)
+ *  as their models' bases, every other unit of `standingUnits` as its perimeter grown by the Ask's Separation. */
+export function unitsOf(p: Projection, legal: MoveRegion, standingUnits: readonly string[]): MoveUnits {
+  const own = legal.modelIds.map((id) => p.models.get(id)?.unitId).find((u) => u !== undefined) ?? '00000000-0000-0000-0000-000000000000';
+  const bases = legal.contactWith !== undefined && legal.contactWith.length > 0
+    ? [...new Set(legal.contactWith.flatMap((id) => { const u = p.models.get(id)?.unitId; return u === undefined ? [] : [u]; }))] : undefined;
+  return { of: standingUnits, own, ...(legal.separation === undefined ? {} : { separation: legal.separation }), ...(bases === undefined ? {} : { bases }) };
 }
 
 /** DragBodies.Abutment: a charge's landing pull, the Ask's ContactWith models where they stand, its ContactGrace and its ContactVertical (a

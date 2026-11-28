@@ -27,7 +27,8 @@ public static class ContactCheck
     public static string Words(Contact c, double? separation, Func<Guid, string> unitName) => c.Kind switch
     {
         ContactKind.OnBase => "overlaps a base",
-        ContactKind.Crosses => "path crosses a model",
+        ContactKind.Crosses => c.UnitId is { } through ? $"path crosses {unitName(through)}" : "path crosses a model",
+        ContactKind.PassesNear => $"passes within {separation ?? 0:0.#}\" of {(c.UnitId is { } near ? unitName(near) : "another unit")}",
         ContactKind.InImpassable => "ends in impassable terrain",
         _ => $"within {separation ?? 0:0.#}\" of {(c.UnitId is { } u ? unitName(u) : "another unit")}",
     };
@@ -38,6 +39,8 @@ public static class ContactCheck
     {
         "overlaps a base" => $"{subject} would be placed on another model's base",
         "path crosses a model" => $"{subject} would move through another model",
+        _ when words.StartsWith("path crosses ", StringComparison.Ordinal) => $"{subject} would move through {words["path crosses ".Length..]}",
+        _ when words.StartsWith("passes within ", StringComparison.Ordinal) => $"{subject} would pass {words["passes ".Length..]}",
         "ends in impassable terrain" => $"{subject} would end its move in impassable terrain",
         _ when words.StartsWith("within ", StringComparison.Ordinal) => $"{subject} would end {words}",
         _ when words.StartsWith("placed ", StringComparison.Ordinal) => $"{subject} would be {words}",   // placed within 9" of a unit, beyond 9" of its zone, outside its zone
@@ -53,5 +56,6 @@ public static class ContactCheck
     static IReadOnlyDictionary<Guid, Contact> Of(Projection p, IReadOnlyDictionary<Guid, Placement> proposed, IReadOnlyList<WorldVolume> volumes, double? separation, bool passesModels, bool landing, MoveRegion? legal = null,
         TableSize? size = null, double? unit = null, Func<Guid, Point2, bool>? roundModels = null) =>
         Contacts.Of(p.Models.Values.Select(m => new ContactBody(m.Id, m.UnitId, new ModelBody(m.Slot.Base, m.Slot.Height), m.Location is OnTable t ? t.Placement : null)).ToList(), proposed, volumes,
-            new ContactTerms(separation, passesModels, landing, legal is null ? null : new ContactMove(legal.Allowance, legal.ImpassableVolumeIds.ToList(), legal.DifficultVolumeIds.ToList(), legal.DifficultCap, legal.SteepVolumeIds?.ToList()), size, unit, roundModels));
+            new ContactTerms(separation, passesModels, landing, legal is null ? null : new ContactMove(legal.Allowance, legal.ImpassableVolumeIds.ToList(), legal.DifficultVolumeIds.ToList(), legal.DifficultCap, legal.SteepVolumeIds?.ToList()), size, unit, roundModels,
+                legal?.ContactWith is { Count: > 0 } c ? [.. c.Where(p.Models.ContainsKey).Select(id => p.Models[id].UnitId).Distinct()] : null));
 }

@@ -127,14 +127,19 @@ public static class MovePaths
     static bool IsMove(EventPayload e) => e is StepCompleted { Answer: Destinations d } && d.Moves.Any(m => m.From is OnTable && m.To is OnTable);
 
     /// <summary>A segment's paths as the server measured them (Movement.Measured over the Ask's volumes, as GfMoves.ApplyMove), each model's base
-    /// from `bodyOf`; `standing`, the models on the table that did not move (none when the Ask PassesModels). A model with no body is left out.</summary>
+    /// from `bodyOf`; `standing`, the models on the table that did not move (none when the Ask PassesModels), and with `unitOf` (a model's unit) and
+    /// `standingUnits` (theirs, in order) each other unit as its perimeter grown by the Ask's Separation (DragBodies.Units). A model with no body is
+    /// left out.</summary>
     public static IReadOnlyList<ModelPath> Measured(MoveSegment segment, Func<Guid, ModelBody?> bodyOf, IReadOnlyList<WorldVolume> volumes, TableSize size,
-        IReadOnlyList<PlacedModel> standing)
+        IReadOnlyList<PlacedModel> standing, IReadOnlyList<Guid>? standingUnits = null, Func<Guid, Guid?>? unitOf = null)
     {
         var legal = segment.Legal;
         List<WorldVolume> Named(IReadOnlyList<Guid>? ids) => ids is null ? [] : volumes.Where(v => ids.Contains(v.Id)).ToList();
         var (impassable, difficult, steep, dangerous, unstable) = (Named(legal.ImpassableVolumeIds), Named(legal.DifficultVolumeIds), Named(legal.SteepVolumeIds),
             Named(legal.DangerousVolumeIds), Named(legal.UnstableVolumeIds));
+        MoveUnits? units = standingUnits is null || unitOf is null || segment.Moves.Count == 0 ? null
+            : new(standingUnits, unitOf(segment.Moves[0].ModelId) ?? Guid.Empty, legal.Separation,
+                legal.ContactWith is { Count: > 0 } c ? [.. c.Select(unitOf).OfType<Guid>().Distinct()] : null);
         var paths = new List<ModelPath>();
         foreach (var m in segment.Moves)
         {
@@ -143,7 +148,7 @@ public static class MovePaths
             var end = to.Placement.Position.Horizontal;
             if (from.Placement.Position.Horizontal.DistanceTo(end) <= 1e-6) continue;
             var path = Movement.Measured(start, end, Math.Max(0, legal.Allowance), impassable, difficult, legal.DifficultCap, size,
-                legal.PassesModels ? null : standing, volumes, dangerous, unstable, legal.UnstableOver ?? 0, steep);
+                legal.PassesModels ? null : standing, volumes, dangerous, unstable, legal.UnstableOver ?? 0, steep, legal.PassesModels ? null : units);
             paths.Add(Of(m.ModelId, start, path.Path, path.Distance, legal, volumes, to.Placement.Yaw));
         }
         return paths;
@@ -155,8 +160,11 @@ public static class MovePaths
     {
         var moving = segments.SelectMany(s => s.Moves.Select(m => m.ModelId)).ToHashSet();
         var bodies = moving.Where(p.Models.ContainsKey).ToDictionary(id => id, id => new ModelBody(p.Models[id].Slot.Base, p.Models[id].Slot.Height));
-        var standing = p.Models.Values.Where(m => !moving.Contains(m.Id) && m.Location is OnTable)
-            .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
-        return () => segments.SelectMany(s => Measured(s, id => bodies.TryGetValue(id, out var b) ? b : null, volumes, size, standing)).ToList();
+        var still = p.Models.Values.Where(m => !moving.Contains(m.Id) && m.Location is OnTable).ToList();
+        var standing = still.Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
+        var standingUnits = still.Select(m => m.UnitId).ToList();
+        var units = p.Models.Values.ToDictionary(m => m.Id, m => m.UnitId);
+        return () => segments.SelectMany(s => Measured(s, id => bodies.TryGetValue(id, out var b) ? b : null, volumes, size, standing, standingUnits,
+            id => units.TryGetValue(id, out var u) ? u : null)).ToList();
     }
 }

@@ -76,9 +76,9 @@ public sealed partial class AnswerPolicy
         if (m.DifficultCap is { } cap && cap < m.Allowance)
         {
             var routes = m.ModelIds.Where(id => view.PlacedOf(id) is not null && result[id] is not null)
-                .Select(id => Route(view.PlacedOf(id)!.Value, result[id]!.Value, m, view, m.Allowance, difficult, cap, Standing(m, view))).ToList();
+                .Select(id => Route(view.PlacedOf(id)!.Value, result[id]!.Value, m, view, m.Allowance, difficult, cap, StandingOf(m, view))).ToList();
             if (routes.Any(r => r.EntersDifficult) && m.ModelIds.Any(id => view.PlacedOf(id) is { } p && result[id] is { } d
-                    && Route(p, d, m, view, cap, [], null, Standing(m, view)).Distance > cap + 1e-6)) return null;
+                    && Route(p, d, m, view, cap, [], null, StandingOf(m, view)).Distance > cap + 1e-6)) return null;
         }
         return result;
     }
@@ -103,7 +103,8 @@ public sealed partial class AnswerPolicy
             var terms = new FormationTerms(m.Allowance, view.VolumesById(m.ImpassableVolumeIds), view.VolumesById(m.DifficultVolumeIds), m.DifficultCap,
                 m.IgnoresTerrain ? [] : view.Volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList(), view.Volumes, view.Table,
                 standing.Select(x => x.At!.Value).ToList(), m.PassesModels, CoherencyChain, CoherencyElevated, CoherencySpread, SteepOf(m, view),
-                standing.Where(x => view.ModelOf(x.Id).UnitId != unit).Select(x => x.At!.Value).ToList(), m.Separation ?? 0);
+                standing.Where(x => view.ModelOf(x.Id).UnitId != unit).Select(x => x.At!.Value).ToList(), m.Separation ?? 0,
+                Units: new MoveUnits([.. standing.Select(x => view.ModelOf(x.Id).UnitId)], unit, m.Separation));
             if (UnitFormation.Regroup(movers, held, terms) is { } back)
                 return back.Where(kv => movers.First(x => x.Id == kv.Key).Start.Placement.Position.Horizontal.DistanceTo(kv.Value) > 1e-9).ToDictionary(kv => kv.Key, kv => kv.Value);
             if (UnitFormation.Closer(movers, held, terms) is var (id, at)) return new Dictionary<Guid, Point2> { [id] = at };
@@ -126,7 +127,8 @@ public sealed partial class AnswerPolicy
         var terms = new FormationTerms(m.Allowance, view.VolumesById(m.ImpassableVolumeIds), view.VolumesById(m.DifficultVolumeIds), m.DifficultCap,
             m.IgnoresTerrain ? [] : view.Volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList(), view.Volumes, view.Table,
             standing.Select(x => x.At!.Value).ToList(), m.PassesModels, CoherencyChain, CoherencyElevated, CoherencySpread, SteepOf(m, view),
-            ContactVertical: m.ContactVertical);
+            ContactVertical: m.ContactVertical,
+            Units: new MoveUnits([.. standing.Select(x => view.ModelOf(x.Id).UnitId)], units.First(), m.Separation, [.. m.ContactWith!.Select(id => view.ModelOf(id).UnitId).Distinct()]));
         return UnitFormation.InContact(chargers, standing.Where(x => units.Contains(view.ModelOf(x.Id).UnitId)).Select(x => x.At!.Value).ToList(), targets, terms);
     }
 

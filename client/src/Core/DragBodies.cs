@@ -20,6 +20,16 @@ public static class DragBodies
             .Where(x => x.At is not null)
             .Select(x => new PlacedModel(new ModelBody(x.m.Slot.Base, x.m.Slot.Height), x.At!.Value)).ToList();
 
+    /// <summary>The unit of each of Stationary's models, in its order (MoveUnits.Of).</summary>
+    public static IReadOnlyList<Guid> StationaryUnits(Projection p, IReadOnlyCollection<Guid> held, IReadOnlyDictionary<Guid, Placement>? ghosts = null) =>
+        p.Models.Values.Where(m => !held.Contains(m.Id) && (ghosts?.ContainsKey(m.Id) == true || m.Location is OnTable)).Select(m => m.UnitId).ToList();
+
+    /// <summary>p.7 as the server's GfMoves.Route holds a move Ask's paths (MoveUnits): the Ask's unit and its ContactWith models' units (a charge's
+    /// target) as their models' bases, every other unit of `standingUnits` as its perimeter grown by the Ask's Separation.</summary>
+    public static MoveUnits Units(Projection p, MoveRegion legal, IReadOnlyList<Guid> standingUnits) =>
+        new(standingUnits, legal.ModelIds.Select(id => p.Models.GetValueOrDefault(id)?.UnitId).OfType<Guid>().FirstOrDefault(), legal.Separation,
+            legal.ContactWith is { Count: > 0 } c ? [.. c.Select(id => p.Models.GetValueOrDefault(id)?.UnitId).OfType<Guid>().Distinct()] : null);
+
     /// <summary>Where each picked-up piece starts: a proposed model (a move step's or a placement's ghost) where it is drawn and facing the way it
     /// was turned, so picking it up again does not put it back; anything else, or a ghost with no node, where the projection has it.</summary>
     public static Dictionary<Guid, Placement> Grabs(IReadOnlyList<Guid> models, IReadOnlySet<Guid> proposing, Func<Guid, Placement?> drawn, Func<Guid, Placement> projected) =>

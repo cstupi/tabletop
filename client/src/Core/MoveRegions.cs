@@ -11,9 +11,11 @@ namespace Tabletop.Client.Core;
 /// only through difficult ground, only into ground the Ask names dangerous to the move). Each reach is built the first time it is asked for and kept for
 /// the Ask. The unit's allowance is the one thing read from where every model is going (Allowance): p.11 holds all of them to the cap once any one
 /// of them goes in or through difficult terrain. Safe across threads: the decision box draws the areas off the main thread (AreaAsync) while a
-/// drag clamps and routes on it; each reach and area is still built once.
+/// drag clamps and routes on it; each reach and area is still built once. `units`, the others' units as the server's Route reads them (p.7: each other
+/// unit's perimeter, grown by the Ask's Separation; DragBodies.Units).
 /// </summary>
-public sealed class MoveRegions(IReadOnlyDictionary<Guid, PlacedModel> starts, MoveRegion legal, IReadOnlyList<WorldVolume> volumes, TableSize size, IReadOnlyList<PlacedModel> others)
+public sealed class MoveRegions(IReadOnlyDictionary<Guid, PlacedModel> starts, MoveRegion legal, IReadOnlyList<WorldVolume> volumes, TableSize size, IReadOnlyList<PlacedModel> others,
+    MoveUnits? units = null)
 {
     readonly ConcurrentDictionary<Guid, Lazy<MoveReach>> _reaches = new();
     readonly ConcurrentDictionary<Guid, Lazy<MoveBands>> _areas = new();
@@ -24,13 +26,14 @@ public sealed class MoveRegions(IReadOnlyDictionary<Guid, PlacedModel> starts, M
         {
             var m = p.Models[id];
             return new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement);
-        }), legal, volumes, size, DragBodies.Stationary(p, legal.ModelIds));
+        }), legal, volumes, size, DragBodies.Stationary(p, legal.ModelIds), DragBodies.Units(p, legal, DragBodies.StationaryUnits(p, legal.ModelIds)));
 
     public bool Has(Guid id) => starts.ContainsKey(id);
 
     /// <summary>The model's reach from the Ask's parameters: its allowance, its impassable and difficult volumes by id (with the steep ones it starts outside,
     /// Movement.SteepEntering), its cap and the volumes dangerous to the move (at any length, or unstable over UnstableOver); the other models stop
-    /// it where the bodies meet in plan and height (unless the Ask PassesModels), the mover rested on the board's volumes; the table edge.</summary>
+    /// it where the bodies meet in plan and height, each other unit at its perimeter grown by the Ask's Separation (unless the Ask PassesModels), the
+    /// mover rested on the board's volumes; the table edge.</summary>
     MoveReach ReachOf(Guid id) => _reaches.GetOrAdd(id, key => new Lazy<MoveReach>(() =>
     {
         var impassable = volumes.Where(v => legal.ImpassableVolumeIds.Contains(v.Id)).ToList();
@@ -39,7 +42,7 @@ public sealed class MoveRegions(IReadOnlyDictionary<Guid, PlacedModel> starts, M
         var dangerous = volumes.Where(v => legal.DangerousVolumeIds?.Contains(v.Id) == true).ToList();
         var unstable = volumes.Where(v => legal.UnstableVolumeIds?.Contains(v.Id) == true).ToList();
         return MoveReach.Build(starts[key], Math.Max(0, legal.Allowance), impassable, difficult, legal.DifficultCap, size,
-            legal.PassesModels ? null : others, volumes, dangerous, unstable, legal.UnstableOver ?? 0);
+            legal.PassesModels ? null : others, volumes, dangerous, unstable, legal.UnstableOver ?? 0, legal.PassesModels ? null : units);
     })).Value;
 
     /// <summary>The area drawn round this model, in its bands, as triangles; a minimum (Minimum) cuts its middle out.</summary>

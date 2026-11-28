@@ -137,7 +137,7 @@ public class MoveThroughUnitsTests
         Placement To(Point2 p) => new(new Point3(p.X, p.Y, 0), new Yaw(0));
         ContactTerms Terms(double allowance, double? separation) => new(separation, false, true, new ContactMove(allowance, [], [], null), Opr);
         Assert.Equal(new Contact(ContactKind.Crosses, Other), Contacts.Of(bodies, new Dictionary<Guid, Placement> { [MoverId] = To(Beyond) }, [], Terms(10.5, null))[MoverId]);
-        Assert.Equal(new Contact(ContactKind.TooClose, Other), Contacts.Of(bodies, new Dictionary<Guid, Placement> { [MoverId] = To(Beyond) }, [], Terms(12, 1))[MoverId]);
+        Assert.Equal(new Contact(ContactKind.PassesNear, Other), Contacts.Of(bodies, new Dictionary<Guid, Placement> { [MoverId] = To(Beyond) }, [], Terms(12, 1))[MoverId]);
         Assert.Empty(Contacts.Of(bodies, new Dictionary<Guid, Placement> { [MoverId] = To(Beyond) }, [], Terms(13, 1)));
         // A landing within the separation reads TooClose, judged before the path.
         Assert.Equal(new Contact(ContactKind.TooClose, Other), Contacts.Of(bodies, new Dictionary<Guid, Placement> { [MoverId] = To(new Point2(11.5, 22.6)) }, [], Terms(10.5, 1))[MoverId]);

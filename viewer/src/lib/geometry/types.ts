@@ -13,7 +13,10 @@ export interface HeldEnd { readonly id: string; readonly drawn: Point3; readonly
  *  or below a model's base the landing may rest for it (absent: any height). */
 export interface Abutment { readonly models: readonly PlacedModel[]; readonly within: number; readonly vertical?: number }
 export interface PieceEnd { readonly drawn: Point3; readonly lands: Point3 }
-export type ContactKind = 'on_base' | 'crosses' | 'too_close' | 'in_impassable';
+export type ContactKind = 'on_base' | 'crosses' | 'too_close' | 'in_impassable' | 'passes_near';
+/** MoveUnits: the unit of each stationary model, in order (`of`), the mover's unit, how far a path keeps from other units (absent in a Charge) and
+ *  the units held as bases (a charge's target); every other unit blocks a path as its perimeter, grown by the separation (p.7). */
+export interface MoveUnits { readonly of: readonly string[]; readonly own: string; readonly separation?: number; readonly bases?: readonly string[] }
 /** A model on the table (`at` set) or off it; proposed placements go in `contacts`' map. */
 export interface ContactBody { readonly id: string; readonly unitId: string; readonly body: ModelBody; readonly at?: Placement }
 export interface ContactMove {
@@ -24,6 +27,8 @@ export interface ContactMove {
 export interface ContactTerms {
   readonly separation?: number; readonly passesModels: boolean; readonly landing: boolean;
   readonly move?: ContactMove; readonly size?: TableSize; readonly unit?: number;
+  /** The units a path reaches as their models' bases (a charge's target). */
+  readonly bases?: readonly string[];
 }
 export interface Contact { readonly modelId: string; readonly kind: ContactKind; readonly unitId?: string }
 export interface Nearest { readonly distance: number; readonly from: number; readonly to: number }
@@ -37,11 +42,12 @@ export interface CoherencyGap {
   readonly onModel: XY; readonly onTo: XY;
 }
 /** One model's move area from a move Ask (MoveRegion) for MoveReach.Bands: the Ask's volume ids, cap and minimum, the standing models (none when the Ask
- *  passes models) and the table. */
+ *  passes models) with their units (`units`) and the table. */
 export interface BandsRequest {
   readonly start: PlacedModel; readonly allowance: number; readonly impassable: readonly string[]; readonly difficult: readonly string[];
   readonly difficultCap?: number; readonly size: TableSize; readonly stationary: readonly PlacedModel[]; readonly steep?: readonly string[];
   readonly dangerous?: readonly string[]; readonly unstable?: readonly string[]; readonly unstableOver?: number; readonly minDistance?: number;
+  readonly units?: MoveUnits;
 }
 /** One held model's move for `moveRoutes`: where it stands and where it is going. */
 export interface RouteModel { readonly id: string; readonly start: PlacedModel; readonly to: XY }

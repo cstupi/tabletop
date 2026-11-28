@@ -50,6 +50,8 @@ describe('contactCheck', () => {
     const name = (id: string) => (id === 'o' ? 'Orc Boyz' : '?');
     expect(words({ modelId: 'm', kind: 'on_base', unitId: 'o' }, undefined, name)).toBe('overlaps a base');
     expect(words({ modelId: 'm', kind: 'crosses' }, undefined, name)).toBe('path crosses a model');
+    expect(words({ modelId: 'm', kind: 'crosses', unitId: 'o' }, undefined, name)).toBe('path crosses Orc Boyz');
+    expect(words({ modelId: 'm', kind: 'passes_near', unitId: 'o' }, 1, name)).toBe('passes within 1" of Orc Boyz');
     expect(words({ modelId: 'm', kind: 'in_impassable' }, undefined, name)).toBe('ends in impassable terrain');
     expect(words({ modelId: 'm', kind: 'too_close', unitId: 'o' }, 1, name)).toBe('within 1" of Orc Boyz');
     expect(words({ modelId: 'm', kind: 'too_close' }, 1.25, name)).toBe('within 1.3" of another unit');
@@ -61,6 +63,8 @@ describe('contactCheck', () => {
     expect(sentence('within 9" of Orcs', 'APC 1')).toBe('APC 1 would end within 9" of Orcs');
     expect(sentence('overlaps a base', 'APC 1')).toBe('APC 1 would be placed on another model\'s base');
     expect(sentence('path crosses a model', 'APC 1')).toBe('APC 1 would move through another model');
+    expect(sentence('path crosses Orcs', 'APC 1')).toBe('APC 1 would move through Orcs');
+    expect(sentence('passes within 1" of Orcs', 'APC 1')).toBe('APC 1 would pass within 1" of Orcs');
     expect(sentence('ends in impassable terrain', 'APC 1')).toBe('APC 1 would end its move in impassable terrain');
     expect(sentence('something else', 'APC 1')).toBe('something else');
   });

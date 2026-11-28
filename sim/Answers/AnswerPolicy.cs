@@ -174,11 +174,11 @@ public sealed partial class AnswerPolicy(Chooser chooser, PolicyOptions? options
         // further than it is sampled again within the cap. Nothing is redrawn when no path enters. Paths are the server's (Route).
         var reach = m;
         if (m.DifficultCap is { } cap && cap < m.Allowance && m.ModelIds.Any(id => view.PlacedOf(id) is { } p && destinations[id] is { } d
-                && Route(p, d, m, view, m.Allowance, difficult, cap, Standing(m, view)).EntersDifficult))
+                && Route(p, d, m, view, m.Allowance, difficult, cap, StandingOf(m, view)).EntersDifficult))
         {
             reach = m with { Allowance = cap };
             foreach (var id in m.ModelIds)
-                if (view.PlacedOf(id) is { } p && destinations[id] is { } d && Route(p, d, m, view, cap, [], null, Standing(m, view)).Distance > cap + 1e-6)
+                if (view.PlacedOf(id) is { } p && destinations[id] is { } d && Route(p, d, m, view, cap, [], null, StandingOf(m, view)).Distance > cap + 1e-6)
                 {
                     taken.Remove(id);
                     Record(id, Sample(p, reach, impassable, difficult, view, goal?.Invoke(id, view), landing, at => Clear(id, p, at, m, view, taken)), p);
@@ -325,17 +325,31 @@ public sealed partial class AnswerPolicy(Chooser chooser, PolicyOptions? options
 
     /// <summary>A move along the path its base takes (Movement.Check), as GfMoves.Route judges it: the region's impassable volumes, these difficult
     /// volumes and cap (with the region's steep volumes; none with no cap, a path the unit is held to), the table, and the standing models in plan and
-    /// height over the board's volumes.</summary>
+    /// height over the board's volumes, each other unit as its perimeter grown by the region's Separation (MoveUnits; a charge's target as bases).</summary>
     private static MoveCheck Route(PlacedModel start, Point2 to, MoveRegion m, PolicyView view, double allowance, IReadOnlyList<WorldVolume> difficult, double? cap,
-        IReadOnlyList<PlacedModel>? standing = null) =>
-        Movement.Check(start, to, allowance, view.VolumesById(m.ImpassableVolumeIds), difficult, cap, view.Table, standing, view.Volumes, steep: cap is null ? null : SteepOf(m, view));
+        Standing? standing = null) =>
+        Movement.Check(start, to, allowance, view.VolumesById(m.ImpassableVolumeIds), difficult, cap, view.Table, standing?.Models, view.Volumes,
+            steep: cap is null ? null : SteepOf(m, view), units: standing is null ? null : UnitsOf(m, view, standing));
+
+    /// <summary>Standing models and their units (MoveUnits.Of runs over Models).</summary>
+    private sealed record Standing(IReadOnlyList<PlacedModel> Models, IReadOnlyList<Guid> Units);
+
+    /// <summary>p.7 as GfMoves.Route holds a path: the region's unit as bases, a charge's target (ContactWith) as bases, every other unit as its
+    /// perimeter grown by the region's Separation.</summary>
+    private static MoveUnits UnitsOf(MoveRegion m, PolicyView view, Standing standing) =>
+        new(standing.Units, m.ModelIds.Count > 0 ? view.ModelOf(m.ModelIds[0]).UnitId : Guid.Empty, m.Separation,
+            m.ContactWith is { Count: > 0 } c ? [.. c.Select(id => view.ModelOf(id).UnitId).Distinct()] : null);
 
     /// <summary>The region's steep volumes (MoveRegion.SteepVolumeIds), difficult for a model that starts outside one (Movement.SteepEntering).</summary>
     private static IReadOnlyList<WorldVolume>? SteepOf(MoveRegion m, PolicyView view) => m.SteepVolumeIds is { Count: > 0 } ids ? view.VolumesById(ids) : null;
 
     /// <summary>The models on the table the region does not move, which a path goes round (none when it PassesModels).</summary>
-    private static IReadOnlyList<PlacedModel> Standing(MoveRegion m, PolicyView view) => m.PassesModels ? []
-        : view.Projection.Models.Keys.Where(x => !m.ModelIds.Contains(x)).Select(view.PlacedOf).OfType<PlacedModel>().ToList();
+    private static Standing StandingOf(MoveRegion m, PolicyView view)
+    {
+        if (m.PassesModels) return new([], []);
+        var ids = view.Projection.Models.Keys.Where(x => !m.ModelIds.Contains(x) && view.PlacedOf(x) is not null).ToList();
+        return new([.. ids.Select(x => view.PlacedOf(x)!.Value)], [.. ids.Select(x => view.ModelOf(x).UnitId)]);
+    }
 
     /// <summary>The model's body landed at a point: its start's yaw, rested on what is under its base, as the server settles it.</summary>
     private static PlacedModel Landing(Guid id, PlacedModel? start, Point2 at, PolicyView view)
@@ -356,8 +370,10 @@ public sealed partial class AnswerPolicy(Chooser chooser, PolicyOptions? options
             .Where(x => x.At is not null).Select(x => (x.Id, At: x.At!.Value)).ToList();
         var everyone = standing.Concat(taken.Where(kv => kv.Key != id).Select(kv => (Id: kv.Key, At: kv.Value))).ToList();
         if (everyone.Any(o => Overlap.Bases(landing, o.At))) return false;
-        if (start is { } s && !m.PassesModels && Route(s, at, m, view, m.Allowance, view.VolumesById(m.DifficultVolumeIds), m.DifficultCap, standing.Select(o => o.At).ToList()).CrossesModels) return false;
         var unit = view.ModelOf(id).UnitId;
-        return m.Separation is not { } gap || everyone.All(o => view.ModelOf(o.Id).UnitId == unit || Distance.BodyToBody(landing, o.At) >= gap + 1e-6);
+        if (m.Separation is { } gap && !everyone.All(o => view.ModelOf(o.Id).UnitId == unit || Distance.BodyToBody(landing, o.At) >= gap + 1e-6)) return false;
+        return start is not { } s || m.PassesModels
+            || Route(s, at, m, view, m.Allowance, view.VolumesById(m.DifficultVolumeIds), m.DifficultCap,
+                new Standing([.. standing.Select(o => o.At)], [.. standing.Select(o => view.ModelOf(o.Id).UnitId)])) is { CrossesModels: false, NearModels: false };
     }
 }

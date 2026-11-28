@@ -271,6 +271,31 @@ public static class AgreementCases
                 var swept = SweptPath.Of(m.Start, path.Path, Volumes([smog]));
                 return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult, [.. swept.Footprints], [.. swept.Dangerous], [.. swept.Stretches]);
             }).ToArray());
+        // MoveRoutes and MoveBands round another unit (MoveUnits): two models 3.2" apart, a base fitting between them goes round their perimeter,
+        // grown by the separation; and Contacts naming the unit a path goes through or passes within the separation of.
+        Guid ownUnit = Id(), pairUnit = Id();
+        PlacedModel[] pair = [Model(10, 19.4), Model(10, 22.6)];
+        var pairUnits = new MoveUnits([pairUnit, pairUnit], ownUnit, 1);
+        RouteModel[] pairMovers = [new(Id(), Model(5, 21), new Point2(15, 21)), new(Id(), Model(5, 21), new Point2(14, 21))];
+        Add("move_routes_round_a_unit", "MoveRoutes", new RoutesRequest(pairMovers, 14, [], [], null, [], size, pair, Units: pairUnits),
+            pairMovers.Select(m =>
+            {
+                var path = Movement.Measured(m.Start, m.To, 14, [], [], null, size, pair, [], [], [], 0, [], pairUnits);
+                var swept = SweptPath.Of(m.Start, path.Path, []);
+                return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult, [.. swept.Footprints], [.. swept.Dangerous], [.. swept.Stretches]);
+            }).ToArray());
+        var pairBands = MoveReach.Build(pairMovers[0].Start, 8, [], [], null, size, pair, [], units: pairUnits).Bands();
+        Add("move_bands_round_a_unit", "MoveBands", new BandsRequest(pairMovers[0].Start, 8, [], [], null, [], size, pair, Units: pairUnits),
+            new BandsAnswer([.. pairBands.Clear], [.. pairBands.Difficult], [.. pairBands.Dangerous]));
+        var pairMover = new ContactBody(Id(), ownUnit, Model(5, 21).Body, Pl(5, 21));
+        ContactBody[] pairBodies = [pairMover, new(Id(), pairUnit, pair[0].Body, pair[0].Placement), new(Id(), pairUnit, pair[1].Body, pair[1].Placement)];
+        foreach (var (name, allowance) in new[] { ("through", 10.5), ("near", 12.0) })
+        {
+            var pairTerms = new ContactTerms(1, false, true, new ContactMove(allowance, [], [], null), size);
+            var pairProposed = new Dictionary<Guid, Placement> { [pairMover.Id] = Pl(15, 21) };
+            Add($"contacts_{name}_a_unit", "Contacts", new ContactsRequest(pairBodies, pairProposed, [], pairTerms),
+                Contacts.Of(pairBodies, pairProposed, [], pairTerms).Select(kv => new ContactFound(kv.Key, kv.Value.Kind, kv.Value.UnitId)).ToArray());
+        }
         // A kept move Ask, in call order (the browser replays the cases in order): the same table's 9" move kept, a rider's area whole and in two
         // shares, a frame into the wood (the unit held to the 6" cap, each route the shortest within it), and the close.
         var keptStart = new AskModel(routeModels[1].Id, routeModels[1].Start);

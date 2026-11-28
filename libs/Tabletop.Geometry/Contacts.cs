@@ -1,8 +1,8 @@
 namespace Tabletop.Geometry;
 
-/// <summary>What a landing meets: another model's base, a model every path within the allowance would cross, another unit's model within the
-/// Ask's Separation, or impassable terrain under its base.</summary>
-public enum ContactKind { OnBase, Crosses, TooClose, InImpassable }
+/// <summary>What a landing meets: another model's base, a model or unit every path within the allowance would go through, another unit's model
+/// within the Ask's Separation, impassable terrain under its base, or a unit every path within the allowance would pass within the Separation of.</summary>
+public enum ContactKind { OnBase, Crosses, TooClose, InImpassable, PassesNear }
 
 /// <summary>A landing's first contact, in that order; UnitId is the unit met (for a path, the unit it goes through or within the Separation of).</summary>
 public sealed record Contact(ContactKind Kind, Guid? UnitId);
@@ -24,7 +24,7 @@ public static class Contacts
 {
     /// <summary>Each proposed model's first contact: on a base, in impassable terrain, a landing within the Separation of another unit's model (judged
     /// before the path, so a landing too close is never read as a path through), then the path (Movement.Check with MoveUnits over the bodies' units):
-    /// Crosses when it fits only through a unit's perimeter or a model, TooClose when it fits only within the Separation of a unit.</summary>
+    /// Crosses when it fits only through a unit's perimeter or a model, PassesNear when it fits only within the Separation of a unit.</summary>
     public static IReadOnlyDictionary<Guid, Contact> Of(IReadOnlyList<ContactBody> models, IReadOnlyDictionary<Guid, Placement> proposed,
         IReadOnlyList<WorldVolume> volumes, ContactTerms terms)
     {
@@ -69,7 +69,7 @@ public static class Contacts
                 steep: capped || legal.Steep is not { Count: > 0 } ? null : volumes.Where(v => legal.Steep.Contains(v.Id)).ToList(),
                 units: new MoveUnits(bodyUnits, m.UnitId, separation, terms.Bases));
             if (path.CrossesModels) found[id] = new Contact(ContactKind.Crosses, path.Unit);
-            else if (path.NearModels) found[id] = new Contact(ContactKind.TooClose, path.Unit);
+            else if (path.NearModels) found[id] = new Contact(ContactKind.PassesNear, path.Unit);
         }
         return found;
     }

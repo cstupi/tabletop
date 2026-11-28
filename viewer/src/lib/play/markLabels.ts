@@ -13,10 +13,11 @@ const PHRASES: readonly (readonly [string, string])[] = [
   ['out of coherency', 'Out of coherency'],
   ['overlaps a base', 'On a base'],
   ["on another model's base", 'On a base'],
-  ['path crosses a model', 'Through a model'],
-  ['through another model', 'Through a model'],
   ['through impassable terrain', 'Through impassable terrain'],
   ['in impassable terrain', 'In impassable terrain'],
+  ['path crosses ', 'Through a model'],
+  ['through another model', 'Through a model'],
+  ['would move through ', 'Through a model'],
   ['leave the table', 'Off the table'],
   ['outside its deployment zone', 'Outside its zone'],
 ];
