@@ -66,7 +66,8 @@ public sealed class HudFrame
 {
     public const float M = 8, Column = 420, CornerH = 40, HeaderW = 760, HeaderH = 96, ToastW = 360, ToastH = 120, DecisionW = 480,
         DiceH = 96, ReplayH = 112, LogW = 640, LogMaxH = 720, CornerButton = 38, LoadingH = 36, LoadingW = 280, BannerH = 136, EndW = 480, EndH = 360,
-        TopBarH = 56, RailW = 56, PanelW = 360, HintH = 32, SetupCornerW = 360;
+        TopBarH = 56, RailW = 56, PanelW = 360, HintH = 32, SetupCornerW = 360,
+        CardW = 480;   // the unit card, wider than the roster over it, so its weapons and rules wrap less and it stands lower
 
     /// <summary>Play (spec 2026-11-07-ux-redesign-2-play-hud.md → HUD frame): the corner top left, Log in the top right corner with Undo left of
     /// it and the toasts below them, the header centred between, the left column (roster over the unit card, the replay bar at its foot),
@@ -81,7 +82,7 @@ public sealed class HudFrame
         new(HudPart.Header, HudX.Centre, HudY.Top, HudSize.Fill(HeaderW), HudSize.AtLeast(HeaderH)) { Always = true },
         new(HudPart.Replay, HudX.Left, HudY.Bottom, HudSize.Fixed(Column), HudSize.AtLeast(ReplayH)),
         new(HudPart.Roster, HudX.Left, HudY.Top, HudSize.Fixed(Column), HudSize.Fill()),
-        new(HudPart.UnitCard, HudX.Left, HudY.Top, HudSize.Fixed(Column), HudSize.Fill()) { On = HudPart.Roster, Keeps = HudY.Bottom },
+        new(HudPart.UnitCard, HudX.Left, HudY.Top, HudSize.Fixed(CardW), HudSize.Fill()) { On = HudPart.Roster, Keeps = HudY.Bottom },
         new(HudPart.Loading, HudX.Centre, HudY.Bottom, HudSize.Fixed(LoadingW), HudSize.Fixed(LoadingH)) { Always = true },
         new(HudPart.Decision, HudX.Right, HudY.Bottom, HudSize.Fixed(DecisionW), HudSize.Fill()),
         new(HudPart.Dice, HudX.Right, HudY.Bottom, HudSize.Fixed(DecisionW), HudSize.Fixed(DiceH)) { On = HudPart.Decision, HiddenWhile = HudPart.LogPanel },
