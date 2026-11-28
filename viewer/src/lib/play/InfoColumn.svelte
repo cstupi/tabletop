@@ -213,7 +213,7 @@
       </section>
     </div>
   {/if}
-  <div class="part cards" style={place('unitCard', 420)} use:measure={'unitCard'}>
+  <div class="part cards" style={place('unitCard', 480)} use:measure={'unitCard'}>
     {#if problem !== null}<p class="problem panel" role="alert">{problem}</p>{/if}
     {#if strip !== null}<EnemyStrip {strip} />{/if}
     {#if card !== null}

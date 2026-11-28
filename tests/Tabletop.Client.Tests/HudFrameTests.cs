@@ -144,9 +144,9 @@ public class HudFrameTests
         var r = HudFrame.Of(1280, 720, shown, (part, slot) => part == HudPart.Roster ? (slot.W, 48) : null);   // roster's headers end at 104
         Assert.Equal(new HudRect(8, 56, 420, 48), r[HudPart.Roster]);
         Assert.Equal(new HudRect(8, 56, 420, 324), r.Slots[HudPart.Roster]);
-        Assert.Equal(new HudRect(8, 112, 420, 600), r[HudPart.UnitCard]);
+        Assert.Equal(new HudRect(8, 112, HudFrame.CardW, 600), r[HudPart.UnitCard]);
         var full = HudFrame.Of(1280, 720, shown);
-        Assert.Equal(new HudRect(8, 388, 420, 324), full[HudPart.UnitCard]);   // a full roster keeps the half
+        Assert.Equal(new HudRect(8, 388, HudFrame.CardW, 324), full[HudPart.UnitCard]);   // a full roster keeps the half
     }
 
     /// <summary>A short unit card hangs from its slot's foot (UnitCard.Place against the slot's bottom), and its obstacle is where it draws.</summary>
@@ -154,7 +154,7 @@ public class HudFrameTests
     public void A_short_unit_card_keeps_its_slot_s_foot()
     {
         var f = HudFrame.Of(1280, 720, new PlayShown(true, true, false, false, false).Set, (part, slot) => part == HudPart.UnitCard ? (slot.W, 200) : null);
-        Assert.Equal(new HudRect(8, 512, 420, 200), f[HudPart.UnitCard]);
+        Assert.Equal(new HudRect(8, 512, HudFrame.CardW, 200), f[HudPart.UnitCard]);
         Assert.Contains(f[HudPart.UnitCard], f.Obstacles);
     }
 
