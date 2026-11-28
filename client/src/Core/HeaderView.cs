@@ -73,12 +73,12 @@ public static class HeaderView
     public static WaitLine? Wait(Projection p, GameInfo game, Names n, IReadOnlyCollection<Guid> mine)
     {
         var waits = p.OpenAsks.Values.OrderBy(a => a.Ask.Id)
-            .SelectMany(a => a.Ask.Teams.Where(t => !a.Answers.ContainsKey(t)).Select(t => (Team: t, What: a.Ask.Question.Replace('_', ' ')))).Distinct().ToList();
+            .SelectMany(a => a.Ask.Teams.Where(t => !a.Answers.ContainsKey(t)).Select(t => (Team: t, What: DecisionCard.Doing(a.Ask, p, n)))).Distinct().ToList();
         if (waits.Count == 0) return null;
         int Ordinal(Guid t) => game.Teams.FirstOrDefault(x => x.Id == t)?.Ordinal ?? 0;
         if (waits.FirstOrDefault(w => mine.Contains(w.Team)) is { Team: var my } && mine.Contains(my))
             return new WaitLine(true, Ordinal(my), mine.Count > 1 ? $"Your move · {n.Team(my)}" : "Your move");
-        return new WaitLine(false, Ordinal(waits[0].Team), string.Join(", ", waits.Select(w => $"{n.Team(w.Team)} · {w.What}")));
+        return new WaitLine(false, Ordinal(waits[0].Team), DecisionCard.WaitingFor(string.Join(", ", waits.Select(w => $"{n.Team(w.Team)} · {w.What}"))));
     }
 
     /// <summary>A team's score in the rulebook's word (p.26: "players get 1 VP for each objective marker they control").</summary>

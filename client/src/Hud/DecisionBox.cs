@@ -242,7 +242,7 @@ public partial class DecisionBox : PanelContainer
             _note.Text = "";
             _revealed = _reveals.Shown(card: mid is not null);                  // a sealed Ask's reveal stays up until my next card
             if (mid is null && _s.WaitingTeams is { Count: > 0 }) Quiet([]);   // the waiting columns hold the slot (WaitingPanel)
-            else if (mid is null) Quiet(DecisionCard.Quiet(p, game, _s.MyTeamIds).Select(b => (b.Ordinal, b.Mine ? "Your move" : b.Team, b.Doing)).ToList());
+            else if (mid is null) Quiet(DecisionCard.Quiet(p, game, _s.MyTeamIds).Select(b => (b.Ordinal, b.Mine ? "Your move" : DecisionCard.WaitingFor(b.Team), b.Doing)).ToList());
             else { Quiet([]); if (_deployUnit is null) StartDeploy(mid, names); }
             return;
         }

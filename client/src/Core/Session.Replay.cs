@@ -18,7 +18,7 @@ public sealed partial class Session
     public bool Replaying => _replay && GameId is not null;
 
     /// <summary>Home's Replay: opens a game the account is in, ended or running, read-only, at its start.</summary>
-    public Task ReplayAsync(Guid gameId) { _replay = true; _resumeAt = 0; return ConnectAsync(gameId, resync: false); }
+    public Task ReplayAsync(Guid gameId) { _replay = true; _resumeAt = 0; _serverFailures = 0; return ConnectAsync(gameId, resync: false); }
 
     /// <summary>Moves the replay to <paramref name="position"/>. Animated and forward, the table plays the events as play does (glides,
     /// floating results, the camera follow, lasers); otherwise it redraws at the new position.</summary>

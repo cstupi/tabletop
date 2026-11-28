@@ -172,7 +172,7 @@ completed steps plus each defense die's `extra_wounds_<roll>_<face>` for the fac
 `dangerous-terrain` parent it is the failures of its test as they now stand (`GfMoves.DangerousWounds`). Otherwise it is the
 parent's `Values["wounds"]`.
 
-`assign` opens `Allocation(Targets = GfAttack.EligibleForNextWound(...), Amount = wounds, MaxTargets)` to the
+`assign` opens `Allocation(Targets = GfAttack.EligibleForNextWound(...), Amount = wounds)` to the
 target's team, and any member of that team may answer it. p.8 gives the defending player free
 choice of removal order. p.15 constrains it twice, and the two clauses are ordered. Heroes are
 assigned wounds last *even if already wounded*. Among the models that are not heroes, a wounded
@@ -183,11 +183,12 @@ after: a wounded `Tough` hero waits for every other model instead of soaking the
 wounded like any other. A hero joined to another unit is a model of that unit carrying `Hero` on
 its own slot, and `Hero` is `none` aggregation, so the same per-model predicate orders it last.
 That is one of two clauses of `Hero` the slot property reaches, the other being `GfRolls.MoralePlan`'s *"may take morale tests on behalf of the unit"*.
-When every eligible model is `Tough` (none wounded, or only heroes left), `MaxTargets` is 1: p.15's *"continue to put wounds on
-the tough model with most wounds in the unit until it is killed, before starting to put them on the next tough model"* means the
-defender names one model, it takes every wound it can, and the rest carry to the next segment, which offers the survivors again.
-Otherwise `MaxTargets` is null and the answer is applied as given. An out-of-set allocation under `warn`/`silent` is applied too,
-because nothing is an invariant; a spread over `Tough` models reads as all its wounds on the first model it names.
+When every eligible model is `Tough` (none wounded, or only heroes left), p.15's *"continue to put wounds on the tough model with
+most wounds in the unit until it is killed, before starting to put them on the next tough model"* makes the defender's answer an
+order: one Ask places every wound, and `FillInTurn` gives each model it names the wounds it has room for before the next takes any,
+the rest on the last model named for the carry-over (owner ruling 2026-11-28: one casualty prompt per weapon group, not one per Tough
+model). A spread therefore keeps p.15 whatever it sends; both clients' casualty pick start a model only once every picked one is full.
+Otherwise the answer is applied as given. An out-of-set allocation under `warn`/`silent` is applied too, because nothing is an invariant.
 
 No Ask opens when there is nothing to choose: one eligible model takes the wounds, and wounds that kill every living model
 whatever the allocation are assigned by `assign` itself (owner ruling: "If a unit of 5 takes 5 wounds and they can't come back

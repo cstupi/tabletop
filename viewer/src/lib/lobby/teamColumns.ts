@@ -24,7 +24,12 @@ export interface TeamColumn {
 export interface ToDoLine { readonly text: string; readonly missing: boolean }
 
 export const WATCHING = 'Watching', WATCHING_STATE = 'Watches once play starts', JOIN = 'Join', WATCH = 'Watch',
-  JOIN_COMPACT = '+', NO_ARMY = 'no army yet', ADD_TEAM = '+ Add team', ADD_TEAM_COMPACT = '+ Team', YOU = '(you)';
+  JOIN_COMPACT = '+', NO_ARMY = 'no army yet', ADD_TEAM = '+ Add team', ADD_TEAM_COMPACT = '+ Team', YOU = '(you)',
+  MOVE_MENU = 'Move to…', LEAVE_TEAM = 'Leave team', LEAVE_COMPACT = 'Leave';
+
+/** My row's Leave team tooltip (TeamColumns.LeaveTip): the seat goes (Leave Team N, while I hold several), or my only seat watches. */
+export const leaveTip = (leave: ColumnMove, team: string): string =>
+  leave.edit.kind === 'leave_team' ? `Give up ${team}; your other teams stay` : `Leave ${team} and watch`;
 
 export function stateText(s: ColumnState): string {
   return s === 'ready' ? 'Ready' : s === 'needsPlayer' ? 'Needs a player' : s === 'needsArmy' ? 'Needs an army' : WATCHING_STATE;

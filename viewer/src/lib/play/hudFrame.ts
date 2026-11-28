@@ -29,7 +29,8 @@ export type HudFit = (part: HudPart, slot: Rect) => { w: number; h: number } | n
 
 export const M = 8, COLUMN = 420, CORNER_H = 40, HEADER_W = 760, HEADER_H = 96, TOAST_W = 360, TOAST_H = 120, DECISION_W = 480,
   DICE_H = 96, REPLAY_H = 112, LOG_W = 640, LOG_MAX_H = 720, CORNER_BUTTON = 38, LOADING_H = 36, LOADING_W = 280, BANNER_H = 136, END_W = 480,
-  END_H = 360, TOP_BAR_H = 56, RAIL_W = 56, PANEL_W = 360, HINT_H = 32, SETUP_CORNER_W = 360;
+  END_H = 360, TOP_BAR_H = 56, RAIL_W = 56, PANEL_W = 360, HINT_H = 32, SETUP_CORNER_W = 360,
+  CARD_W = 480;   // the unit card, wider than the roster over it, so its weapons and rules wrap less and it stands lower
 
 export const PLAY: readonly HudRow[] = [
   { part: 'corner', x: 'left', y: 'top', w: fixed(COLUMN), h: fixed(CORNER_H) },
@@ -39,7 +40,7 @@ export const PLAY: readonly HudRow[] = [
   { part: 'header', x: 'centre', y: 'top', w: fill(HEADER_W), h: atLeast(HEADER_H), always: true },
   { part: 'replay', x: 'left', y: 'bottom', w: fixed(COLUMN), h: atLeast(REPLAY_H) },
   { part: 'roster', x: 'left', y: 'top', w: fixed(COLUMN), h: fill() },
-  { part: 'unitCard', x: 'left', y: 'top', w: fixed(COLUMN), h: fill(), on: 'roster', keeps: 'bottom' },
+  { part: 'unitCard', x: 'left', y: 'top', w: fixed(CARD_W), h: fill(), on: 'roster', keeps: 'bottom' },
   { part: 'loading', x: 'centre', y: 'bottom', w: fixed(LOADING_W), h: fixed(LOADING_H), always: true },
   { part: 'decision', x: 'right', y: 'bottom', w: fixed(DECISION_W), h: fill() },
   { part: 'dice', x: 'right', y: 'bottom', w: fixed(DECISION_W), h: fixed(DICE_H), on: 'decision', hiddenWhile: 'logPanel' },

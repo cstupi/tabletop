@@ -143,23 +143,30 @@ public static class DecisionCard
     {
         var n = new Names(game, p);
         return p.OpenAsks.Values.OrderBy(a => a.Ask.Id)
-            .SelectMany(a => a.Ask.Teams.Where(t => !a.Answers.ContainsKey(t)).Select(t => (Team: t, a.Ask.Question)))
+            .SelectMany(a => a.Ask.Teams.Where(t => !a.Answers.ContainsKey(t)).Select(t => (Team: t, Doing: Doing(a.Ask, p, n))))
             .Distinct()
-            .Select(x => new QuietBand(x.Team, game.Teams.FirstOrDefault(t => t.Id == x.Team)?.Ordinal ?? 0, n.Team(x.Team), Doing(x.Question), mine.Contains(x.Team)))
+            .Select(x => new QuietBand(x.Team, game.Teams.FirstOrDefault(t => t.Id == x.Team)?.Ordinal ?? 0, n.Team(x.Team), x.Doing, mine.Contains(x.Team)))
             .OrderByDescending(b => b.Mine).ToList();
     }
 
-    /// <summary>What a team is doing while its Ask is open, as the waiting band says it.</summary>
-    public static string Doing(string question) => question switch
+    /// <summary>The waiting band's and header's lead: "Waiting for Team 2".</summary>
+    public static string WaitingFor(string team) => $"Waiting for {team}";
+
+    /// <summary>What a team is doing while its Ask is open, as the waiting band and the header's waiting line say it: the scheduler's and the
+    /// common steps' words (activating, deploying, removing casualties…), else the title that team's own card shows, so a charged unit's
+    /// "Strike back?", a melee's "Consolidation" or "Close in" and a unit's own "Advance" read as the decision it is.</summary>
+    public static string Doing(Ask ask, Projection p, Names n) =>
+        (ask.Legal is MoveRegion ? null : Known(ask.Question)) ?? (Head(ask, p, n).Title is { Length: > 0 } title ? title : RosterView.Words(ask.Question.Replace('_', ' ')));
+
+    static string? Known(string question) => question switch
     {
         AskQuestions.Activate or AskQuestions.ActOrEndPhase => "activating",
         AskQuestions.Deploy or AskQuestions.DeployScouts or AskQuestions.DeployAmbusher or AskQuestions.DeployReinforcement => "deploying",
-        "move" => "moving",
         "declare_targets" => "declaring targets",
         "remove_casualties" => "removing casualties",
         AskQuestions.SpendTokens => "spending tokens",
         AskQuestions.EndRound => "ending the round",
         "cast" => "casting",
-        _ => question.Replace('_', ' '),
+        _ => null,
     };
 }

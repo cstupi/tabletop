@@ -87,8 +87,8 @@ public class HeaderTilesTests
     public void Waiting_on_another_team_names_it_and_what_it_does_with_its_band()
     {
         var p = Waiting(TableUx.T2);
-        Assert.Equal(new WaitLine(false, 2, "Team 2 · remove casualties"), HeaderView.Wait(p, TableUx.Game, new Names(TableUx.Game, p), [TableUx.T1]));
-        Assert.Equal(new WaitLine(false, 2, "Team 2 · remove casualties"), HeaderView.Wait(p, TableUx.Game, new Names(TableUx.Game, p), []));
+        Assert.Equal(new WaitLine(false, 2, "Waiting for Team 2 · removing casualties"), HeaderView.Wait(p, TableUx.Game, new Names(TableUx.Game, p), [TableUx.T1]));
+        Assert.Equal(new WaitLine(false, 2, "Waiting for Team 2 · removing casualties"), HeaderView.Wait(p, TableUx.Game, new Names(TableUx.Game, p), []));
         Assert.Null(HeaderView.Wait(TableUx.After(TableUx.Deploy), TableUx.Game, new Names(TableUx.Game, TableUx.After()), [TableUx.T1]));
     }
 }

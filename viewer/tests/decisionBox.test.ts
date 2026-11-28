@@ -76,7 +76,7 @@ describe('the decision box controller', () => {
     r.apply(open(askOf({ kind: 'confirmation' }, { question: 'end_round', teams: [TEAM2], allowPass: false })));
     r.box.render();
     expect(r.panel.head).toBeNull();
-    expect(r.panel.quiet).toEqual([{ ordinal: 2, team: 'Team 2', doing: 'ending the round' }]);
+    expect(r.panel.quiet).toEqual([{ ordinal: 2, team: 'Waiting for Team 2', doing: 'ending the round' }]);
     expect(r.panel.visible).toBe(true);
     expect(r.panel.controls).toEqual([]);
   });

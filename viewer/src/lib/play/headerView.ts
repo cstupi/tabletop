@@ -4,6 +4,7 @@
 
 import type { Frame, Projection } from '../live/apply';
 import { byId } from '../lobby/seats';
+import { doing, waitingFor } from './decisionCard';
 import type { GameEnded, GameInfo, Location } from '../protocol/wire.generated';
 import { Names } from './names';
 import type { TeamWaiting } from './waiting';
@@ -146,14 +147,14 @@ export function waitLineOf(p: Projection, game: GameInfo, n: Names, mine: readon
   const waits: { team: string; what: string }[] = [];
   for (const a of [...p.openAsks.values()].sort((x, y) => byId(x.ask.id, y.ask.id)))
     for (const t of a.ask.teams.filter((team) => !a.answers.has(team))) {
-      const what = a.ask.question.replaceAll('_', ' ');
+      const what = doing(a.ask, p, n);
       if (!waits.some((w) => w.team === t && w.what === what)) waits.push({ team: t, what });
     }
   if (waits.length === 0) return null;
   const ordinal = (t: string) => game.teams.find((x) => x.id === t)?.ordinal ?? 0;
   const my = waits.find((w) => mine.includes(w.team));
   if (my !== undefined) return { mine: true, ordinal: ordinal(my.team), text: mine.length > 1 ? `Your move · ${n.team(my.team)}` : 'Your move' };
-  return { mine: false, ordinal: ordinal(waits[0]!.team), text: waits.map((w) => `${n.team(w.team)} · ${w.what}`).join(', ') };
+  return { mine: false, ordinal: ordinal(waits[0]!.team), text: waitingFor(waits.map((w) => `${n.team(w.team)} · ${w.what}`).join(', ')) };
 }
 
 /** The header's line while deployment waits for players (WaitingForPlayers), one clause per team it waits on. */

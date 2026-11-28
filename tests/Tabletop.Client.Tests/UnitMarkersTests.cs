@@ -18,6 +18,16 @@ public class UnitMarkersTests
         Assert.Empty(UnitMarkers.Of(TableUx.After(TableUx.Deploy, new WoundsSet(B, 1)), Icons));
     }
 
+    [Fact]
+    public void A_unit_in_cover_shows_the_cover_shield_after_activated()
+    {
+        var p = TableUx.After(TableUx.Deploy, new ActionRecorded(TableUx.Squad.Id, "Hold"));
+        var inCover = new HashSet<Guid> { TableUx.Squad.Id };
+        Assert.Equal(new MarkerIcon[] { new("activated", "✓"), new(UnitMarkers.Cover, "Cover") }, UnitMarkers.Of(p, Icons, inCover: inCover).Single().Icons);
+        Assert.Equal(new MarkerIcon[] { new(UnitMarkers.Cover, "Cover") }, UnitMarkers.Of(TableUx.After(TableUx.Deploy), Icons, inCover: inCover).Single().Icons);
+        Assert.Empty(UnitMarkers.Of(TableUx.After(TableUx.Deploy), Icons));
+    }
+
     static bool Icons(string condition) => condition is "shaken" or "fatigued";
 
     [Fact]

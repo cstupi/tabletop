@@ -114,7 +114,7 @@ public partial class GameScreen : Control
         _onTheme = OnTheme; Ui.Changed += _onTheme;
         Rebuild();
         // Over everything, the Hud included, until the game's first table stands (LoadingView.Entry).
-        AddChild(_curtain = new LoadingCurtain());
+        AddChild(_curtain = new LoadingCurtain { Home = () => Guarded.Run(_session.DisconnectAsync, Toast) });   // a connect that never gets a table can be left
         UpdateLoading();
         QueueLayout();
     }

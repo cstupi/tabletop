@@ -22,7 +22,7 @@ public interface IGameRepository
     Task<bool> IsCreator(Guid id, Guid accountId);
     /// <summary>A participant row with no team, at any status; joining twice is the same row. Null for an unknown game.</summary>
     Task<GameInfo?> Join(Guid id, Guid accountId);
-    /// <summary>False for an unknown game or a non-participant. The last leave ends the game, under concurrent leaves too.</summary>
+    /// <summary>False for an unknown game or a non-participant. The last leave ends the game, under concurrent leaves too. A seat whose army is in play stays, marked left; Join takes it back.</summary>
     Task<bool> Leave(Guid id, Guid accountId);
     Task<bool> End(Guid id);
     /// <summary>The game, everything below it, and its event log.</summary>

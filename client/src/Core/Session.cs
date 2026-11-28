@@ -21,6 +21,10 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     static readonly TimeSpan[] DefaultBackoff = [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10)];
     readonly Func<int, TimeSpan> _backoff = backoff ?? (attempt => DefaultBackoff[Math.Min(attempt, DefaultBackoff.Length - 1)]);
     IGameSocket? _socket;
+    /// <summary>Consecutive closes with 1011 (the server failed) before any Welcome: a game the server cannot load fails every connect the same way,
+    /// so after this many the session goes home with the reason instead of reconnecting forever. A Welcome or a new Join resets it.</summary>
+    public const int MaxServerFailures = 5;
+    int _serverFailures;
     bool _welcomed, _userClosed;
     int _attempt;
     long? _desyncFloor;                 // the projection's LastSeq at the last desync: one resync per position
@@ -267,7 +271,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
 
     // ---- the game ----------------------------------------------------------------------------------------------------
     /// <summary>Plays the game: Home's Join. ReplayAsync opens it read-only instead.</summary>
-    public Task ConnectAsync(Guid gameId) { _replay = false; _resumeAt = 0; _attempt = 0; return ConnectAsync(gameId, resync: false); }
+    public Task ConnectAsync(Guid gameId) { _replay = false; _resumeAt = 0; _attempt = 0; _serverFailures = 0; return ConnectAsync(gameId, resync: false); }
 
     /// <summary>A resync keeps the desync floor and shows as Reconnecting; a player-initiated connect starts clean.</summary>
     async Task ConnectAsync(Guid gameId, bool resync)
@@ -297,7 +301,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
         _userClosed = true;
         LastCloseReason = null;             // the player asked to leave: Home has nothing to explain
         await TearDownSocket();
-        GameId = null; Reset(); _replay = false; _resumeAt = 0; _attempt = 0;
+        GameId = null; Reset(); _replay = false; _resumeAt = 0; _attempt = 0; _serverFailures = 0;
         if (Phase is not (SessionPhase.LoggedOut or SessionPhase.UpdateRequired)) SetPhase(SessionPhase.LoggedIn);
     }
 
@@ -419,7 +423,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
         switch (frame)
         {
             case Welcome w:
-                _welcomed = true; _attempt = 0;
+                _welcomed = true; _attempt = 0; _serverFailures = 0;
                 ParticipantId = w.ParticipantId; Game = w.Game; Options = w.Options; Zones = w.Zones; TerrainWords = w.TerrainWords; TerrainRules = w.TerrainRules; MarkerRange = w.MarkerRange; Coherency = w.Coherency;
                 SetPhase(SessionPhase.Connected);
                 RaiseGame();
@@ -554,7 +558,8 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
         Reset();
         if (_userClosed || Phase == SessionPhase.UpdateRequired) { LastCloseReason ??= Feedback.Closed(closed, false); ConnectionLost?.Invoke(closed, false); return; }
         var replaced = _welcomed && closed.Code == 1000;
-        if (replaced || GameId is null) { LastCloseReason = Feedback.Closed(closed, false); GameId = null; SetPhase(SessionPhase.LoggedIn); ConnectionLost?.Invoke(closed, false); return; }
+        var unloadable = !_welcomed && closed.Code == 1011 && ++_serverFailures >= MaxServerFailures;
+        if (replaced || unloadable || GameId is null) { LastCloseReason = Feedback.Closed(closed, false); GameId = null; SetPhase(SessionPhase.LoggedIn); ConnectionLost?.Invoke(closed, false); return; }
         LastCloseReason = Feedback.Closed(closed, true);
         ConnectionLost?.Invoke(closed, true);
         SetPhase(SessionPhase.Reconnecting);

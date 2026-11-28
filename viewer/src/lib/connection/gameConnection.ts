@@ -101,6 +101,9 @@ const WELCOME_TIMEOUT_MS = 10_000;
 const QUEUE_LIMIT = 16;
 const SETTLED_LIMIT = 64;
 const BACKOFF = [1000, 2000, 5000, 10000];
+/** Consecutive 1011 closes before any welcome after which the connection closes for good (Session.MaxServerFailures): a game the server
+ * cannot load fails every connect the same way. A welcome resets the count. */
+export const MAX_SERVER_FAILURES = 5;
 const NO_OPTIONS: RulesOptionCatalog = { options: [], presets: [] };
 /** The edits the server answers with a `game` frame; every other edit is a setup edit and is answered with a `board` frame. */
 const LOBBY_EDITS = new Set([
@@ -133,6 +136,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
   let userClosed = false;
   let errored = false;
   let attempt = 0;
+  let serverFailures = 0;
   let desyncFloor: number | null = null;
   let applier: Applier | null = null;
   let swallowAtRest = 0;
@@ -225,6 +229,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
     reset();
     if (userClosed) return;
     if (was && code === 1000) return closeForGood(closedText(code, reason, false));
+    if (!was && code === 1011 && ++serverFailures >= MAX_SERVER_FAILURES) return closeForGood(closedText(code, reason, false));
     if (code === null) console.info(`game socket closed without a code${reason ? `: ${reason}` : ''}${sawError ? ' (error)' : ''}`);
     publish({ phase: 'reconnecting', closeReason: closedText(code, reason, true, false, sawError) });
     const wait = backoff(attempt++);
@@ -273,6 +278,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
       case 'welcome':
         welcomed = true;
         attempt = 0;
+        serverFailures = 0;
         clearTimeout(welcomeTimer);
         publish({ phase: 'connected', participantId: frame.participantId, game: frame.game, options: frame.options ?? NO_OPTIONS, zones: frame.zones ?? null, terrainWords: frame.terrainWords ?? null, terrainRules: frame.terrainRules ?? null, markerRange: frame.markerRange ?? null, coherency: frame.coherency ?? null, closeReason: null });
         reauthTimer = setInterval(() => void reauth(), reauthEvery);

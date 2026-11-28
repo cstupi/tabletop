@@ -239,6 +239,38 @@ public class SessionTests : IDisposable
         Assert.IsType<Connect>(Assert.Single(_sockets.Last.Sent));      // one connect frame, and no PickTeam edit
     }
 
+    /// <summary>A game the server cannot load closes every connect 1011 before Welcome (a stored log that does not replay): after
+    /// Session.MaxServerFailures of them in a row the session goes home with the reason instead of showing Reconnecting forever.</summary>
+    [Fact]
+    public async Task A_game_the_server_cannot_load_stops_reconnecting_and_goes_home_with_the_reason()
+    {
+        await LoggedIn();
+        await _s.ConnectAsync(Game.Id);
+        for (var i = 1; i < Session.MaxServerFailures; i++)
+        {
+            _sockets.Last.Drop(1011, "cannot load this game");
+            await _sockets.ConnectedAsync(i + 1);
+            Assert.Equal(SessionPhase.Reconnecting, _s.Phase);
+        }
+        _sockets.Last.Drop(1011, "cannot load this game");
+        Assert.Equal(SessionPhase.LoggedIn, _s.Phase);                // the give-up is synchronous: no retry is scheduled
+        Assert.Equal(Session.MaxServerFailures, _sockets.Created.Count);
+        Assert.Null(_s.GameId);
+        Assert.Equal("The game server failed (cannot load this game).", _s.LastCloseReason);
+    }
+
+    [Fact]
+    public async Task A_welcome_resets_the_count_of_server_failures()
+    {
+        await LoggedIn();
+        await _s.ConnectAsync(Game.Id);
+        for (var i = 1; i < Session.MaxServerFailures; i++) { _sockets.Last.Drop(1011, "cannot verify the session"); await _sockets.ConnectedAsync(i + 1); }
+        _sockets.Last.Deliver(new Welcome(Samples.P1, Game));
+        _sockets.Last.Drop(1011, "cannot verify the session");
+        await _sockets.ConnectedAsync(Session.MaxServerFailures + 1);
+        Assert.Equal(SessionPhase.Reconnecting, _s.Phase);
+    }
+
     [Fact]
     public async Task A_rejected_connect_does_not_reconnect_and_upgrade_required_is_sticky()
     {

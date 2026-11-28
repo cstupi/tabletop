@@ -41,7 +41,7 @@ describe('HeaderView tiles (HeaderView.Tiles)', () => {
     expect(waitLineOf(both, s.game, n, [TEAM2])).toEqual({ mine: true, ordinal: 2, text: 'Your move' });
     expect(waitLineOf(both, s.game, n, [TEAM1, TEAM2])).toEqual({ mine: true, ordinal: 1, text: 'Your move · Team 1' });
     const theirs = after({ kind: 'ask_opened', ask: ask([TEAM2]) });
-    expect(waitLineOf(theirs, s.game, n, [TEAM1])).toEqual({ mine: false, ordinal: 2, text: 'Team 2 · remove casualties' });
+    expect(waitLineOf(theirs, s.game, n, [TEAM1])).toEqual({ mine: false, ordinal: 2, text: 'Waiting for Team 2 · removing casualties' });
     expect(waitLineOf(after(), s.game, n, [TEAM1])).toBeNull();
   });
 });
