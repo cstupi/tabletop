@@ -131,8 +131,12 @@ public sealed partial class AnswerPolicy(Chooser chooser, PolicyOptions? options
     {
         if (m.ModelIds.Count == 0) return ask.AllowPass ? new Passed() : throw new NoLegalAnswerException(ask);
         // p.7: a unit that begins the move out of coherency gets back into it, or nearer it, before anything else (and never by passing).
+        // Every model of the region on the table is answered, the rest where it stands: the regroup's paths were found with the whole region off
+        // the table (FormationTerms.Standing), and the server goes round only the models the answer leaves out.
         if (m.ContactWith is not { Count: > 0 } && m.Containment is null && Regrouped(m, view) is { Count: > 0 } back)
-            return new Destinations(back.Select(kv => new ModelRelocation(kv.Key, view.LocationOf(kv.Key), new OnTable(Landing(kv.Key, view.PlacedOf(kv.Key), kv.Value, view).Placement))).ToList());
+            return new Destinations(m.ModelIds.Where(id => view.PlacedOf(id) is not null).Select(id => back.TryGetValue(id, out var to)
+                ? new ModelRelocation(id, view.LocationOf(id), new OnTable(Landing(id, view.PlacedOf(id), to, view).Placement))
+                : new ModelRelocation(id, view.LocationOf(id), view.LocationOf(id))).ToList());
         if (Pass(ask) is { } passed) return passed;
 
         // Embarking and disembarking are the containment field's, and it carries every id and radius they need.
