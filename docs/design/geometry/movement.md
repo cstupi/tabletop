@@ -14,6 +14,10 @@ How `Tabletop.Geometry` measures a move, draws where a model can go, and judges 
   movement."* DANGEROUS: *"If a model moves in or through dangerous terrain, or is activated in it, then it must take a
   dangerous terrain test."*
 - p.13 Flying *"may move through units and terrain"*; Aircraft *"ignore all units and terrain when moving and stopping"*.
+- p.7: *"Models may never be within 1” of models from other units, unless they are using a Charge action, and may never move through
+  other models or units (friendly or enemy), even if they are using a Charge action."* Owner ruling (2026-11-27): both clauses hold along
+  the whole path; a path that slips between two models of another unit moves through that unit
+  (`docs/superpowers/specs/2026-11-27-move-through-units-design.md`).
 
 So a model reaches a spot behind a wall by going round it, and a 12" Rush that goes round a wood never enters it and is not
 capped.
@@ -33,8 +37,26 @@ tolerance.
 | Group | From | Held to it |
 | --- | --- | --- |
 | `Walls` | the impassable volumes the caller lists | always; one the base already stands in may be left only along a line heading out of it (its signed distance growing from the first step), never along it or deeper in |
-| `Bodies` | other models' bases | where the heights overlap too: the mover rested on the surfaces at each 0.1" of the part of the segment inside the shape (`Collision.Rest`), so a base passes above or below a model on another level; a model it starts on is left out |
+| `Bodies` | other models' bases; with `MoveUnits`, a unit's perimeter when it has no grown one beside it | where the heights overlap too: the mover rested on the surfaces at each 0.1" of the part of the segment inside the shape (`Collision.Rest`), so a base passes above or below a model on another level; a model it starts on is left out |
+| `Spacing` | a unit's perimeter grown by `MoveUnits.Separation`, its heights grown by it too | as `Bodies`; every search the reach and `Check` make first |
+| `Perimeter` | the plain perimeter of a unit whose grown one is in `Spacing` | as `Bodies`; only `Check`'s search that lets the separation go |
 | `Difficult`, `Dangerous` | the volumes the caller lists | only in the searches that avoid them |
+
+`MoveSpace.Held` (walls, `Bodies`, `Spacing`) is what holds every move; `MoveSpace.Models` (`Bodies`, `Spacing`, `Perimeter`) the groups
+met in plan and height.
+
+### Units
+
+`MoveUnits(Of, Own, Separation, Bases)` gives the unit of each model a move is given (`Of[i]` for `models[i]`). Each unit other than `Own`
+and those in `Bases` (a charge's target) is one obstacle, its perimeter: the convex hull of its models' bases (`MoveSpace.UnitCore`), from
+its lowest base to its tallest top. A unit of circles of one size is the hull of their centres grown by the radius, exactly; circles of
+several sizes are each the 16-gon circumscribing what lies beyond 0.05" under the smallest radius, grown by that radius; a unit with an oval
+or rect base is the hull of the polygons' vertices and the circles' circumscribed 16-gons. As a `MoveShape` the hull is a convex core and the
+grown radius (`MoveShape.Of(core, radius, mover, origin)`), so the separation adds to the radius. `Own` and `Bases` block as their models'
+bases. Where the base starts decides the obstacle: outside the grown perimeter, the grown one in `Spacing` and the plain one in
+`Perimeter`; inside the grown one (or with no separation), the plain one in `Bodies`; inside the plain one, the unit's bases in `Bodies`;
+a base it overlaps is left out, as without units. So a model is never trapped by where it stands. Every body obstacle carries its unit's id,
+and `MoveSpace.FirstMet` names the first one a path meets.
 
 The table is a box for the centre (the slab shrunk by the base's extent); a base that already stands off it is held to no
 table on the way. Only shapes within the search's length of the start are built: a path no longer than `L` stays within `L`
@@ -58,9 +80,9 @@ tests compare against the exact values (`MovementPathTests`: 11.588" round a 2" 
 
 ## Which path a move takes
 
-`Movement.Check(start, destination, allowance, impassable, difficult, cap, table, models?, surfaces?, dangerous?)` returns
+`Movement.Check(start, destination, allowance, impassable, difficult, cap, table, models?, surfaces?, dangerous?, steep?, units?)` returns
 `MoveCheck(Distance, EffectiveAllowance, WithinAllowance, CrossesImpassable, EntersDifficult, LeavesTable, Path,
-CrossesModels)`. The path is the first that fits, in order:
+CrossesModels, NearModels, Unit)`. The path is the first that fits, in order:
 
 1. round every difficult and dangerous volume, within the allowance;
 2. round every difficult volume, within the allowance;
@@ -70,8 +92,10 @@ CrossesModels)`. The path is the first that fits, in order:
 Without a cap (Strider, Flying, Aircraft) the order is round both, round dangerous, any, all within the allowance. A player
 going round a wood or a pit never chose to enter it, and the cap binds the whole unit, so keeping out of difficult ground
 comes first. `EntersDifficult` is whether the chosen path's base touches a difficult volume; then `EffectiveAllowance` is the
-cap. With `models`, a destination no path round them fits is tried again without them: found, it is `CrossesModels` (the
-server's `move_through_models`). Nothing fits at all: the shortest path at any length gives the `Distance` a refusal quotes,
+cap. Every choice is held to walls, bodies and the grown perimeters (`Held`). A destination none fits is tried again round the plain
+perimeters (`Bodies` and `Perimeter`): found, it is `NearModels` (the server's path `move_separation`); then without any model: found, it is
+`CrossesModels` (the server's `move_through_models`). `Unit` names the unit the path met first (`FirstMet`: a grown perimeter for
+`NearModels`, a plain perimeter or a base for `CrossesModels`). Nothing fits at all: the shortest path at any length gives the `Distance` a refusal quotes,
 and `CrossesImpassable` is set when the straight line meets an impassable volume or no path gets there. `LeavesTable` is the
 base off the slab at the destination.
 
@@ -81,13 +105,16 @@ long path (3.6.0 Unstable): `Check` round `dangerous`; when that path is longer 
 
 `Movement.VolumesOnPath(start, path, volumes)` names the volumes the base touches along a path (p.11 "in or through");
 `Movement.VolumesCrossed(start, destination, volumes)` is the same for the straight line.
-`Movement.ContactDistance(start, target, limit, impassable, table)` is the shortest path to base contact with a model, round
-impassable volumes, when it is at most `limit` (p.9's "clear path to reach it"; p.15's container in reach).
+`Movement.ContactDistance(start, target, limit, impassable, table, models?, units?, surfaces?)` is the shortest path to base contact with a
+model, round impassable volumes and, given `models`, round them and their units' perimeters as `Check` holds a path (the target left out of
+`models`; its unit among `Bases`), when it is at most `limit` (p.9's "clear path to reach it"; p.15's container in reach).
+`Movement.ContactInReach` passes the same to it and to each landing's `Check`, which then fits only round the models.
 
 ## The reach and the drawn area
 
-`MoveReach.Build(start, allowance, impassable, difficult, cap, table, models?, surfaces?)` settles two fields once per model
-per move Ask: one round the difficult volumes (walls and bodies too) and one through them. The cap binds only when a difficult volume is in
+`MoveReach.Build(start, allowance, impassable, difficult, cap, table, models?, surfaces?, dangerous?, unstable?, unstableOver?, units?)`
+settles two fields once per model per move Ask: one round the difficult volumes (walls, bodies and grown perimeters too) and one through
+them. Every field, the area, the clamp and the route are held to `Held`, so the area drawn goes round each other unit, the separation out. The cap binds only when a difficult volume is in
 reach: one listed out of reach caps nothing, as `Check` fits round it within the allowance. Owner ruling: *"the visible
 feedback to users should just show the furthest they could move accounting for both if they cross or go around the
 difficult"*, so a point is reachable when the field round difficult ground reaches it within the allowance **or** the field
