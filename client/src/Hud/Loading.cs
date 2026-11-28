@@ -41,13 +41,17 @@ public partial class LoadingPanel : PanelContainer
 
 /// <summary>The whole window in the theme's background with a <see cref="LoadingPanel"/> at its centre: entering a game until its first
 /// table stands, and the shader warm-up. It takes the mouse, so nothing under it is clicked while it shows. The panel shows only
-/// once the wait has lasted 200 ms (<see cref="LoadingGate"/>); a shorter one is the plain background.</summary>
+/// once the wait has lasted 200 ms (<see cref="LoadingGate"/>); a shorter one is the plain background. With <see cref="Home"/> set (entering a
+/// game) a Home button shows under the panel with it, so a connect or reconnect that never gets a table can always be left.</summary>
 public partial class LoadingCurtain : Control
 {
     readonly ColorRect _back = new() { MouseFilter = MouseFilterEnum.Ignore };
     readonly LoadingPanel _panel = new();
     /// <summary>How long a wait lasts before its panel shows.</summary>
     public TimeSpan Delay { get; init; } = TimeSpan.FromMilliseconds(200);
+    /// <summary>Leaves the wait (the game screen's Home); null shows no button (the shader warm-up).</summary>
+    public Action? Home { get; init; }
+    readonly Button _home = new() { Text = "Home", FocusMode = FocusModeEnum.None, SizeFlagsHorizontal = SizeFlags.ShrinkCenter, Visible = false };
     LoadingGate? _gate;
     Action? _onTheme;
 
@@ -60,6 +64,7 @@ public partial class LoadingCurtain : Control
         var stack = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; stack.AddThemeConstantOverride("separation", Space.L); centre.AddChild(stack);
         _head.AddThemeConstantOverride("separation", Space.S);
         stack.AddChild(_head); stack.AddChild(_panel);
+        if (Home is { } home) { _home.Pressed += home; stack.AddChild(_home); }
         _onTheme = Recolour; Ui.Changed += _onTheme; Recolour();
         // Under a Node (Main, for the shader warm-up) the anchors have no parent rect: the curtain follows the window's.
         if (GetParent() is not Control) { Fit(); GetViewport().SizeChanged += Fit; }
@@ -86,6 +91,7 @@ public partial class LoadingCurtain : Control
         if (line is not null) _panel.Set(line);
         ShowGame(line is null ? null : game);
         _head.Visible = shown && _headKey is not null;
+        _home.Visible = shown && Home is not null;
     }
 
     readonly VBoxContainer _head = new() { MouseFilter = MouseFilterEnum.Ignore, Visible = false };

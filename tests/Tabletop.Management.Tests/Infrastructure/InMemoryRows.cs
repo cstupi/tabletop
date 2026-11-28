@@ -43,7 +43,7 @@ public sealed class InMemoryRows
         public required Guid Sharer; public required Guid Recipient; public string? Folder; public string State = "open";
         public DateTimeOffset CreatedAt = DateTimeOffset.UtcNow; public DateTimeOffset? DecidedAt; public List<Guid> AssetIds = [];
     }
-    public sealed class ParticipantRow { public Guid Id; public Guid GameId; public Guid AccountId; public Guid? TeamId; public Guid? ArmyId; public ArmySnapshot? Snapshot; }
+    public sealed class ParticipantRow { public Guid Id; public Guid GameId; public Guid AccountId; public Guid? TeamId; public Guid? ArmyId; public ArmySnapshot? Snapshot; public bool Left; }
     public sealed record TeamRow(Guid Id, Guid GameId, int Ordinal);
 
     public readonly object Gate = new();

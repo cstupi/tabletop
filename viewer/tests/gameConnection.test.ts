@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { connectGame, SendError, type ConnectionState, type GameConnection } from '../src/lib/connection/gameConnection';
+import { connectGame, MAX_SERVER_FAILURES, SendError, type ConnectionState, type GameConnection } from '../src/lib/connection/gameConnection';
 import type { SocketLike } from '../src/lib/feed/liveFeed';
 import type { Command, Edit, GameEvent, Refused, SocketMessage } from '../src/lib/protocol/wire.generated';
 import { loadFixture } from './fixture';
@@ -264,6 +264,35 @@ describe('GameConnection', () => {
       expect(h.sockets).toHaveLength(i + 2);
       socket = h.sockets.at(-1)!;
     }
+  });
+
+  it('a game the server cannot load closes for good after five 1011s before any welcome (Session.MaxServerFailures)', async () => {
+    const h = harness();
+    let socket = await open(h);
+    for (let i = 1; i < MAX_SERVER_FAILURES; i++) {
+      socket.fire('close', { code: 1011, reason: 'cannot load this game' });
+      expect(h.conn.state.phase).toBe('reconnecting');
+      await vi.advanceTimersByTimeAsync(10000);
+      socket = h.sockets.at(-1)!;
+    }
+    socket.fire('close', { code: 1011, reason: 'cannot load this game' });
+    expect(h.conn.state.phase).toBe('closed');
+    expect(h.conn.state.closeReason).toBe('The game server failed (cannot load this game).');
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(h.sockets).toHaveLength(MAX_SERVER_FAILURES);
+  });
+
+  it('a welcome resets the count of server failures', async () => {
+    const h = harness();
+    let socket = await open(h);
+    for (let i = 1; i < MAX_SERVER_FAILURES; i++) {
+      socket.fire('close', { code: 1011, reason: 'cannot verify the session' });
+      await vi.advanceTimersByTimeAsync(10000);
+      socket = h.sockets.at(-1)!;
+    }
+    const s = await welcomed(h);
+    s.fire('close', { code: 1011, reason: 'cannot verify the session' });
+    expect(h.conn.state.phase).toBe('reconnecting');
   });
 
   it('a 1008 close asks for a fresh JWT before reconnecting', async () => {
