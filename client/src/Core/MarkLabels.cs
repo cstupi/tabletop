@@ -17,9 +17,10 @@ public static partial class MarkWords
         ("on another model's base", "On a base"),
         ("through impassable terrain", "Through impassable terrain"),
         ("in impassable terrain", "In impassable terrain"),
-        ("path crosses ", "Through a model"),
+        ("path crosses a model", "Through a model"),
         ("through another model", "Through a model"),
-        ("would move through ", "Through a model"),
+        ("path crosses ", "Through a unit"),
+        ("would move through ", "Through a unit"),
         ("leave the table", "Off the table"),
         ("outside its deployment zone", "Outside its zone"),
     ];
