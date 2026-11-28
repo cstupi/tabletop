@@ -144,8 +144,8 @@ public static partial class GfAttack
             if (takedown is not null) ctx.Applied.Add(GfNames.Takedown);
             else if (HeroDeferred(ctx.State, target)) ctx.Applied.Add(GfNames.Hero);
             // p.15: "continue to put wounds on the tough model with most wounds in the unit until it is killed, before starting to put them on
-            // the next tough model". Offered only Tough models (none wounded), the defender names one, which takes every wound it can; the
-            // rest carry to the next segment, which offers the survivors again. A spread answer (out of set, warned) reads as its first model.
+            // the next tough model". Offered only Tough models (none wounded), the defender places every wound in one answer, read as an order
+            // (FillInTurn): each model it names takes wounds until it is killed before the next takes any, so a spread still keeps p.15.
             var toughOnly = eligible.All(m => IsTough(ctx.State, m));
             Dictionary<Guid, int> allocation;
             if (takedown is { } one) allocation = new Dictionary<Guid, int> { [one] = wounds };
@@ -153,12 +153,26 @@ public static partial class GfAttack
             else if (ctx.History.LastClosed() is { Single: Allocated } closed)
             {
                 allocation = GfAnswers.Allocated(closed, Lookup.AliveModels(ctx.State, target), wounds);
-                if (toughOnly && allocation.Keys.FirstOrDefault() is var first && first != Guid.Empty)
-                    allocation = new Dictionary<Guid, int> { [first] = wounds };
+                if (toughOnly && allocation.Count > 0) allocation = FillInTurn(ctx.State, [.. allocation.Keys], wounds);
             }
             else if (KillsEveryModel(ctx, target, wounds) is { } forced) allocation = forced;   // no choice changes the outcome
-            else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds, toughOnly ? 1 : null))]);
+            else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds))]);
             return Apply(ctx, target, wounds, allocation.Where(kv => kv.Value > 0).Select(kv => (kv.Key, kv.Value)).ToList(), takedown is not null, null);
+        }
+
+        /// <summary>p.15 over the defender's answer: the models in the order it names them, each taking the wounds it has room for before the next
+        /// takes any, the rest on the last model named for Apply to carry over (p.8), as an answer naming one model always did.</summary>
+        static Dictionary<Guid, int> FillInTurn(GameState state, IReadOnlyList<Guid> order, int wounds)
+        {
+            var filled = new Dictionary<Guid, int>(); var left = wounds;
+            foreach (var m in order)
+            {
+                if (left <= 0) break;
+                var take = Math.Min(left, Math.Max(0, Size(state, m) - state.Projection.Models[m].Wounds));
+                if (take > 0) { filled[m] = take; left -= take; }
+            }
+            if (left > 0) { var last = filled.Count > 0 ? filled.Keys.Last() : order[0]; filled[last] = filled.GetValueOrDefault(last) + left; }
+            return filled;
         }
 
         const string IgnoreWoundsKey = "ignore_wounds";

@@ -2,7 +2,7 @@
 // client/src/Core/CasualtyPick.cs: the remove-casualties pick (in-game UX spec → Casualties). A click adds one wound to an offered model up
 // to its wounds left, and on a model that can take no more puts it back; a right-click takes one away; Clear empties the pick; Auto fills
 // the rest in the Ask's order. Required is the lesser of the amount and what the models it may use can take, so a pick whose wounds
-// outnumber the models still completes. Under the Ask's maxTargets of one, a click on another model moves the pick there. The answer is
+// outnumber the models still completes. A model takes wounds only once every picked model is full (p.15). Under the Ask's maxTargets of one, a click on another model moves the pick there. The answer is
 // Allocated, summing to the amount, any surplus on the last model counted for the server to carry over (p.8).
 
 import type { Allocated, Allocation, Ask } from '../protocol/wire.generated';
@@ -53,7 +53,7 @@ export class CasualtyPick {
 
   get title(): string {
     if (this.oneEach) return `Remove ${this.required} ${this.required === 1 ? 'model' : 'models'}`;
-    return `Assign ${this.#legal.amount} ${this.#legal.amount === 1 ? 'wound' : 'wounds'}${this.#legal.maxTargets === 1 ? ' to one model' : ''}`;
+    return `Assign ${this.#legal.amount} ${this.#legal.amount === 1 ? 'wound' : 'wounds'}${this.#legal.maxTargets === 1 ? ' to one model' : [...new Set(this.#legal.targets)].filter((m) => this.#capacity(m) > 1).length > 1 ? ', one model at a time' : ''}`;
   }
 
   get status(): string { return `${this.chosen} of ${this.required} chosen`; }
@@ -69,6 +69,8 @@ export class CasualtyPick {
       this.#counts.clear();                                                // one model at a time: the click moves the pick
     }
     if (this.chosen >= this.required || (this.#counts.get(modelId) ?? 0) >= this.#capacity(modelId)) return;
+    // p.15: a Tough model takes wounds until it is killed before the next takes any, so a new model waits for every picked one to be full.
+    if (!this.#counts.has(modelId) && [...this.#counts].some(([m, n]) => n < this.#capacity(m))) return;
     this.#counts.set(modelId, (this.#counts.get(modelId) ?? 0) + 1);
   }
 
