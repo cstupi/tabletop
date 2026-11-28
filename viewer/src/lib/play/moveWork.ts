@@ -7,7 +7,7 @@ import { placed, type Contact, type Geometry, type MoveBands, type RouteFound, t
 import type { Projection } from '../live/apply';
 import type { MoveRegion, Placement } from '../protocol/wire.generated';
 import { move as contactsOfMove } from './contactCheck';
-import { stationary } from './modelDrag';
+import { stationary, stationaryUnits, unitsOf } from './modelDrag';
 
 /** One frame's answer: the unit's allowance, each moved model's route, the ghosts' contacts, and where each ghost was when asked (`targets`), so a
  *  reader takes a route only for a ghost still there (`routeAt`). */
@@ -58,11 +58,13 @@ export function movedOf(p: Projection, ghosts: ReadonlyMap<string, Placement>): 
   });
 }
 
-/** The Ask's parameters the routes and areas read (MoveRegion's volume ids, cap, dangers), the standing models (none when the Ask passes models). */
+/** The Ask's parameters the routes and areas read (MoveRegion's volume ids, cap, dangers), the standing models with their units (none when the Ask
+ *  passes models; DragBodies.Units). */
 export function regionTerms(legal: MoveRegion, p: Projection): Omit<RoutesRequest, 'models'> {
   return {
     allowance: Math.max(0, legal.allowance), impassable: legal.impassableVolumeIds, difficult: legal.difficultVolumeIds, size: p.board.table.size,
     stationary: legal.passesModels ? [] : stationary(p, new Set(legal.modelIds)),
+    ...(legal.passesModels ? {} : { units: unitsOf(p, legal, stationaryUnits(p, new Set(legal.modelIds))) }),
     ...(legal.difficultCap === undefined ? {} : { difficultCap: legal.difficultCap }),
     ...(legal.steepVolumeIds === undefined ? {} : { steep: legal.steepVolumeIds }),
     ...(legal.dangerousVolumeIds === undefined ? {} : { dangerous: legal.dangerousVolumeIds }),

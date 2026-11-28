@@ -33,10 +33,21 @@ public class ContactCheckTests
     [Fact]
     public void A_move_that_fits_only_through_standing_models_crosses_them_unless_the_region_passes_models()
     {
-        Assert.Equal(new Contact(ContactKind.Crosses, null), ContactCheck.Move(Deployed, Region(null, S0) with { Allowance = 6 }, To((S0, At(16, 10))), [])[S0]);   // 6" through S1 and S2, more round them
+        Assert.Equal(new Contact(ContactKind.Crosses, TableUx.Squad.Id), ContactCheck.Move(Deployed, Region(null, S0) with { Allowance = 6 }, To((S0, At(16, 10))), [])[S0]);   // 6" through S1 and S2, more round them
         Assert.Empty(ContactCheck.Move(Deployed, Region(null, S0), To((S0, At(16, 10))), []));                   // 30" lets it go round them
         Assert.Empty(ContactCheck.Move(Deployed, Region(null, S0) with { PassesModels = true }, To((S0, At(16, 10))), []));
         Assert.Empty(ContactCheck.Move(Deployed, Region(null, S0), To((S0, At(10, 16))), []));
+    }
+
+    [Fact]
+    public void A_move_between_two_models_of_another_unit_goes_through_that_unit()
+    {
+        // p.7: models "may never move through other models or units"; owner ruling: a path between two models of another unit moves through it.
+        var p = TableUx.After(TableUx.Deploy, new ModelsMoved([new(S1, new OnTable(At(12, 10)), new OnTable(At(13, 10))), new(Orc, new OnTable(At(40, 30)), new OnTable(At(11.5, 6)))]));
+        var region = new MoveRegion([Orc], 9, [], [], null);
+        Assert.Equal(new Contact(ContactKind.Crosses, TableUx.Squad.Id), ContactCheck.Move(p, region, To((Orc, At(11.5, 14))), [])[Orc]);
+        Assert.False(MoveRegions.Of(p, region, [], new TableSize(72, 48)).Reaches(Orc, new Point2(11.5, 14)));
+        Assert.Empty(ContactCheck.Move(p, region with { Allowance = 14 }, To((Orc, At(11.5, 14))), []));
     }
 
     [Fact]
@@ -45,7 +56,7 @@ public class ContactCheckTests
         // p.11: once any model goes in or through difficult terrain, every model may move no more than 6"; a way round the standing models
         // that fits the Ask's 30" but not the unit's 6" leaves only the way through them.
         Assert.Empty(ContactCheck.Move(Deployed, Region(null, S0), To((S0, At(16, 10))), []));
-        Assert.Equal(new Contact(ContactKind.Crosses, null), ContactCheck.Move(Deployed, Region(null, S0), To((S0, At(16, 10))), [], unit: 6)[S0]);
+        Assert.Equal(new Contact(ContactKind.Crosses, TableUx.Squad.Id), ContactCheck.Move(Deployed, Region(null, S0), To((S0, At(16, 10))), [], unit: 6)[S0]);
     }
 
     [Fact]
@@ -57,7 +68,7 @@ public class ContactCheckTests
             new(Orc, new OnTable(At(40, 30)), new OnTable(At(7, 0.6)))]));
         var region = Region(null, S0) with { Allowance = 6 };
         Assert.Empty(ContactCheck.Move(p, region, To((S0, At(9, 0.6))), []));                                  // no table given: round underneath
-        Assert.Equal(new Contact(ContactKind.Crosses, null), ContactCheck.Move(p, region, To((S0, At(9, 0.6))), [], new TableSize(72, 48))[S0]);
+        Assert.Equal(new Contact(ContactKind.Crosses, TableUx.Orcs.Id), ContactCheck.Move(p, region, To((S0, At(9, 0.6))), [], new TableSize(72, 48))[S0]);
     }
 
     [Fact]
@@ -122,6 +133,8 @@ public class ContactCheckTests
         string Name(Guid id) => id == TableUx.Orcs.Id ? "Orc Boyz" : "?";
         Assert.Equal("overlaps a base", ContactCheck.Words(new Contact(ContactKind.OnBase, TableUx.Orcs.Id), null, Name));
         Assert.Equal("path crosses a model", ContactCheck.Words(new Contact(ContactKind.Crosses, null), null, Name));
+        Assert.Equal("path crosses Orc Boyz", ContactCheck.Words(new Contact(ContactKind.Crosses, TableUx.Orcs.Id), null, Name));
+        Assert.Equal("passes within 1\" of Orc Boyz", ContactCheck.Words(new Contact(ContactKind.PassesNear, TableUx.Orcs.Id), 1, Name));
         Assert.Equal("within 1\" of Orc Boyz", ContactCheck.Words(new Contact(ContactKind.TooClose, TableUx.Orcs.Id), 1, Name));
     }
 
@@ -132,6 +145,8 @@ public class ContactCheckTests
         Assert.Equal("APC 1 would end within 9\" of Orcs", ContactCheck.Sentence("within 9\" of Orcs", "APC 1"));
         Assert.Equal("APC 1 would be placed on another model's base", ContactCheck.Sentence("overlaps a base", "APC 1"));
         Assert.Equal("APC 1 would move through another model", ContactCheck.Sentence("path crosses a model", "APC 1"));
+        Assert.Equal("APC 1 would move through Orcs", ContactCheck.Sentence("path crosses Orcs", "APC 1"));
+        Assert.Equal("APC 1 would pass within 1\" of Orcs", ContactCheck.Sentence("passes within 1\" of Orcs", "APC 1"));
         Assert.Equal("APC 1 would end its move in impassable terrain", ContactCheck.Sentence("ends in impassable terrain", "APC 1"));
         Assert.Equal("something else", ContactCheck.Sentence("something else", "APC 1"));
     }

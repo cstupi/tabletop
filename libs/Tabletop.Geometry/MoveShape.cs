@@ -107,6 +107,13 @@ internal sealed class MoveShape
     public static MoveShape Of(Outline obstacle, Outline mover, Point2 origin)
     {
         var (oCore, oRadius) = Split(obstacle, new Point2(0, 0));
+        return Of(oCore, oRadius, mover, origin);
+    }
+
+    /// <summary>The shape an obstacle given as a convex core (one point, or a counter-clockwise polygon) grown by a radius makes for a base whose
+    /// outline, placed at `origin`, is `mover`: a unit's perimeter (MoveSpace).</summary>
+    public static MoveShape Of(Point2[] oCore, double oRadius, Outline mover, Point2 origin)
+    {
         var (mCore, mRadius) = Split(mover, origin);
         var reflected = mCore.Select(p => p * -1).ToArray();          // a half-turn keeps counter-clockwise order
         Point2[] core = (oCore.Length, reflected.Length) switch

@@ -145,19 +145,25 @@ public static partial class GfMoves
     /// <summary>
     /// p.15: the containers a model of this unit could reach — a friendly container (IsFriendlyContainer) within the move's
     /// remaining allowance of one of the unit's models, by a path to base contact round every impassable volume (Movement.ContactDistance, the same
-    /// reading as charge-target's). Only one model has to reach it, so the answer is per container, not per model. Under 3.6.0 p.15
+    /// reading as charge-target's) and, unless the unit `passesModels`, round the other models: each other unit's perimeter grown by `separation`, the
+    /// container's unit as its bases (p.7). Only one model has to reach it, so the answer is per container, not per model. Under 3.6.0 p.15
     /// ("If the Transport is unreachable (for example because it’s flying), then units can’t embark in it", GfEdition.AircraftTransportUnreachable)
     /// an Aircraft container is never in reach; deploying inside one (MayDeployInside) stays allowed.
     /// </summary>
-    public static IReadOnlyList<Guid> ContainersInReach(StepContext ctx, Guid unit, double remaining, IReadOnlyList<WorldVolume> impassable)
+    public static IReadOnlyList<Guid> ContainersInReach(StepContext ctx, Guid unit, double remaining, IReadOnlyList<WorldVolume> impassable, double? separation = null,
+        bool passesModels = false)
     {
         var movers = Lookup.LivingModels(ctx.State, unit);
         if (movers.Count == 0) return [];
+        var p = ctx.Projection;
+        var standing = passesModels ? Others.None : Others.Except(ctx.State, p.Models.Values.Where(m => m.UnitId == unit).Select(m => m.Id).ToHashSet());
+        var terrain = Battlefield.Terrain(ctx.State);
         var unreachableAircraft = GfEdition.Of(ctx.State).AircraftTransportUnreachable;
         return ctx.Projection.Models.Values.Where(c => IsFriendlyContainer(ctx.State, unit, c.Id))
             .Where(c => !(unreachableAircraft && IsAircraft(ctx, c.UnitId)))
             .Where(c => movers.Any(m => Battlefield.Distance(ctx.State, m, c.Id) <= remaining
-                && Movement.ContactDistance(Battlefield.Placed(ctx.State, m)!.Value, Battlefield.Placed(ctx.State, c.Id)!.Value, remaining, impassable, ctx.State.Board.Table.Size) is not null))
+                && Movement.ContactDistance(Battlefield.Placed(ctx.State, m)!.Value, Battlefield.Placed(ctx.State, c.Id)!.Value, remaining, impassable, ctx.State.Board.Table.Size,
+                    standing.Models, standing.For(unit, separation, [c.UnitId]), terrain) is not null))
             .Select(c => c.Id).ToList();
     }
 
@@ -257,8 +263,10 @@ public static partial class GfMoves
     /// through difficult ground with the cap binding the unit (p.11, not Strider or Flying). A model that has taken the test this activation owes none;
     /// Tested is the models these dice are for, which the caller marks (MarkTested). Each is read along the path the model's base takes within
     /// `remaining` (what this segment had left; the whole allowance when not given). `usedBefore` is what earlier segments of the same move used
-    /// (the move step's distance_used_tenths): 3.6.0 p.12 Unstable reads "moves over 6”" over the whole movement, as p.11's cap does.</summary>
-    public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice, bool EnteredDifficult, IReadOnlyList<Guid> Tested) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, string? action, double? remaining = null, double usedBefore = 0)
+    /// (the move step's distance_used_tenths): 3.6.0 p.12 Unstable reads "moves over 6”" over the whole movement, as p.11's cap does. `region`, the
+    /// move Ask answered: its Separation and a charge's target (ContactWith) shape the path round other units as the answer was judged (Route).</summary>
+    public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice, bool EnteredDifficult, IReadOnlyList<Guid> Tested) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, string? action, double? remaining = null, double usedBefore = 0,
+        MoveRegion? region = null)
     {
         // p.13: an Aircraft ignores all terrain when moving, so no volume is swept for it.
         var rules = TerrainFor(ctx, unit, live);
@@ -279,8 +287,8 @@ public static partial class GfMoves
         // ground when that fits. p.13: Flying and Aircraft pass through models and impassable terrain, so their path is the straight line.
         var walls = rules.PassesImpassable ? [] : impassable;
         var moving = proposed.Select(m => m.ModelId).ToHashSet();
-        IReadOnlyList<PlacedModel> standing = rules.PassesImpassable ? [] : ctx.Projection.Models.Values.Where(x => !moving.Contains(x.Id) && x.Location is OnTable)
-            .Select(x => Battlefield.Placed(ctx.State, x.Id)!.Value).ToList();
+        var standing = rules.PassesImpassable ? Others.None : Others.Except(ctx.State, moving);
+        var units = standing.For(unit, region?.Separation, region is null ? null : TargetUnits(ctx.State, region));
         foreach (var m in proposed)
         {
             // p.15: embarking costs no measured distance and sweeps no path — "only one model needs to reach the Transport for
@@ -302,7 +310,7 @@ public static partial class GfMoves
             if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
             var settled = Battlefield.Settle(ctx.State, m.ModelId, to.Placement);
             var path = Movement.Measured(start, settled.Position.Horizontal, remaining ?? allowance, walls, difficult, strider ? null : GfNames.DifficultCap,
-                ctx.State.Board.Table.Size, standing, Battlefield.Terrain(ctx.State), dangerous, unstable, GfNames.UnstableDistance - usedBefore, steep);
+                ctx.State.Board.Table.Size, standing.Models, Battlefield.Terrain(ctx.State), dangerous, unstable, GfNames.UnstableDistance - usedBefore, steep, units);
             used = Math.Max(used, path.Distance);
             // p.11 is "moves in or through", which the landing position alone does not answer: the volumes the base touches along its path.
             if (Movement.VolumesOnPath(start, path.Path, byDistance ? DangerousFor36(terrain, usedBefore + path.Distance) : dangerous).Count > 0) exposed.Add(m.ModelId);
@@ -416,7 +424,8 @@ public static partial class GfMoves
                     new MoveRegion(movers, allowance, impassable, difficult, rules.DifficultCap, Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable, IgnoresTerrain: rules.IgnoresAllTerrain, SteepVolumeIds: steep,
                         DangerousVolumeIds: dangerous, UnstableVolumeIds: unstable, UnstableOver: unstableOver, KeepAway: KeptBy(ctx, unit, entry)), allowPass: true)]);   // the cap ApplyMove holds the move to
             }
-            var (changes, _, dice, _, tested) = ApplyMove(ctx, unit, live, allowance, [.. GfAnswers.Moves(ctx.State, closed).Where(m => row.AmountDice is null || movers.Contains(m.ModelId))], null);
+            var (changes, _, dice, _, tested) = ApplyMove(ctx, unit, live, allowance, [.. GfAnswers.Moves(ctx.State, closed).Where(m => row.AmountDice is null || movers.Contains(m.ModelId))], null,
+                region: closed.Ask.Legal as MoveRegion);
             if (changes.Count == 0) return new Complete([]);                  // declined, or every landing refused: the grant waits for the next point
             live.Read(source);
             var (spent, held) = ConsumeKeepingFlying(live);

@@ -62,7 +62,8 @@ public static partial class GfMoves
         var candidates = inGrace.Count > 0 ? inGrace : touching == 0 ? apart : [];
         // Judged without the draw-in (no ContactWith). An answer that already breaks one of these is read as it is.
         var plain = region with { ContactWith = null, ContactGrace = null };
-        if (candidates.Count == 0 || Breaks(state, plain, moves)) return moves;
+        var bases = TargetUnits(state, region);
+        if (candidates.Count == 0 || Breaks(state, plain, moves, bases)) return moves;
         var reading = moves.ToList();
         foreach (var (move, _) in candidates)
         {
@@ -72,17 +73,19 @@ public static partial class GfMoves
             var drawn = at with { Position = new Point3(flush.X, flush.Y, at.Position.Z) };
             if (Gap(state, Battlefield.At(state, move.ModelId, Battlefield.Settle(state, move.ModelId, drawn)), targets) > Touching + 1e-6) continue;
             var trial = reading.Select(m => m.ModelId == move.ModelId ? m with { To = new OnTable(drawn) } : m).ToList();
-            if (Breaks(state, plain, trial)) continue;
+            if (Breaks(state, plain, trial, bases)) continue;
             reading = trial;
             if (inGrace.Count == 0) break;   // the nearest that can be drawn in reaches contact; the rest stay where the player put them
         }
         return reading;
     }
 
-    static bool Breaks(GameState state, MoveRegion plain, IReadOnlyList<ModelRelocation> moves)
+    /// <summary>The plain region's breaches, the charge's target units (`bases`) reached as their models' bases.</summary>
+    static bool Breaks(GameState state, MoveRegion plain, IReadOnlyList<ModelRelocation> moves, IReadOnlyList<Guid>? bases)
     {
         var answer = new Destinations(moves);
-        return (PathBreach(state, plain, answer) ?? DifficultCapBreach(state, false, plain, answer) ?? ContactBreach(state, plain, answer) ?? CoherencyBreach(state, plain, answer)) is not null;
+        return (PathBreach(state, plain, answer) ?? DifficultCapBreach(state, false, plain, answer, bases) ?? ContactBreach(state, plain, answer, bases)
+            ?? CoherencyBreach(state, plain, answer)) is not null;
     }
 
     /// <summary>Within this the bases touch: the defender's close-in reads the same (GfMelee: "not in base contact").</summary>
@@ -123,12 +126,13 @@ public static partial class GfMoves
         var moving = region.ModelIds.ToHashSet();
         var standing = p.Models.Values.Where(x => !moving.Contains(x.Id) && x.Location is OnTable).Select(x => (x.UnitId, At: Battlefield.Placed(state, x.Id)!.Value)).ToList();
         var units = chargers.Select(c => p.Models[c.Id].UnitId).ToHashSet();
+        var others = new Others([.. standing.Select(s => s.At)], [.. standing.Select(s => s.UnitId)]);
         var terms = new FormationTerms(region.Allowance, terrain.Where(v => region.ImpassableVolumeIds.Contains(v.Id)).ToList(),
             terrain.Where(v => region.DifficultVolumeIds.Contains(v.Id)).ToList(), region.DifficultCap,
             region.IgnoresTerrain ? [] : Declared(terrain, TerrainDeclarations.Impassable), terrain, state.Board.Table.Size, standing.Select(s => s.At).ToList(),
             region.PassesModels, GfNames.CoherencyChain, GfNames.CoherencyElevated, GfNames.CoherencySpread,
             region.SteepVolumeIds is { Count: > 0 } steep ? terrain.Where(v => steep.Contains(v.Id)).ToList() : null,
-            ContactVertical: GfEdition.Of(state).MeleeVertical);
+            ContactVertical: GfEdition.Of(state).MeleeVertical, Units: others.For(units.First(), region.Separation, TargetUnits(state, region)));
         return UnitFormation.InContact(chargers, standing.Where(s => units.Contains(s.UnitId)).Select(s => s.At).ToList(), targets, terms);
     }
 }

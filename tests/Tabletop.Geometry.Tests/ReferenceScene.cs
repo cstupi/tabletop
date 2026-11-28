@@ -38,6 +38,13 @@ internal sealed record ReferenceScene(long Seq, TableSize Size, List<WorldVolume
         return Models.Where(m => !ids.Contains(m.Id)).Select(m => m.Placed).ToList();
     }
 
+    /// <summary>Others' units, in Others' order, with the unit as the mover's own (MoveUnits), held to the scene's separation.</summary>
+    public MoveUnits OthersUnits(IReadOnlyList<Model> unit)
+    {
+        var ids = unit.Select(m => m.Id).ToHashSet();
+        return new MoveUnits([.. Models.Where(m => !ids.Contains(m.Id)).Select(m => m.UnitId)], unit[0].UnitId, Separation);
+    }
+
     public List<WorldVolume> DifficultVolumes => Volumes.Where(v => Difficult.Contains(v.Id)).ToList();
 
     /// <summary>The ruin (the scene's one Solid) declared Impassable, for the impassable paths.</summary>

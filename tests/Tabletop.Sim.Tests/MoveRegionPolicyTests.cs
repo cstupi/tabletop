@@ -45,6 +45,29 @@ public class MoveRegionPolicyTests
     }
 
     [Fact]
+    public void A_regroup_answers_every_model_of_the_region_and_the_ones_it_leaves_where_they_stand()
+    {
+        // p.7: a unit out of coherency regroups. The regroup's paths are found with the whole region off the table, so the answer names every
+        // model: the server goes round only the models an answer leaves out (GfMoves.Contact).
+        var ids = new[] { Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7() };
+        var slots = ids.Select((id, i) => new ModelSlot(id, i + 1, $"m{i + 1}", new Dictionary<string, string>(), [], Base.Circle(1.26), 1.5, null, [])).ToList();
+        var unit = new Unit(Unit, 1, "u", new Dictionary<string, string>(), [], slots);
+        var table = new TableState(Guid.CreateVersion7(), null, new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
+        var info = new GameInfo(Guid.CreateVersion7(), "g", GameStatus.Playing, Part, "grimdark-future", "sha256:x",
+            SchedulerShape.AlternatingActivation, Enforcement.Strict, false, RngSeed: 2, [new Team(Team, 1)],
+            [new Participant(Part, Guid.CreateVersion7(), "p", Team, null)]);
+        var board = new Board(table, [new ArmyInPlay(Part, new ArmySnapshot(Guid.CreateVersion7(), "a", "grimdark-future", [unit]))]);
+        var applier = new EventApplier(board, info);
+        Point3[] at = [new(30, 24, 0), new(31.5, 24, 0), new(36, 24, 0)];
+        applier.Apply(new GameEvent(1, null, new ModelsMoved([.. ids.Select((id, i) => new ModelRelocation(id, new OnShelf(), new OnTable(new Placement(at[i], new Yaw(0)))))]), null));
+        var view = new PolicyView(applier.Projection, board);
+        var ask = new Ask(Guid.CreateVersion7(), "move", "Move", [Team], new MoveRegion(ids, 6, [], [], null, null, Separation: 1), false, false, null, Guid.CreateVersion7());
+        var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(1)).Answer(ask, view));
+        Assert.Equal(ids.ToHashSet(), answer.Moves.Select(x => x.ModelId).ToHashSet());
+        Assert.Contains(answer.Moves, x => x.From == x.To);
+    }
+
+    [Fact]
     public void A_charge_move_ends_in_base_contact_with_the_target()
     {
         // p.9: "Charging models must move by up to 12” to get into base contact with an enemy model from the target unit".

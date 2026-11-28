@@ -40,10 +40,11 @@ public sealed record TableRequest(TableSize Size, PlacedModel Model);
 public sealed record ExitRequest(ModelBody Body, PlacedModel Container, double Within, Point2 At, IReadOnlyList<Guid> Impassable, IReadOnlyList<Piece> Terrain, TableSize Size);
 
 /// <summary>One model's move area in bands: the move Ask's parameters (MoveRegion's volume ids, cap, MinDistance), the board's terrain, the table and
-/// the models standing that stop it (none when the Ask PassesModels).</summary>
+/// the models standing that stop it (none when the Ask PassesModels), with `Units` their units (MoveUnits: each other unit's perimeter, grown by the
+/// Ask's Separation).</summary>
 public sealed record BandsRequest(PlacedModel Start, double Allowance, IReadOnlyList<Guid> Impassable, IReadOnlyList<Guid> Difficult, double? DifficultCap,
     IReadOnlyList<Piece> Terrain, TableSize Size, IReadOnlyList<PlacedModel> Stationary, IReadOnlyList<Guid>? Steep = null, IReadOnlyList<Guid>? Dangerous = null,
-    IReadOnlyList<Guid>? Unstable = null, double? UnstableOver = null, double? MinDistance = null);
+    IReadOnlyList<Guid>? Unstable = null, double? UnstableOver = null, double? MinDistance = null, MoveUnits? Units = null);
 public sealed record BandsAnswer(Point2[] Clear, Point2[] Difficult, Point2[] Dangerous);
 
 /// <summary>One held model's move: where it stands and where it is going.</summary>
@@ -52,7 +53,7 @@ public sealed record RouteModel(Guid Id, PlacedModel Start, Point2 To);
 /// cap, each move judged by its shortest path within it.</summary>
 public sealed record RoutesRequest(IReadOnlyList<RouteModel> Models, double Allowance, IReadOnlyList<Guid> Impassable, IReadOnlyList<Guid> Difficult,
     double? DifficultCap, IReadOnlyList<Piece> Terrain, TableSize Size, IReadOnlyList<PlacedModel> Stationary, IReadOnlyList<Guid>? Steep = null,
-    IReadOnlyList<Guid>? Dangerous = null, IReadOnlyList<Guid>? Unstable = null, double? UnstableOver = null, bool Capped = false);
+    IReadOnlyList<Guid>? Dangerous = null, IReadOnlyList<Guid>? Unstable = null, double? UnstableOver = null, bool Capped = false, MoveUnits? Units = null);
 /// <summary>Footprints, Dangerous and Stretches: the base swept along the path (SweptPath.Of).</summary>
 public sealed record RouteFound(Guid Id, Point2[] Points, double Distance, bool EntersDifficult, PathFootprint[] Footprints, Guid[] Dangerous, PathStretch[] Stretches);
 
@@ -60,12 +61,12 @@ public sealed record RouteFound(Guid Id, Point2[] Points, double Distance, bool 
 public sealed record AskModel(Guid Id, PlacedModel Start);
 /// <summary>A move Ask kept under `Key` (MoveAsks): its models, its parameters (MoveRegion's volume ids, cap, MinDistance, Separation, PassesModels,
 /// whether a landing in impassable terrain counts), the board's terrain, the table, the standing models that stop a path (none when the Ask
-/// PassesModels) and every model as a contact body. `Prepare`: every model's reach is built at once, with the fields its route reads (the worker that
-/// answers drag frames), rather than on first use.</summary>
+/// PassesModels) with their units (`Units`, MoveUnits; its Bases, a charge's target units, the contacts' too) and every model as a contact body.
+/// `Prepare`: every model's reach is built at once, with the fields its route reads (the worker that answers drag frames), rather than on first use.</summary>
 public sealed record MoveAskRequest(string Key, IReadOnlyList<AskModel> Models, double Allowance, IReadOnlyList<Guid> Impassable, IReadOnlyList<Guid> Difficult,
     double? DifficultCap, IReadOnlyList<Piece> Terrain, TableSize Size, IReadOnlyList<PlacedModel> Stationary, IReadOnlyList<ContactBody> Bodies,
     double? Separation = null, bool PassesModels = false, bool Landing = true, IReadOnlyList<Guid>? Steep = null, IReadOnlyList<Guid>? Dangerous = null,
-    IReadOnlyList<Guid>? Unstable = null, double? UnstableOver = null, double? MinDistance = null, bool Prepare = false);
+    IReadOnlyList<Guid>? Unstable = null, double? UnstableOver = null, double? MinDistance = null, bool Prepare = false, MoveUnits? Units = null);
 /// <summary>A kept Ask's area for one model, or the share Part of Parts of it.</summary>
 public sealed record MoveAreaRequest(string Key, Guid Id, int Part = 0, int Parts = 1);
 /// <summary>The area's bands as flat coordinates, x then y, three points a triangle.</summary>

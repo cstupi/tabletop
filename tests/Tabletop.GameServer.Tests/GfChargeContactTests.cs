@@ -146,8 +146,9 @@ public class GfChargeContactTests
         var target = Unit("T", "4+", "4+", [], 1, [], Melee("Fist", 1));
         var sim = Sim.Gf(State([charger, blocker], [target], enforcement: Enforcement.Strict), 1);
         Place(sim, charger.Models[0].Id, 20, 24); Place(sim, target.Models[0].Id, 33.1, 24);
-        Place(sim, blocker.Models[0].Id, 27, 22.74); Place(sim, blocker.Models[1].Id, 27, 24); Place(sim, blocker.Models[2].Id, 27, 25.26);
         sim.Start(GfNames.ChargeSeq, new SequenceContext(charger.Id, [], [], GfNames.Charge));
+        // The wall moves in once the target is picked: the target is offered only while a path round the other units reaches it (ChargeTargets).
+        Place(sim, blocker.Models[0].Id, 27, 22.74); Place(sim, blocker.Models[1].Id, 27, 24); Place(sim, blocker.Models[2].Id, 27, 25.26);
         sim.Answer(Samples.Team1, new SelectedPieces([target.Id]));
         Assert.True(sim.AskFor(Samples.Team1).AllowPass);
         Assert.IsType<Applied>(Answer(sim, new Passed()));
@@ -182,8 +183,9 @@ public class GfChargeContactTests
         var target = Unit("T", "4+", "4+", [], 1, [], Melee("Fist", 1));
         var sim = Sim.Gf(State([charger, blocker], [target], enforcement: Enforcement.Strict), 1);
         Place(sim, charger.Models[0].Id, 20, 24); Place(sim, target.Models[0].Id, 33.1, 24);
-        Place(sim, blocker.Models[0].Id, 27, 22.74); Place(sim, blocker.Models[1].Id, 27, 24); Place(sim, blocker.Models[2].Id, 27, 25.26);
         sim.Start(GfNames.ChargeSeq, new SequenceContext(charger.Id, [], [], GfNames.Charge));
+        // The wall moves in once the target is picked: the target is offered only while a path round the other units reaches it (ChargeTargets).
+        Place(sim, blocker.Models[0].Id, 27, 22.74); Place(sim, blocker.Models[1].Id, 27, 24); Place(sim, blocker.Models[2].Id, 27, 25.26);
         sim.Answer(Samples.Team1, new SelectedPieces([target.Id]));
         Assert.IsType<Applied>(Answer(sim, new Destinations([At(sim, charger.Models[0].Id, 24, 24)])));
     }

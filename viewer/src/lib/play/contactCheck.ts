@@ -15,8 +15,14 @@ export function bodiesOf(p: Projection): ContactBody[] {
   }));
 }
 
-/** A move answer's landings: on a base, in impassable terrain unless the region ignores terrain, through a model unless the region passes
- *  models, within its Separation. A path stays on the `size` table (p.7). */
+/** A charge's target units (the Ask's ContactWith models'), which a path reaches as their models' bases. */
+function bases(p: Projection, legal: MoveRegion): { bases: string[] } | undefined {
+  if (legal.contactWith === undefined || legal.contactWith.length === 0) return undefined;
+  return { bases: [...new Set(legal.contactWith.flatMap((id) => { const u = p.models.get(id)?.unitId; return u === undefined ? [] : [u]; }))] };
+}
+
+/** A move answer's landings: on a base, in impassable terrain unless the region ignores terrain, within its Separation, a path through a model or
+ *  another unit's perimeter unless the region passes models, a path within its Separation of another unit. A path stays on the `size` table (p.7). */
 export function move(g: Geometry, p: Projection, legal: MoveRegion, proposed: ReadonlyMap<string, Placement>, size: TableSize): Map<string, Contact> {
   return g.contacts(bodiesOf(p), proposed, p.board.table.terrain, {
     ...(legal.separation === undefined ? {} : { separation: legal.separation }),
@@ -27,6 +33,7 @@ export function move(g: Geometry, p: Projection, legal: MoveRegion, proposed: Re
       ...(legal.steepVolumeIds === undefined ? {} : { steep: legal.steepVolumeIds }),
     },
     size,
+    ...(bases(p, legal) ?? {}),
   });
 }
 
@@ -41,7 +48,8 @@ const tenth = (n: number): string => String(Math.round(n * 10) / 10);
 export function words(c: Contact, separation: number | undefined, unitName: (id: string) => string): string {
   switch (c.kind) {
     case 'on_base': return 'overlaps a base';
-    case 'crosses': return 'path crosses a model';
+    case 'crosses': return c.unitId !== undefined ? `path crosses ${unitName(c.unitId)}` : 'path crosses a model';
+    case 'passes_near': return `passes within ${tenth(separation ?? 0)}" of ${c.unitId !== undefined ? unitName(c.unitId) : 'another unit'}`;
     case 'in_impassable': return 'ends in impassable terrain';
     default: return `within ${tenth(separation ?? 0)}" of ${c.unitId !== undefined ? unitName(c.unitId) : 'another unit'}`;
   }
@@ -55,7 +63,9 @@ export function sentence(words: string, subject: string): string {
     case 'path crosses a model': return `${subject} would move through another model`;
     case 'ends in impassable terrain': return `${subject} would end its move in impassable terrain`;
     case 'would leave the table': return `${subject} would leave the table`;
-    default: return words.startsWith('within ') ? `${subject} would end ${words}` : words.startsWith('placed ') ? `${subject} would be ${words}`
+    default: return words.startsWith('path crosses ') ? `${subject} would move through ${words.slice('path crosses '.length)}`
+      : words.startsWith('passes within ') ? `${subject} would pass ${words.slice('passes '.length)}`
+      : words.startsWith('within ') ? `${subject} would end ${words}` : words.startsWith('placed ') ? `${subject} would be ${words}`
       : words.startsWith('beyond ') ? `${subject} would be placed ${words}` : words;
   }
 }

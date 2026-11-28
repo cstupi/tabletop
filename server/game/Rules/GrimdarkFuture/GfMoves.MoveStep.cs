@@ -61,7 +61,8 @@ public static partial class GfMoves
                     // p.13: an Aircraft ignores all terrain, and a Flying unit moves through it (TerrainFor); PathBreach still judges where Flying ends.
                     var (impassable, difficult, steep) = RegionVolumes(ctx.State, rules);
                     var (dangerous, unstable, unstableOver) = RegionDangers(ctx.State, rules, action, used);
-                    var containment = Containers(ctx, unit, action, remaining, rules.PassesImpassable ? [] : Declared(terrain, TerrainDeclarations.Impassable));
+                    var containment = Containers(ctx, unit, action, remaining, rules.PassesImpassable ? [] : Declared(terrain, TerrainDeclarations.Impassable),
+                        aircraft ? null : GfNames.Separation, rules.PassesImpassable);
                     var prompt = containment?.ExitingId is not null ? $"Disembark: place every model fully within {GfNames.ExitWithin:0.#}\" of the transport"
                         : ignoreSeparation ? "Charge: move into contact" : aircraft ? AircraftPrompt(ctx, unit, remaining) : $"Move up to {remaining:0.#}\"";
                     // p.13: an Aircraft's move is mandatory, so it may not pass and must go at least 30" (MinimumBreach judges the answer).
@@ -82,7 +83,7 @@ public static partial class GfMoves
                     var continues = !aircraft && answered.Single is Destinations { Continues: true };
                     var proposed = GfAnswers.Moves(ctx.State, answered);
                     if (continues) proposed = proposed.Where(m => !Unmoved(ctx, m)).ToList();
-                    var (changes, segment, dangerousDice, entered, tested) = ApplyMove(ctx, unit, live, allowance, proposed, action, remaining, used);
+                    var (changes, segment, dangerousDice, entered, tested) = ApplyMove(ctx, unit, live, allowance, proposed, action, remaining, used, answered.Ask.Legal as MoveRegion);
                     var values = new Dictionary<string, int>
                     {
                         ["distance_used_tenths"] = ctx.Frame.Value("distance_used_tenths") + segment, ["dangerous_dice"] = dangerousDice, ["phase"] = dangerousDice > 0 ? 1 : 2,
@@ -151,13 +152,14 @@ public static partial class GfMoves
         /// p.15 lets a Charge disembark, and charging a transport is an attack on it, not a way into it. Null when containment plays
         /// no part in this move, which is every move on open table. This is where "never both in one activation" is enforced.
         /// </summary>
-        static MoveContainment? Containers(StepContext ctx, Guid unit, string action, double remaining, IReadOnlyList<WorldVolume> impassable)
+        static MoveContainment? Containers(StepContext ctx, Guid unit, string action, double remaining, IReadOnlyList<WorldVolume> impassable, double? separation,
+            bool passesModels)
         {
             var (embarked, disembarked) = ContainerMovesThisActivation(ctx.State, unit);
             if (Lookup.ContainerOf(ctx.State, unit) is { } inside)
                 return embarked ? null : new MoveContainment([], inside, GfNames.ExitWithin);
             if (disembarked || action == GfNames.Charge) return null;
-            var enterable = ContainersInReach(ctx, unit, remaining, impassable);
+            var enterable = ContainersInReach(ctx, unit, remaining, impassable, separation, passesModels);
             return enterable.Count > 0 ? new MoveContainment(enterable, null, null) : null;
         }
         // Allowance, DifficultVolumeIds and DifficultCap are unbound whenever Containment.ExitingId is set:

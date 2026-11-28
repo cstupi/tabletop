@@ -17,6 +17,7 @@ namespace Tabletop.Client.Tests;
 [Collection(TimingCollection.Name)]
 public class MoveAreaBench(ITestOutputHelper output)
 {
+    static readonly Guid Mine = Guid.CreateVersion7(), Enemy = Guid.CreateVersion7();
     static readonly Base Infantry = Base.Circle(1.2598), Oval = Base.Oval(2.362204724409449, 1.3779527559055118);
 
     internal static IReadOnlyList<WorldVolume> Table(string name)
@@ -44,7 +45,9 @@ public class MoveAreaBench(ITestOutputHelper output)
         var legal = new MoveRegion(ids, allowance, Ids(TerrainDeclarations.Impassable), Ids(TerrainDeclarations.Difficult), 6, Separation: 1,
             SteepVolumeIds: Ids(TerrainDeclarations.Steep), DangerousVolumeIds: Ids(TerrainDeclarations.Dangerous),
             UnstableVolumeIds: Ids(TerrainDeclarations.DangerousOnRushCharge), UnstableOver: 6);
-        return (new MoveRegions(ids.Zip(unit).ToDictionary(p => p.First, p => p.Second), legal, volumes, new TableSize(72, 48), others), ids);
+        // The enemy is one unit, held to as its perimeter grown by the separation (p.7, MoveUnits), as MoveRegions.Of reads a game.
+        var units = new MoveUnits([.. others.Select(_ => Enemy)], Mine, legal.Separation);
+        return (new MoveRegions(ids.Zip(unit).ToDictionary(p => p.First, p => p.Second), legal, volumes, new TableSize(72, 48), others, units), ids);
     }
 
     static readonly Point2[] Anchors = [new(30, 20), new(28, 26), new(34, 18), new(26, 14), new(38, 28), new(20, 24), new(44, 20), new(30, 10), new(36, 34),

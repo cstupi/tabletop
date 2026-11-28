@@ -66,7 +66,8 @@ public static partial class GfMoves
             region.IgnoresTerrain ? [] : Declared(terrain, TerrainDeclarations.Impassable), terrain, state.Board.Table.Size, standing.Select(s => s.At).ToList(),
             region.PassesModels, GfNames.CoherencyChain, GfNames.CoherencyElevated, GfNames.CoherencySpread,
             region.SteepVolumeIds is { Count: > 0 } steep ? terrain.Where(v => steep.Contains(v.Id)).ToList() : null,
-            standing.Where(s => s.UnitId != unit).Select(s => s.At).ToList(), region.Separation ?? 0);
+            standing.Where(s => s.UnitId != unit).Select(s => s.At).ToList(), region.Separation ?? 0,
+            Units: new MoveUnits([.. standing.Select(s => s.UnitId)], unit, region.Separation, TargetUnits(state, region)));
         return (movers, standing.Where(s => s.UnitId == unit).Select(s => s.At).ToList(), terms);
     }
 

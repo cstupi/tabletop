@@ -33,7 +33,7 @@ public sealed class MoveAsk
         var difficult = _difficult.ToList();
         if (_steep.Count > 0) difficult.AddRange(Movement.SteepEntering(start, _steep));
         return _reaches[id] = MoveReach.Build(start, Allowance, _impassable, difficult, _r.DifficultCap, _r.Size, _r.Stationary, _volumes, _dangerous, _unstable,
-            _r.UnstableOver ?? 0);
+            _r.UnstableOver ?? 0, _r.PassesModels ? null : _r.Units);
     }
 
     /// <summary>MoveRuler.Minimum as the area reads it: the Ask's MinDistance where the table has room for it, else as far as it allows that way.</summary>
@@ -73,7 +73,7 @@ public sealed class MoveAsk
         {
             double? held = capped ? unit : null;
             var terms = new ContactTerms(_r.Separation, _r.PassesModels, _r.Landing, new ContactMove(_r.Allowance, _r.Impassable, _r.Difficult, _r.DifficultCap, _r.Steep),
-                _r.Size, held, (id, to) => _starts.ContainsKey(id) && ReachOf(id).Reaches(to, held));
+                _r.Size, held, (id, to) => _starts.ContainsKey(id) && ReachOf(id).Reaches(to, held), _r.Units?.Bases);
             found = Contacts.Of(_r.Bodies, proposed, _volumes, terms).Select(kv => new ContactFound(kv.Key, kv.Value.Kind, kv.Value.UnitId)).ToArray();
         }
         return new MoveFrame(unit, routes, found);

@@ -175,7 +175,7 @@ public static class Facade
         var difficult = Named(r.Difficult);
         if (r.Steep is { Count: > 0 }) difficult.AddRange(Movement.SteepEntering(r.Start, Named(r.Steep)));
         var reach = MoveReach.Build(r.Start, Math.Max(0, r.Allowance), Named(r.Impassable), difficult, r.DifficultCap, r.Size, r.Stationary, volumes,
-            Named(r.Dangerous), Named(r.Unstable), r.UnstableOver ?? 0);
+            Named(r.Dangerous), Named(r.Unstable), r.UnstableOver ?? 0, r.Units);
         Func<Point2, double>? least = null;
         if (r.MinDistance is { } m)
         {
@@ -199,9 +199,9 @@ public static class Facade
         return Write(r.Models.Select(m =>
         {
             var path = r.Capped
-                ? Movement.Check(m.Start, m.To, Math.Min(r.Allowance, r.DifficultCap ?? r.Allowance), impassable, [], null, r.Size, r.Stationary, volumes)
+                ? Movement.Check(m.Start, m.To, Math.Min(r.Allowance, r.DifficultCap ?? r.Allowance), impassable, [], null, r.Size, r.Stationary, volumes, units: r.Units)
                 : Movement.Measured(m.Start, m.To, r.Allowance, impassable, difficult, r.DifficultCap, r.Size, r.Stationary, volumes, dangerous,
-                    unstable, r.UnstableOver ?? 0, steep);
+                    unstable, r.UnstableOver ?? 0, steep, r.Units);
             var swept = SweptPath.Of(m.Start, path.Path, SweptPath.DangerousTo(path.Distance, dangerous, unstable, r.UnstableOver ?? 0));
             return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult, [.. swept.Footprints], [.. swept.Dangerous], [.. swept.Stretches]);
         }).ToArray());

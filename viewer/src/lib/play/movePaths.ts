@@ -6,7 +6,7 @@
 // activation starts (last, kept), for every player and in a replay.
 
 import type { Base, GameEvent, ModelRelocation, MoveRegion, Placement, TableSize, TerrainPlacement, TableState } from '../protocol/wire.generated';
-import { placed, type Geometry, type PathFootprint, type PathStretch, type PlacedModel, type RouteFound, type RoutesRequest, type XY } from '../geometry';
+import { placed, type Geometry, type PathFootprint, type PathStretch, type MoveUnits, type PlacedModel, type RouteFound, type RoutesRequest, type XY } from '../geometry';
 import type { Projection } from '../live/apply';
 import { nameOf, type Catalog } from '../setup/catalog';
 import { effectOf } from './terrainEffects';
@@ -106,9 +106,10 @@ export function last(log: readonly GameEvent[]): MoveSegment[] {
 }
 
 /** A segment's paths as the server measured them (Geometry.moveRoutes: Movement.Measured over the Ask's volumes), each model's base from `bodyOf`;
- *  `standing`, the models on the table that did not move. A model with no body, or not moved, is left out. */
+ *  `standing`, the models on the table that did not move, and with `unitOf` (a model's unit) and `standingUnits` (theirs, in order) each other unit
+ *  as its perimeter grown by the Ask's Separation. A model with no body, or not moved, is left out. */
 export function measured(g: Geometry, segment: MoveSegment, bodyOf: (id: string) => { base: Base; height: number } | null, terrain: readonly TerrainPlacement[],
-  size: TableSize, standing: readonly PlacedModel[]): ModelPath[] {
+  size: TableSize, standing: readonly PlacedModel[], standingUnits?: readonly string[], unitOf?: (id: string) => string | undefined): ModelPath[] {
   const legal = segment.legal;
   const starts = new Map<string, PlacedModel>();
   const ends = new Map<string, number>();
@@ -123,6 +124,13 @@ export function measured(g: Geometry, segment: MoveSegment, bodyOf: (id: string)
     return [{ id: m.modelId, start, to: { x: to.x, y: to.y } }];
   });
   if (models.length === 0) return [];
+  const own = segment.moves.length > 0 && unitOf !== undefined ? unitOf(segment.moves[0]!.modelId) : undefined;
+  const bases = legal.contactWith !== undefined && legal.contactWith.length > 0 && unitOf !== undefined
+    ? [...new Set(legal.contactWith.flatMap((id) => { const u = unitOf(id); return u === undefined ? [] : [u]; }))] : undefined;
+  const units: MoveUnits | undefined = standingUnits === undefined || unitOf === undefined || legal.passesModels ? undefined : {
+    of: standingUnits, own: own ?? '00000000-0000-0000-0000-000000000000',
+    ...(legal.separation === undefined ? {} : { separation: legal.separation }), ...(bases === undefined ? {} : { bases }),
+  };
   const request: RoutesRequest = {
     models, allowance: Math.max(0, legal.allowance), impassable: legal.impassableVolumeIds, difficult: legal.difficultVolumeIds, size,
     stationary: legal.passesModels ? [] : standing,
@@ -131,6 +139,7 @@ export function measured(g: Geometry, segment: MoveSegment, bodyOf: (id: string)
     ...(legal.dangerousVolumeIds === undefined ? {} : { dangerous: legal.dangerousVolumeIds }),
     ...(legal.unstableVolumeIds === undefined ? {} : { unstable: legal.unstableVolumeIds }),
     ...(legal.unstableOver === undefined ? {} : { unstableOver: legal.unstableOver }),
+    ...(units === undefined ? {} : { units }),
   };
   return g.moveRoutes(request, terrain).map((r) => pathOf(starts.get(r.id)!, r, ends.get(r.id)));
 }
@@ -155,7 +164,10 @@ export class KeptPathCache {
  *  the segments moves. */
 export function kept(g: Geometry, segments: readonly MoveSegment[], p: Projection): ModelPath[] {
   const moving = new Set(segments.flatMap((s) => s.moves.map((m) => m.modelId)));
-  const standing = [...p.models.values()].flatMap((m) => (moving.has(m.id) || m.location.kind !== 'table' ? [] : [placed(m.slot, m.location.placement)]));
+  const still = [...p.models.values()].filter((m) => !moving.has(m.id) && m.location.kind === 'table');
+  const standing = still.map((m) => placed(m.slot, (m.location as { placement: Placement }).placement));
+  const standingUnits = still.map((m) => m.unitId);
   const bodyOf = (id: string) => { const m = p.models.get(id); return m === undefined ? null : { base: m.slot.base, height: m.slot.height }; };
-  return segments.flatMap((s) => measured(g, s, bodyOf, p.board.table.terrain, p.board.table.size, standing));
+  const unitOf = (id: string) => p.models.get(id)?.unitId;
+  return segments.flatMap((s) => measured(g, s, bodyOf, p.board.table.terrain, p.board.table.size, standing, standingUnits, unitOf));
 }
