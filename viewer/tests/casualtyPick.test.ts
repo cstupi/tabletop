@@ -110,4 +110,13 @@ describe('CasualtyPick', () => {
     expect([later.title, later.assigned]).toEqual(['Assign 1 wound to one model', '1 of 2 wounds assigned']);
     expect(new CasualtyPick(legal([M1, M2], 1, 1), left({ [M1]: 3, [M2]: 3 })).assigned).toBeNull();
   });
+
+  it('fills Tough models one at a time (p.15)', () => {
+    const c = new CasualtyPick(legal([M1, M2, M3], 4), left({ [M1]: 3, [M2]: 3, [M3]: 3 }));
+    expect([c.required, c.title]).toEqual([4, 'Assign 4 wounds, one model at a time']);
+    c.add(M2); c.add(M1);
+    expect([...c.counts]).toEqual([[M2, 1]]);
+    c.add(M2); c.add(M2); c.add(M1);
+    expect([...c.counts]).toEqual([[M2, 3], [M1, 1]]);
+  });
 });

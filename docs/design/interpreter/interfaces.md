@@ -220,7 +220,7 @@ sequenceDiagram
     RH->>RH: roll-to-block: one defense roll per grant group, cover as a base modifier off in_cover, the unit's Defense until defender_models is 1
     RH->>RH: cover: GfRolls.InCover over the target unit's models, seen from every eligible attacker model
     RH->>DW: deal: Push
-    DW->>Def: assign: Allocation(eligible models, wounds, MaxTargets)
+    DW->>Def: assign: Allocation(eligible models, wounds), Tough models filled in the order named
     Def-->>DW: Allocated: counts per model
     DW->>DW: Deadly multiplies first - Regeneration rolls per wound - wounds_set - casualties to the shelf
     DW->>DW: an occupied container is NOT shelved: p.15 places occupants before removal
