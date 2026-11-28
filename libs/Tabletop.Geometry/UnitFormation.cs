@@ -6,12 +6,13 @@ namespace Tabletop.Geometry;
 /// holds it), the table, a landing on no other base and in no landing volume, and the unit's coherency after it (a chain within `Chain`, or
 /// `Elevated` between models at different heights, every model within `Spread` of the rest). `Steep` volumes are difficult for a model whose move
 /// starts outside them (Movement.SteepEntering). `ContactVertical`, when set, holds a contact landing to that height from the target's base, the
-/// landing resting on its open surface nearest the target's level (Collision.RestNear); null judges contact in plan.
+/// landing resting on its open surface nearest the target's level (Collision.RestNear); null judges contact in plan. `Units`, the standing models'
+/// units (MoveUnits: Of runs over Standing): each path goes round every other unit's perimeter, and the contact paths too.
 /// </summary>
 public sealed record FormationTerms(double Allowance, IReadOnlyList<WorldVolume> Impassable, IReadOnlyList<WorldVolume> Difficult, double? DifficultCap,
     IReadOnlyList<WorldVolume> Landing, IReadOnlyList<WorldVolume> Volumes, TableSize Table, IReadOnlyList<PlacedModel> Standing, bool PassesModels,
     double Chain, double Elevated, double Spread, IReadOnlyList<WorldVolume>? Steep = null,
-    IReadOnlyList<PlacedModel>? Apart = null, double Separation = 0, double? ContactVertical = null);
+    IReadOnlyList<PlacedModel>? Apart = null, double Separation = 0, double? ContactVertical = null, MoveUnits? Units = null);
 
 /// <summary>
 /// A unit moved together: one model to a chosen landing and the rest formed up on it. Deterministic, so whoever asks gets the same answer: the
@@ -45,7 +46,7 @@ public static class UnitFormation
         foreach (var lead in unit.OrderBy(u => targets.Min(x => Distance.EdgeToEdge(u.Start, x))))
             foreach (var target in targets.OrderBy(x => Distance.EdgeToEdge(lead.Start, x)))
             {
-                if (Movement.ContactDistance(lead.Start, target, t.Allowance, t.Impassable, t.Table) is null) continue;
+                if (Movement.ContactDistance(lead.Start, target, t.Allowance, t.Impassable, t.Table, Models(t), Units(t), t.Volumes) is null) continue;
                 double? level = t.ContactVertical is null ? null : target.Bottom();
                 foreach (var at in Movement.Contacts(lead.Start, target, ContactGap))
                 {
@@ -107,7 +108,11 @@ public static class UnitFormation
     }
 
     static MoveCheck Path(PlacedModel start, Point2 to, FormationTerms t, double allowance, IReadOnlyList<WorldVolume> difficult, double? cap, IReadOnlyList<WorldVolume>? steep) =>
-        Movement.Check(start, to, allowance, t.Impassable, difficult, cap, t.Table, t.PassesModels ? null : t.Standing, t.Volumes, steep: steep);
+        Movement.Check(start, to, allowance, t.Impassable, difficult, cap, t.Table, Models(t), t.Volumes, steep: steep, units: Units(t));
+
+    /// <summary>The standing models a path goes round, and their units: none when the move passes models.</summary>
+    static IReadOnlyList<PlacedModel>? Models(FormationTerms t) => t.PassesModels ? null : t.Standing;
+    static MoveUnits? Units(FormationTerms t) => t.PassesModels ? null : t.Units;
 
     /// <summary>One model's landing: on no standing or placed base, in no landing volume, on a path within the allowance (and cap) that goes round
     /// what it may not pass and stays on the table.</summary>
@@ -222,7 +227,7 @@ public static class UnitFormation
         {
             if (!_of.TryGetValue(start, out var fitting))
                 _of[start] = fitting = new Movement.Fitting(start, t.Allowance, t.Impassable, t.Difficult, t.DifficultCap, t.Table,
-                    t.PassesModels ? null : t.Standing, t.Volumes, t.Steep);
+                    Models(t), t.Volumes, t.Steep, Units(t));
             return fitting;
         }
     }

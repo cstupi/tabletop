@@ -5,12 +5,19 @@ namespace Tabletop.Geometry;
 /// <summary>
 /// One base's moves from where it stands, in its configuration space: every obstacle as a <see cref="MoveShape"/>, the table as the box the base
 /// centre must stay in, and the corners round each obstacle (<see cref="MoveShape.Ring"/>) that a shortest path bends at. Built once per base and
-/// asked many times (MoveSpace.Search.cs). Obstacles come in groups a search turns on or off: impassable walls, other models' bodies, and the
-/// difficult, dangerous and unstable (dangerous only to a path over a length) volumes a path avoids when it can.
+/// asked many times (MoveSpace.Search.cs). Obstacles come in groups a search turns on or off: impassable walls, other models' bodies (a base, or a
+/// unit's perimeter), a unit's perimeter grown by the separation and, beside it, its plain perimeter; and the difficult, dangerous and unstable
+/// (dangerous only to a path over a length) volumes a path avoids when it can.
 /// </summary>
 internal sealed partial class MoveSpace
 {
-    public const int Walls = 1, Bodies = 2, Difficult = 4, Dangerous = 8, Unstable = 16;
+    /// <summary>`Bodies`: bases, and a unit's perimeter with no grown one beside it. `Spacing`: a unit's perimeter grown by the separation.
+    /// `Perimeter`: the plain perimeter of a unit whose grown one is in Spacing, which only the search that lets the separation go reads.</summary>
+    public const int Walls = 1, Bodies = 2, Difficult = 4, Dangerous = 8, Unstable = 16, Spacing = 32, Perimeter = 64;
+    /// <summary>The groups whose obstacles are models' bodies, met in plan and height.</summary>
+    public const int Models = Bodies | Spacing | Perimeter;
+    /// <summary>What holds every move: walls, bodies and the separation.</summary>
+    public const int Held = Walls | Bodies | Spacing;
     /// <summary>How far outside an obstacle its graph corners stand.</summary>
     const double Margin = 1e-3;
 
@@ -42,10 +49,14 @@ internal sealed partial class MoveSpace
     /// Obstacles whose shape comes within `reach` of the start (a path no longer than that never meets the others). `table` keeps the whole base on
     /// the slab, unless the base is already off it (only a hand move puts it there). A model whose body the base already overlaps is left out, as a
     /// body it starts in does not stop it; a model meets the base only where their heights overlap too, the base rested on `surfaces` where it stands.
+    /// With `units` (MoveUnits), each unit other than the mover's own and those held as bases is one obstacle, its perimeter (the convex hull of its
+    /// bases, UnitCore, from its lowest base to its tallest top): grown by the separation in Spacing, with the plain one in Perimeter; the plain one
+    /// alone in Bodies when the base starts inside the grown one, or there is no separation; its bases in Bodies when the base starts inside the
+    /// plain one. Each body obstacle carries its unit's id.
     /// </summary>
     public MoveSpace(PlacedModel start, double reach, IReadOnlyList<WorldVolume> impassable, IReadOnlyList<WorldVolume> difficult,
         IReadOnlyList<WorldVolume> dangerous, TableSize? table, IReadOnlyList<PlacedModel>? models, IReadOnlyList<WorldVolume>? surfaces,
-        IReadOnlyList<WorldVolume>? unstable = null)
+        IReadOnlyList<WorldVolume>? unstable = null, MoveUnits? units = null)
     {
         _mover = start;
         Origin = start.Placement.Position.Horizontal;
@@ -73,15 +84,116 @@ internal sealed partial class MoveSpace
         Add(difficult, Difficult);
         Add(dangerous, Dangerous);
         Add(unstable ?? [], Unstable);
-        foreach (var m in models ?? [])
+        if (models is not { Count: > 0 }) return;
+        if (units is null)
         {
-            var outline = m.BaseOutline();
-            if (MoveShape.CircleBounds(outline, _base, Origin) is { } far && far.Centre.DistanceTo(Origin) > reach + far.Bound + Tolerance.Distance) continue;
-            var shape = MoveShape.Of(outline, _base, Origin);
-            if (shape.Centre.DistanceTo(Origin) > reach + shape.Bound + Tolerance.Distance || Overlap.Bases(start, m)) continue;
-            var rests = Near(shape);
-            _obstacles.Add(new Obstacle(shape, Bodies, Guid.Empty, m.Bottom(), m.Top(), false, MeetsAtEveryRest(rests, m.Bottom(), m.Top()), rests));
-            Present |= Bodies;
+            foreach (var m in models) AddBase(m, Guid.Empty, reach);
+            return;
+        }
+        if (units.Of.Count != models.Count) throw new ArgumentException($"{units.Of.Count} units for {models.Count} models", nameof(units));
+        foreach (var unit in Enumerable.Range(0, models.Count).GroupBy(i => units.Of[i]))
+        {
+            if (unit.Key == units.Own || units.Bases?.Contains(unit.Key) == true) foreach (var i in unit) AddBase(models[i], unit.Key, reach);
+            else AddUnit([.. unit.Select(i => models[i])], unit.Key, units.Separation ?? 0, reach);
+        }
+    }
+
+    /// <summary>A model's base as a body, unless it is out of reach or the base starts on it.</summary>
+    void AddBase(PlacedModel m, Guid unit, double reach)
+    {
+        var outline = m.BaseOutline();
+        if (MoveShape.CircleBounds(outline, _base, Origin) is { } far && far.Centre.DistanceTo(Origin) > reach + far.Bound + Tolerance.Distance) return;
+        var shape = MoveShape.Of(outline, _base, Origin);
+        if (Beyond(shape, reach) || Overlap.Bases(_mover, m)) return;
+        Add(Body(shape, Bodies, unit, m.Bottom(), m.Top()));
+    }
+
+    /// <summary>A unit's perimeter (UnitCore), grown by `grow` where the base starts outside the grown one; the plain one where it starts outside
+    /// that; else its bases.</summary>
+    void AddUnit(IReadOnlyList<PlacedModel> members, Guid unit, double grow, double reach)
+    {
+        var (core, radius) = UnitCore(members);
+        double bottom = members.Min(m => m.Bottom()), top = members.Max(m => m.Top());
+        var plain = MoveShape.Of(core, radius, _base, Origin);
+        if (grow > Tolerance.Distance)
+        {
+            var grown = MoveShape.Of(core, radius + grow, _base, Origin);
+            if (Beyond(grown, reach)) return;
+            var outer = Body(grown, Spacing, unit, bottom - grow, top + grow);
+            if (!HoldsAt(outer, Origin))
+            {
+                Add(outer);
+                if (!Beyond(plain, reach)) Add(Body(plain, Perimeter, unit, bottom, top));
+                return;
+            }
+        }
+        if (Beyond(plain, reach)) return;
+        var body = Body(plain, Bodies, unit, bottom, top);
+        if (!HoldsAt(body, Origin)) { Add(body); return; }
+        foreach (var m in members) AddBase(m, unit, reach);
+    }
+
+    bool Beyond(MoveShape shape, double reach) => shape.Centre.DistanceTo(Origin) > reach + shape.Bound + Tolerance.Distance;
+
+    Obstacle Body(MoveShape shape, int group, Guid unit, double bottom, double top)
+    {
+        var rests = Near(shape);
+        return new Obstacle(shape, group, unit, bottom, top, false, MeetsAtEveryRest(rests, bottom, top), rests);
+    }
+
+    void Add(Obstacle o)
+    {
+        _obstacles.Add(o);
+        Present |= o.Group;
+    }
+
+    /// <summary>Within this of its smallest circle a unit of circles of different sizes keeps a round core: the rest of each circle enters the hull
+    /// as its circumscribed polygon, so the hull holds every base and stands at most about 0.2% of that rest beyond it.</summary>
+    const double HullInset = 0.05;
+    const int HullSides = 16;
+
+    /// <summary>
+    /// A unit's perimeter as a convex core (counter-clockwise) and a radius: the convex hull of its models' bases. One base is itself. Bases all
+    /// circles of one size: the hull of their centres grown by the radius, exactly, unless the centres lie on one line; circles otherwise: each the
+    /// polygon circumscribing it less a radius HullInset under the smallest, which the core is grown by. With a rect or oval base: the polygons'
+    /// vertices and each circle's circumscribed 16-gon, grown by nothing.
+    /// </summary>
+    internal static (Point2[] Core, double Radius) UnitCore(IReadOnlyList<PlacedModel> members)
+    {
+        var outlines = members.Select(m => m.BaseOutline()).ToList();
+        if (outlines.Count == 1)
+            return outlines[0] switch
+            {
+                CircleOutline c => ([c.Centre], c.Radius),
+                PolygonOutline p => ([.. p.Vertices], 0),
+                _ => throw new ArgumentOutOfRangeException(nameof(members)),
+            };
+        var circles = outlines.OfType<CircleOutline>().ToList();
+        if (circles.Count == outlines.Count)
+        {
+            var least = circles.Min(c => c.Radius);
+            if (circles.All(c => c.Radius - least < 1e-12) && Geometry.Bodies.ConvexHull([.. circles.Select(c => c.Centre)]) is { Count: not 2 } centres)
+                return ([.. centres], least);
+            var inner = Math.Max(0, least - HullInset);
+            return ([.. Geometry.Bodies.ConvexHull([.. circles.SelectMany(c => Around(c.Centre, c.Radius - inner))])], inner);
+        }
+        return ([.. Geometry.Bodies.ConvexHull([.. outlines.SelectMany(o => o switch
+        {
+            CircleOutline c => Around(c.Centre, c.Radius),
+            PolygonOutline p => (IEnumerable<Point2>)p.Vertices,
+            _ => throw new ArgumentOutOfRangeException(nameof(members)),
+        })])], 0);
+    }
+
+    /// <summary>The polygon of HullSides circumscribing the circle; its centre alone for a radius of nothing.</summary>
+    static IEnumerable<Point2> Around(Point2 centre, double radius)
+    {
+        if (radius < 1e-9) { yield return centre; yield break; }
+        var r = radius / Math.Cos(Math.PI / HullSides);
+        for (var i = 0; i < HullSides; i++)
+        {
+            var t = 2 * Math.PI * i / HullSides;
+            yield return centre + new Point2(Math.Cos(t), Math.Sin(t)) * r;
         }
     }
 
@@ -163,7 +275,7 @@ internal sealed partial class MoveSpace
 
     /// <summary>The base centred at p meets this obstacle: in plan, and for a body in height too.</summary>
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    bool HoldsAt(Obstacle o, Point2 p) => o.Shape.Holds(p) && (o.Group != Bodies || o.AlwaysMeets || MeetsInHeight(o, p));
+    bool HoldsAt(Obstacle o, Point2 p) => o.Shape.Holds(p) && ((o.Group & Models) == 0 || o.AlwaysMeets || MeetsInHeight(o, p));
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     bool MeetsInHeight(Obstacle o, Point2 p)
@@ -211,8 +323,8 @@ internal sealed partial class MoveSpace
         {
             if ((o.Group & mask) == 0 || centre.DistanceTo(o.Shape.Centre) > o.Shape.Bound + r) continue;
             var depth = o.Shape.Depth(centre);
-            if (depth < -r && (o.Group & covers & ~Bodies) != 0) return Cover.Covered;
-            if (Math.Abs(depth) <= r || (o.Group == Bodies && depth < -r)) edge = true;
+            if (depth < -r && (o.Group & covers & ~Models) != 0) return Cover.Covered;
+            if (Math.Abs(depth) <= r || ((o.Group & Models) != 0 && depth < -r)) edge = true;
         }
         return edge ? Cover.Edge : Cover.Free;
     }
@@ -245,7 +357,7 @@ internal sealed partial class MoveSpace
             if (Outline.ClosestOnSegment(a, b, o.Shape.Centre).DistanceTo(o.Shape.Centre) > o.Shape.Bound + Tolerance.Distance) continue;
             if (o.StartInside && fromStart && HeadsOut(o.Shape, a, d * (1 / length))) continue;
             if (!o.Shape.Blocks(a, b)) continue;
-            if (o.Group != Bodies || Crosses(o, a, b)) return false;
+            if ((o.Group & Models) == 0 || Crosses(o, a, b)) return false;
         }
         return true;
     }
@@ -305,6 +417,29 @@ internal sealed partial class MoveSpace
         double lo = 0, hi = 1;
         for (var k = 0; k < 14; k++) { var mid = (lo + hi) / 2; if (Clear(a, a + (b - a) * mid, mask, fromStart)) lo = mid; else hi = mid; }
         return a + (b - a) * lo;
+    }
+
+    /// <summary>The id of the first obstacle of these groups the path meets as Clear meets it (in plan, and a body in height too), in order along the
+    /// path; null when it meets none. The unit a path goes through or passes near.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    public Guid? FirstMet(IReadOnlyList<Point2> path, int mask)
+    {
+        for (var i = 0; i + 1 < path.Count; i++)
+        {
+            var (a, b) = (path[i], path[i + 1]);
+            Obstacle? first = null;
+            var at = double.PositiveInfinity;
+            foreach (var o in _obstacles)
+            {
+                if ((o.Group & mask) == 0) continue;
+                if (Outline.ClosestOnSegment(a, b, o.Shape.Centre).DistanceTo(o.Shape.Centre) > o.Shape.Bound + Tolerance.Distance) continue;
+                if (!o.Shape.Blocks(a, b) || ((o.Group & Models) != 0 && !Crosses(o, a, b))) continue;
+                var t = o.Shape.Interval(a, b)?.T0 ?? 0;
+                if (t < at) (first, at) = (o, t);
+            }
+            if (first is not null) return first.Id;
+        }
+        return null;
     }
 
     /// <summary>The volumes of these groups the base meets anywhere along the path, sampled every Collision.Step, by id.</summary>

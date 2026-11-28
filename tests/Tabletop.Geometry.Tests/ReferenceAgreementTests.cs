@@ -19,17 +19,18 @@ public class ReferenceAgreementTests
         foreach (var unit in Movers())
         {
             var others = Scene.Others(unit);
+            var units = Scene.OthersUnits(unit);
             foreach (var m in unit)
             {
                 foreach (var (allowance, cap) in new[] { (6.0, Scene.DifficultCap), (12.0, (double?)6) })
                 {
-                    var reach = MoveReach.Build(m.Placed, allowance, [], difficult, cap, Scene.Size, others, Scene.Volumes);
+                    var reach = MoveReach.Build(m.Placed, allowance, [], difficult, cap, Scene.Size, others, Scene.Volumes, units: units);
                     var t = reach.Triangles();
                     yield return ($"reach {m.Id} {allowance}", $"{t.Count} {ReferenceScene.Digest(t.SelectMany(p => new[] { p.X, p.Y }))}");
                 }
             }
             var lead = unit[0];
-            var least = MoveReach.Build(lead.Placed, 12, [], difficult, 6, Scene.Size, others, Scene.Volumes)
+            var least = MoveReach.Build(lead.Placed, 12, [], difficult, 6, Scene.Size, others, Scene.Volumes, units: units)
                 .Triangles(p => 3 + 0.1 * (p.X - lead.Placement.Position.X));
             yield return ($"reach least {lead.Id}", $"{least.Count} {ReferenceScene.Digest(least.SelectMany(p => new[] { p.X, p.Y }))}");
         }

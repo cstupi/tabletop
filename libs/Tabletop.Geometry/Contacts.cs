@@ -4,7 +4,7 @@ namespace Tabletop.Geometry;
 /// Ask's Separation, or impassable terrain under its base.</summary>
 public enum ContactKind { OnBase, Crosses, TooClose, InImpassable }
 
-/// <summary>A landing's first contact, in that order; UnitId is the unit met (null for a path).</summary>
+/// <summary>A landing's first contact, in that order; UnitId is the unit met (for a path, the unit it goes through or within the Separation of).</summary>
 public sealed record Contact(ContactKind Kind, Guid? UnitId);
 
 /// <summary>A model on the table or proposed: its unit, body and where it stands (null off the table).</summary>
@@ -15,13 +15,16 @@ public sealed record ContactMove(double Allowance, IReadOnlyList<Guid> Impassabl
 
 /// <summary>Separation, PassesModels, whether a landing in Impassable terrain counts, the move (null for a placement), the table, the capped allowance.
 /// `RoundModels`: a destination it answers true for is reached within the allowance (the capped one, once the unit is capped) by a path round
-/// every model not proposed (the client's MoveReach, built once per Ask: MoveRegions.Reaches), so no path is searched for it to rule out Crosses.</summary>
+/// every model not proposed (the client's MoveReach, built once per Ask: MoveRegions.Reaches), so no path is searched for it to rule out Crosses.
+/// `Bases`: the units a path is held to as bases, not as perimeters (a charge's target; MoveUnits).</summary>
 public sealed record ContactTerms(double? Separation, bool PassesModels, bool Landing, ContactMove? Move = null, TableSize? Size = null, double? Unit = null,
-    Func<Guid, Point2, bool>? RoundModels = null);
+    Func<Guid, Point2, bool>? RoundModels = null, IReadOnlyList<Guid>? Bases = null);
 
 public static class Contacts
 {
-    /// <summary>Each proposed model's first contact, in <see cref="ContactKind"/> order.</summary>
+    /// <summary>Each proposed model's first contact: on a base, in impassable terrain, a landing within the Separation of another unit's model (judged
+    /// before the path, so a landing too close is never read as a path through), then the path (Movement.Check with MoveUnits over the bodies' units):
+    /// Crosses when it fits only through a unit's perimeter or a model, TooClose when it fits only within the Separation of a unit.</summary>
     public static IReadOnlyDictionary<Guid, Contact> Of(IReadOnlyList<ContactBody> models, IReadOnlyDictionary<Guid, Placement> proposed,
         IReadOnlyList<WorldVolume> volumes, ContactTerms terms)
     {
@@ -41,6 +44,7 @@ public static class Contacts
         var standing = models.Where(m => !landed.ContainsKey(m.Id) && m.At is not null).Select(m => (m.Id, m.UnitId, At: Standing(m)!.Value)).ToList();
         var everyone = standing.Concat(landed.Select(kv => (Id: kv.Key, byId[kv.Key].UnitId, At: kv.Value))).ToList();
         var bodies = standing.Select(o => o.At).ToList();
+        var bodyUnits = standing.Select(o => o.UnitId).ToList();
         var found = new Dictionary<Guid, Contact>();
         foreach (var (id, at) in landed)
         {
@@ -50,17 +54,22 @@ public static class Contacts
             { found[id] = new Contact(ContactKind.OnBase, byId[hit].UnitId); continue; }
             if (impassable.Count > 0 && Movement.Check(at, at.Placement.Position.Horizontal, 0, impassable, [], null, null).CrossesImpassable)
             { found[id] = new Contact(ContactKind.InImpassable, null); continue; }
+            if (separation is { } gap)
+            {
+                var near = start is { } was ? models.Where(o => o.UnitId != m.UnitId && Standing(o) is { } there && Closer(was, there, gap)).Select(o => o.UnitId).ToHashSet() : [];
+                if (everyone.FirstOrDefault(o => o.UnitId != m.UnitId && !near.Contains(o.UnitId) && Closer(at, o.At, gap)) is { Id: var close } && close != Guid.Empty)
+                { found[id] = new Contact(ContactKind.TooClose, byId[close].UnitId); continue; }
+            }
             // A unit the cap holds measures the shortest way, whatever it enters (the server's DifficultCapBreach); else round difficult ground first.
             var capped = unit is { } u && u < legal?.Allowance;
-            if (!passesModels && legal is not null && start is { } from && terms.RoundModels?.Invoke(id, at.Placement.Position.Horizontal) != true && Movement.Check(from, at.Placement.Position.Horizontal, Math.Max(0, capped ? unit!.Value : legal.Allowance),
-                    volumes.Where(v => legal.Impassable.Contains(v.Id)).ToList(), capped ? [] : volumes.Where(v => legal.Difficult.Contains(v.Id)).ToList(),
-                    capped ? null : legal.DifficultCap, size, bodies, volumes,
-                    steep: capped || legal.Steep is not { Count: > 0 } ? null : volumes.Where(v => legal.Steep.Contains(v.Id)).ToList()).CrossesModels)
-            { found[id] = new Contact(ContactKind.Crosses, null); continue; }
-            if (separation is not { } gap) continue;
-            var near = start is { } was ? models.Where(o => o.UnitId != m.UnitId && Standing(o) is { } there && Closer(was, there, gap)).Select(o => o.UnitId).ToHashSet() : [];
-            if (everyone.FirstOrDefault(o => o.UnitId != m.UnitId && !near.Contains(o.UnitId) && Closer(at, o.At, gap)) is { Id: var close } && close != Guid.Empty)
-                found[id] = new Contact(ContactKind.TooClose, byId[close].UnitId);
+            if (passesModels || legal is null || start is not { } from || terms.RoundModels?.Invoke(id, at.Placement.Position.Horizontal) == true) continue;
+            var path = Movement.Check(from, at.Placement.Position.Horizontal, Math.Max(0, capped ? unit!.Value : legal.Allowance),
+                volumes.Where(v => legal.Impassable.Contains(v.Id)).ToList(), capped ? [] : volumes.Where(v => legal.Difficult.Contains(v.Id)).ToList(),
+                capped ? null : legal.DifficultCap, size, bodies, volumes,
+                steep: capped || legal.Steep is not { Count: > 0 } ? null : volumes.Where(v => legal.Steep.Contains(v.Id)).ToList(),
+                units: new MoveUnits(bodyUnits, m.UnitId, separation, terms.Bases));
+            if (path.CrossesModels) found[id] = new Contact(ContactKind.Crosses, path.Unit);
+            else if (path.NearModels) found[id] = new Contact(ContactKind.TooClose, path.Unit);
         }
         return found;
     }

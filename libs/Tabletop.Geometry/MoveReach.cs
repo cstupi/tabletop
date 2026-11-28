@@ -36,7 +36,7 @@ public sealed class MoveReach
         Allowance = allowance;
         _capLimit = capLimit;
         _unstableOver = unstableOver;
-        var walls = MoveSpace.Walls | MoveSpace.Bodies;
+        var walls = MoveSpace.Held;
         _any = space.Settle(walls, allowance);
         if (capBinds) _avoiding = space.Settle(walls | MoveSpace.Difficult, allowance);
         _levels = new Lazy<Levels>(() => new Levels(this));
@@ -48,19 +48,19 @@ public sealed class MoveReach
     public bool CappedByDifficultTerrain => _avoiding is not null;
 
     /// <summary>`models` stop the base where its body meets theirs, in plan and in height, the base rested on `surfaces` where it is; one it starts on
-    /// does not. `dangerous` volumes are dangerous to any path that enters them, `unstable` ones only to a path longer than `unstableOver`; they
+    /// does not. With `units`, each other unit stops it at its perimeter, grown by the separation (MoveUnits). `dangerous` volumes are dangerous to any path that enters them, `unstable` ones only to a path longer than `unstableOver`; they
     /// change the bands (Bands, BandAt) and the route (a path goes round them when that fits, as Movement.Check's does), never what is reached or the
     /// clamp.</summary>
     public static MoveReach Build(PlacedModel start, double allowance, IReadOnlyList<WorldVolume> impassable, IReadOnlyList<WorldVolume> difficult,
         double? difficultCap, TableSize? table, IReadOnlyList<PlacedModel>? models = null, IReadOnlyList<WorldVolume>? surfaces = null,
-        IReadOnlyList<WorldVolume>? dangerous = null, IReadOnlyList<WorldVolume>? unstable = null, double unstableOver = 0)
+        IReadOnlyList<WorldVolume>? dangerous = null, IReadOnlyList<WorldVolume>? unstable = null, double unstableOver = 0, MoveUnits? units = null)
     {
         allowance = Math.Max(0, allowance);
         var binds = difficultCap is { } cap && cap < allowance;
         unstableOver = Math.Max(0, unstableOver);
         // No path within the allowance is longer than it, so an unstable volume is then never dangerous.
         if (unstableOver >= allowance - Tolerance.Distance) unstable = null;
-        var space = new MoveSpace(start, allowance, impassable, binds ? difficult : [], dangerous ?? [], table, models, surfaces, unstable);
+        var space = new MoveSpace(start, allowance, impassable, binds ? difficult : [], dangerous ?? [], table, models, surfaces, unstable, units);
         // The cap binds only where a difficult volume is in reach: one listed out of reach caps nothing (Movement.Check fits round it within the allowance).
         binds &= (space.Present & MoveSpace.Difficult) != 0;
         var capLimit = binds ? Math.Max(0, difficultCap!.Value) : allowance;
@@ -86,7 +86,7 @@ public sealed class MoveReach
 
     MovePath RouteRound(Point2 to, int danger)
     {
-        const int walls = MoveSpace.Walls | MoveSpace.Bodies;
+        const int walls = MoveSpace.Held;
         danger &= _space.Present;
         if (_avoiding is not null)
         {
@@ -110,7 +110,7 @@ public sealed class MoveReach
     /// drag frame never settles one); nothing when none is in reach.</summary>
     public void PrepareRoute()
     {
-        const int walls = MoveSpace.Walls | MoveSpace.Bodies;
+        const int walls = MoveSpace.Held;
         foreach (var danger in new[] { MoveSpace.Dangerous, MoveSpace.Dangerous | MoveSpace.Unstable })
         {
             if ((danger & _space.Present) == 0) continue;
@@ -123,7 +123,7 @@ public sealed class MoveReach
     /// (settled within the allowance) for its groups. A field within the allowance serves a smaller limit too.</summary>
     MoveSpace.Field FieldOf(int mask, double limit)
     {
-        const int walls = MoveSpace.Walls | MoveSpace.Bodies;
+        const int walls = MoveSpace.Held;
         mask = (mask & _space.Present & ~walls) | walls;
         if (mask == walls) return _any;
         if (_avoiding is not null && mask == (walls | MoveSpace.Difficult)) return _avoiding;
@@ -183,7 +183,7 @@ public sealed class MoveReach
             if (least is not null) v = Math.Max(v, least(p) - Origin.DistanceTo(p));
             return double.IsFinite(v) ? v : 1e9;
         }
-        var walls = MoveSpace.Walls | MoveSpace.Bodies | (_avoiding is null ? 0 : MoveSpace.Difficult);
+        var walls = MoveSpace.Held | (_avoiding is null ? 0 : MoveSpace.Difficult);
         return ReachMesh.Build(Origin, Allowance, Value, (centre, half) => _space.Straddles(centre, half, walls, MoveSpace.Walls));
     }
 
@@ -293,7 +293,7 @@ public sealed class MoveReach
     {
         var levels = _levels.Value;
         double r, i, c;
-        const int every = MoveSpace.Walls | MoveSpace.Bodies | MoveSpace.Difficult | MoveSpace.Dangerous | MoveSpace.Unstable;
+        const int every = MoveSpace.Held | MoveSpace.Difficult | MoveSpace.Dangerous | MoveSpace.Unstable;
         var straight = Origin.DistanceTo(p);
         if (direct && straight <= Allowance + Beyond && !_space.Blocked(p, every) && _space.Clear(Origin, p, every, fromStart: true)) r = i = c = straight - Allowance;
         else
@@ -327,7 +327,7 @@ public sealed class MoveReach
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     MoveSpace.Cover Cover(Point2 centre, double half)
     {
-        var walls = MoveSpace.Walls | MoveSpace.Bodies | (_avoiding is null ? 0 : MoveSpace.Difficult) | MoveSpace.Dangerous | MoveSpace.Unstable;
+        var walls = MoveSpace.Held | (_avoiding is null ? 0 : MoveSpace.Difficult) | MoveSpace.Dangerous | MoveSpace.Unstable;
         return _space.Straddles(centre, half, walls, MoveSpace.Walls);
     }
 
@@ -352,7 +352,7 @@ public sealed class MoveReach
         {
             _origin = reach.Origin;
             var space = reach._space;
-            const int walls = MoveSpace.Walls | MoveSpace.Bodies;
+            const int walls = MoveSpace.Held;
             var difficult = reach._avoiding is null ? 0 : MoveSpace.Difficult;
             int dangerous = space.Present & MoveSpace.Dangerous, unstable = space.Present & MoveSpace.Unstable;
             var wanted = new List<(int Mask, double Limit, bool Clear)> { (walls | difficult | dangerous | unstable, reach.Allowance, true) };

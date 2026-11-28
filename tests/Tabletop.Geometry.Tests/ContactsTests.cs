@@ -55,7 +55,7 @@ public class ContactsTests
         var ahead = Body(UnitB, 12, 10); var up = Body(UnitB, 10, 12); var down = Body(UnitB, 10, 8);
         var move = new ContactMove(3, [], [], null);
         var found = Contacts.Of([mover, ahead, up, down], To((mover, At(13, 10))), [], Terms(passes: false, move: move));
-        Assert.Equal(new Contact(ContactKind.Crosses, null), found[mover.Id]);
+        Assert.Equal(new Contact(ContactKind.Crosses, UnitB), found[mover.Id]);
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class ContactsTests
         var open = Contacts.Of([mover, .. line], To((mover, At(14, 10))), [hill], Terms(passes: false, move: new ContactMove(8, [], [], 6)));
         Assert.Empty(open);
         var steep = Contacts.Of([mover, .. line], To((mover, At(14, 10))), [hill], Terms(passes: false, move: new ContactMove(8, [], [], 6, [hill.Id])));
-        Assert.Equal(new Contact(ContactKind.Crosses, null), steep[mover.Id]);
+        Assert.Equal(new Contact(ContactKind.Crosses, UnitB), steep[mover.Id]);
     }
 
     [Fact]

@@ -8,10 +8,21 @@ public sealed record MovementRegion(Point2 Origin, double Allowance, bool Capped
 
 /// <summary>
 /// One move judged against the same parameters, along the path the base takes (Path, from the start to the destination). Distance is that path's
-/// length (the ruler readout). CrossesModels: no path within the allowance goes round the other models, but one through them does (Path is that one).
+/// length (the ruler readout). CrossesModels: no path within the allowance goes round the other models and units, but one through them does (Path is
+/// that one). NearModels: none goes round the units' perimeters grown by the separation, but one round the plain perimeters does (Path is that one).
+/// Unit: with MoveUnits, the unit such a path first goes through or comes within the separation of.
 /// </summary>
 public sealed record MoveCheck(double Distance, double EffectiveAllowance, bool WithinAllowance, bool CrossesImpassable, bool EntersDifficult, bool LeavesTable,
-    IReadOnlyList<Point2> Path, bool CrossesModels = false);
+    IReadOnlyList<Point2> Path, bool CrossesModels = false, bool NearModels = false, Guid? Unit = null);
+
+/// <summary>
+/// The units of the models a move goes round (p.7: models "may never move through other models or units (friendly or enemy)" and "may never be within
+/// 1” of models from other units, unless they are using a Charge action"): Of[i] is the unit of the i-th model given with it. Each unit other than
+/// `Own` and those in `Bases` blocks a path as its perimeter, the convex hull of its models' bases from its lowest base to its tallest top, grown by
+/// `Separation` when set (null in a Charge). `Own` and `Bases` (a charge's target) block as their models' bases. A base that starts inside a unit's
+/// grown perimeter is held to its plain perimeter, and one that starts inside that to its models' bases, so where a model stands never traps it.
+/// </summary>
+public sealed record MoveUnits(IReadOnlyList<Guid> Of, Guid Own, double? Separation = null, IReadOnlyList<Guid>? Bases = null);
 
 /// <summary>
 /// Renders the server's move parameters — allowance, the volumes that cannot be crossed, the difficult volumes and the cap
@@ -28,9 +39,9 @@ public static class Movement
     /// <summary>The reachable area by path length (MoveReach.Triangles). `least`, a minimum move's straight distance from the start, cuts the middle out.</summary>
     public static MovementRegion Region(PlacedModel start, double allowance, IReadOnlyList<WorldVolume> impassable,
         IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table, IReadOnlyList<PlacedModel>? models = null,
-        IReadOnlyList<WorldVolume>? surfaces = null, Func<Point2, double>? least = null)
+        IReadOnlyList<WorldVolume>? surfaces = null, Func<Point2, double>? least = null, MoveUnits? units = null)
     {
-        var reach = MoveReach.Build(start, allowance, impassable, difficult, difficultCap, table, models, surfaces);
+        var reach = MoveReach.Build(start, allowance, impassable, difficult, difficultCap, table, models, surfaces, units: units);
         return new MovementRegion(reach.Origin, reach.Allowance, reach.CappedByDifficultTerrain, reach.Triangles(least));
     }
 
@@ -42,19 +53,22 @@ public static class Movement
     /// dangerous one within the cap; any within the cap (the cap is the allowance where there is none, and then dangerous ground is avoided first).
     /// A player going round a wood or a pit never chose to enter it, and the cap binds the whole unit (p.11), so keeping out of difficult ground
     /// comes first. `steep` volumes count as difficult for this move when the start's base shares no interior with their footprint (SteepEntering), and as
-    /// open ground when the base stands on one. When none fits: with models, the same choice without them (CrossesModels); else the shortest path at any length, for its length,
-    /// with CrossesImpassable when the straight line meets an impassable volume or no path gets there at all.
+    /// open ground when the base stands on one. With `units`, each other unit is held to as its perimeter, grown by the separation (MoveUnits). When
+    /// none fits: with a separation, the same choice round the plain perimeters (NearModels); with models, the same choice without them
+    /// (CrossesModels), each naming the unit met first (Unit); else the shortest path at any length, for its length, with CrossesImpassable when the
+    /// straight line meets an impassable volume or no path gets there at all.
     /// </summary>
     public static MoveCheck Check(PlacedModel start, Point2 destination, double allowance, IReadOnlyList<WorldVolume> impassable,
         IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table, IReadOnlyList<PlacedModel>? models = null,
-        IReadOnlyList<WorldVolume>? surfaces = null, IReadOnlyList<WorldVolume>? dangerous = null, IReadOnlyList<WorldVolume>? steep = null)
+        IReadOnlyList<WorldVolume>? surfaces = null, IReadOnlyList<WorldVolume>? dangerous = null, IReadOnlyList<WorldVolume>? steep = null,
+        MoveUnits? units = null)
     {
         if (steep is { Count: > 0 } && SteepEntering(start, steep) is { Count: > 0 } onto) difficult = [.. difficult, .. onto];
         var origin = start.Placement.Position.Horizontal;
         var straight = origin.DistanceTo(destination);
         // A path no longer than the allowance stays within it of the start, so nothing farther can hold one; the fallback for a move that fits no
         // path, measured only to say how far over it is, looks farther.
-        var space = new MoveSpace(start, Math.Max(allowance, 0) + 1e-3, impassable, difficult, dangerous ?? [], table, models, surfaces);
+        var space = new MoveSpace(start, Math.Max(allowance, 0) + 1e-3, impassable, difficult, dangerous ?? [], table, models, surfaces, units: units);
         var far = Math.Min(2 * Math.Max(Math.Max(allowance, straight), 1), 4 * Table.MaxEdge);
         var capLimit = difficultCap is { } cap ? Math.Min(allowance, cap) : allowance;
         List<Point2> line = [origin, destination];
@@ -68,8 +82,11 @@ public static class Movement
             return new MoveCheck(straight, allowance, straight <= allowance + Tolerance.Distance, !wide.Clear(origin, destination, MoveSpace.Walls, fromStart: true),
                 (wide.Present & MoveSpace.Difficult) != 0 && wide.Touched(line, MoveSpace.Difficult).Count > 0, true, line);
         }
-        if (Fit(space, destination, allowance, difficultCap, MoveSpace.Walls | MoveSpace.Bodies, leaves) is { } fits) return fits;
-        if ((space.Present & MoveSpace.Bodies) != 0 && Fit(space, destination, allowance, difficultCap, MoveSpace.Walls, leaves) is { } through) return through with { CrossesModels = true };
+        if (Fit(space, destination, allowance, difficultCap, MoveSpace.Held, leaves) is { } fits) return fits;
+        if ((space.Present & MoveSpace.Spacing) != 0 && Fit(space, destination, allowance, difficultCap, MoveSpace.Walls | MoveSpace.Bodies | MoveSpace.Perimeter, leaves) is { } near)
+            return near with { NearModels = true, Unit = UnitOf(space.FirstMet(near.Path, MoveSpace.Spacing)) };
+        if ((space.Present & MoveSpace.Models) != 0 && Fit(space, destination, allowance, difficultCap, MoveSpace.Walls, leaves) is { } through)
+            return through with { CrossesModels = true, Unit = UnitOf(space.FirstMet(through.Path, MoveSpace.Bodies | MoveSpace.Perimeter)) };
         var outer = Wide();
         bool Through(IReadOnlyList<Point2> path) => (outer.Present & MoveSpace.Difficult) != 0 && outer.Touched(path, MoveSpace.Difficult).Count > 0;
         var crosses = !outer.Clear(origin, destination, MoveSpace.Walls, fromStart: true);
@@ -80,6 +97,8 @@ public static class Movement
         }
         return new MoveCheck(straight, allowance, false, true, Through(line), leaves, line);
     }
+
+    static Guid? UnitOf(Guid? id) => id is { } g && g != Guid.Empty ? g : null;
 
     static bool Leaves(Outline start, Point2 origin, Point2 destination, TableSize? table) =>
         table is { } slab && !Table.Outline(slab).ContainsOutline(start.Shift(destination - origin));
@@ -119,17 +138,17 @@ public static class Movement
         readonly MoveSpace _space;
 
         public Fitting(PlacedModel start, double allowance, IReadOnlyList<WorldVolume> impassable, IReadOnlyList<WorldVolume> difficult, double? difficultCap,
-            TableSize? table, IReadOnlyList<PlacedModel>? models, IReadOnlyList<WorldVolume>? surfaces, IReadOnlyList<WorldVolume>? steep)
+            TableSize? table, IReadOnlyList<PlacedModel>? models, IReadOnlyList<WorldVolume>? surfaces, IReadOnlyList<WorldVolume>? steep, MoveUnits? units = null)
         {
             if (steep is { Count: > 0 } && SteepEntering(start, steep) is { Count: > 0 } onto) difficult = [.. difficult, .. onto];
             (_start, _base, _allowance, _cap, _table) = (start, start.BaseOutline(), allowance, difficultCap, table);
-            _space = new MoveSpace(start, Math.Max(allowance, 0) + 1e-3, impassable, difficult, [], table, models, surfaces);
+            _space = new MoveSpace(start, Math.Max(allowance, 0) + 1e-3, impassable, difficult, [], table, models, surfaces, units: units);
         }
 
-        /// <summary>Check(...) is { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false, CrossesModels: false }.</summary>
+        /// <summary>Check(...) is { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false, CrossesModels: false, NearModels: false }.</summary>
         public bool Fits(Point2 destination) =>
             !Leaves(_base, _start.Placement.Position.Horizontal, destination, _table)
-            && Fit(_space, destination, _allowance, _cap, MoveSpace.Walls | MoveSpace.Bodies, false) is not null;
+            && Fit(_space, destination, _allowance, _cap, MoveSpace.Held, false) is not null;
     }
 
     /// <summary>
@@ -139,9 +158,10 @@ public static class Movement
     /// </summary>
     public static MoveCheck Measured(PlacedModel start, Point2 destination, double allowance, IReadOnlyList<WorldVolume> impassable,
         IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table, IReadOnlyList<PlacedModel>? models, IReadOnlyList<WorldVolume>? surfaces,
-        IReadOnlyList<WorldVolume> dangerous, IReadOnlyList<WorldVolume> unstable, double unstableOver, IReadOnlyList<WorldVolume>? steep = null)
+        IReadOnlyList<WorldVolume> dangerous, IReadOnlyList<WorldVolume> unstable, double unstableOver, IReadOnlyList<WorldVolume>? steep = null,
+        MoveUnits? units = null)
     {
-        MoveCheck Path(IReadOnlyList<WorldVolume> avoid) => Check(start, destination, allowance, impassable, difficult, difficultCap, table, models, surfaces, avoid, steep);
+        MoveCheck Path(IReadOnlyList<WorldVolume> avoid) => Check(start, destination, allowance, impassable, difficult, difficultCap, table, models, surfaces, avoid, steep, units);
         var path = Path(dangerous);
         if (unstable.Count > 0 && path.Distance > unstableOver + Tolerance.Distance && VolumesOnPath(start, path.Path, [.. dangerous, .. unstable]).Count > 0)
             path = Path([.. dangerous, .. unstable]);
@@ -163,24 +183,33 @@ public static class Movement
     /// The shortest path from the start to base contact with `target` (its base touching the target's, in plan), on the table and meeting no
     /// impassable volume, when it is at most `limit`; null otherwise. Rulebook p.9: a charge target is valid when a model "is within charge distance
     /// of one model from the target unit, and has a clear path to reach it", and "charge moves don't have to be in a straight line". The contact point
-    /// is the nearest one to the start, or to a corner of a way round; 0 when the bases already touch or overlap.
+    /// is the nearest one to the start, or to a corner of a way round; 0 when the bases already touch or overlap. Given `models` (the target among
+    /// them left out), the path goes round them as Check's does, in plan and height over `surfaces`, and with `units` round each other unit's
+    /// perimeter (MoveUnits; the target's unit among its Bases).
     /// </summary>
-    public static double? ContactDistance(PlacedModel start, PlacedModel target, double limit, IReadOnlyList<WorldVolume> impassable, TableSize? table)
+    public static double? ContactDistance(PlacedModel start, PlacedModel target, double limit, IReadOnlyList<WorldVolume> impassable, TableSize? table,
+        IReadOnlyList<PlacedModel>? models = null, MoveUnits? units = null, IReadOnlyList<WorldVolume>? surfaces = null)
     {
         var origin = start.Placement.Position.Horizontal;
         var contact = MoveShape.Of(target.BaseOutline(), start.BaseOutline(), origin);
         if (contact.Depth(origin) <= Tolerance.Distance) return 0;
         var first = contact.Nearest(origin);
         if (origin.DistanceTo(first) > limit + Tolerance.Distance) return null;
-        var space = new MoveSpace(start, limit, impassable, [], [], table, null, null);
-        if (space.Clear(origin, first, MoveSpace.Walls, fromStart: true)) return origin.DistanceTo(first);
-        var field = space.Settle(MoveSpace.Walls, limit);
+        if (models is { Count: > 0 } && models.Contains(target))
+        {
+            var keep = Enumerable.Range(0, models.Count).Where(i => !models[i].Equals(target)).ToList();
+            units = units is null ? null : units with { Of = [.. keep.Select(i => units.Of[i])] };
+            models = [.. keep.Select(i => models[i])];
+        }
+        var space = new MoveSpace(start, limit, impassable, [], [], table, models, surfaces, units: units);
+        if (space.Clear(origin, first, MoveSpace.Held, fromStart: true)) return origin.DistanceTo(first);
+        var field = space.Settle(MoveSpace.Held, limit);
         double? best = null;
         foreach (var corner in field.Corners)
         {
             var touch = contact.Nearest(corner.At);
             var length = corner.G + corner.At.DistanceTo(touch);
-            if (length <= limit + Tolerance.Distance && (best is null || length < best) && space.Clear(corner.At, touch, MoveSpace.Walls)) best = length;
+            if (length <= limit + Tolerance.Distance && (best is null || length < best) && space.Clear(corner.At, touch, MoveSpace.Held)) best = length;
         }
         return best;
     }
@@ -193,12 +222,13 @@ public static class Movement
     /// reach and only the plan path is measured. With `difficult` volumes and a `difficultCap` (and `steep` ones, difficult when the start is off them,
     /// SteepEntering), each landing's path is judged as Check judges a move: round the difficult ground within the limit, else through it within the
     /// cap. Only where the shortest plan path is over the cap and difficult ground lies within the limit of the start is the landing search needed.
+    /// Given `models` and `units`, every path goes round them as ContactDistance's and Check's do.
     /// </summary>
     public static bool ContactInReach(PlacedModel start, PlacedModel target, double limit, IReadOnlyList<WorldVolume> impassable, TableSize? table,
         IReadOnlyList<WorldVolume> volumes, double vertical, IReadOnlyList<WorldVolume>? difficult = null, double? difficultCap = null,
-        IReadOnlyList<WorldVolume>? steep = null)
+        IReadOnlyList<WorldVolume>? steep = null, IReadOnlyList<PlacedModel>? models = null, MoveUnits? units = null)
     {
-        if (ContactDistance(start, target, limit, impassable, table) is not { } shortest) return false;
+        if (ContactDistance(start, target, limit, impassable, table, models, units, volumes) is not { } shortest) return false;
         var slowing = Slowing(start, limit, shortest, difficult, difficultCap, steep);
         var cap = slowing.Count > 0 ? difficultCap + UnitFormation.ContactGap : null;
         var level = target.Bottom();
@@ -215,7 +245,8 @@ public static class Movement
             if (origin.DistanceTo(at) > reach + Tolerance.Distance) continue;
             var there = start with { Placement = start.Placement with { Position = new Point3(at.X, at.Y, level) } };
             if (Math.Abs(Collision.RestNear(there, near, level) - level) > vertical + Tolerance.Distance) continue;
-            if (Check(start, at, reach, impassable, slowing, cap, table) is { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) return true;
+            if (Check(start, at, reach, impassable, slowing, cap, table, models, volumes, units: units)
+                is { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false, CrossesModels: false, NearModels: false }) return true;
         }
         return false;
     }
