@@ -1,7 +1,7 @@
 <!-- viewer/src/lib/lobby/TeamColumns.svelte -->
 <!-- TeamColumnsPanel.cs over columnsOf (spec 2026-11-07-lobby-and-setup-redesign-design.md): one column per team in its colour, then Watching;
      each player with their army, each of my rows with its army picker; Join at a column's foot (compact: the band's +) adds a seat for my
-     account; a row's ▸ menu and a row dragged onto another column move it, or leave a team I hold among several. The lobby's are wide; setup's
+     account; a row's Move to menu and a row dragged onto another column move it, and my row's Leave team gives its team up. The lobby's are wide; setup's
      sidebar holds them `compact`. -->
 <script lang="ts">
   import type { ArmySummary } from '../api/types';
@@ -10,7 +10,7 @@
   import type { Edit } from '../protocol/wire.generated';
   import { createTeam } from './lobbyEdits';
   import { armyOptions, pickArmy } from './lobbyView';
-  import { ADD_TEAM, ADD_TEAM_COMPACT, JOIN, JOIN_COMPACT, NO_ARMY, YOU, columnsOf, moveTo, type TeamColumn } from './teamColumns';
+  import { ADD_TEAM, ADD_TEAM_COMPACT, JOIN, JOIN_COMPACT, LEAVE_COMPACT, LEAVE_TEAM, MOVE_MENU, NO_ARMY, YOU, columnsOf, leaveTip, moveTo, type ColumnMember, type ColumnMove, type TeamColumn } from './teamColumns';
   import { isCreator } from './seats';
   import TeamIcon from './TeamIcon.svelte';
 
@@ -25,6 +25,8 @@
 
   let dragging: string | null = $state(null);
   let over: string | null = $state(null);           // the column key a drop would land on
+  /** My row's own give-up move (Watch, or Leave Team N while I hold several), shown as Leave team; the rest go in Move to. */
+  const leaveOf = (m: ColumnMember): ColumnMove | undefined => (m.you ? m.moves.find((x) => x.teamId === null) : undefined);
   const keyOf = (c: TeamColumn) => c.teamId ?? 'watching';
   const colourOf = (c: TeamColumn) => (c.ordinal > 0 ? teamColour(c.ordinal) : 'var(--dim)');
   const dropFor = (c: TeamColumn) => (dragging === null ? null : moveTo(game, snap.participantId, creator, dragging, c.teamId));
@@ -64,6 +66,8 @@
       </header>
       <ul class="members">
         {#each c.members as m (m.participantId)}
+          {@const leave = leaveOf(m)}
+          {@const others = m.moves.filter((x) => x !== leave)}
           <li class="member" class:you={m.you} draggable={m.moves.length > 0}
             title={m.moves.length > 0 ? 'Drag to another column to move' : undefined}
             ondragstart={(e) => { dragging = m.participantId; e.dataTransfer?.setData('text/plain', m.participantId); }}
@@ -72,12 +76,15 @@
               <span class="player"><TeamIcon name="player" size={compact ? 16 : 22} /></span>
               <span class="text">{m.name}</span>
               {#if m.you && !compact}<span class="you-tag">{YOU}</span>{/if}
-              {#if m.moves.length > 0}
+              {#if others.length > 0}
                 <select class="move" aria-label={`Move ${m.name}`} value=""
-                  onchange={(e) => { const i = Number(e.currentTarget.value); e.currentTarget.value = ''; if (!Number.isNaN(i)) void send(m.moves[i]!.edit); }}>
-                  <option value="">▸</option>
-                  {#each m.moves as move, i (i)}<option value={String(i)}>{move.text}</option>{/each}
+                  onchange={(e) => { const i = Number(e.currentTarget.value); e.currentTarget.value = ''; if (!Number.isNaN(i)) void send(others[i]!.edit); }}>
+                  <option value="">{MOVE_MENU}</option>
+                  {#each others as move, i (i)}<option value={String(i)}>{move.text}</option>{/each}
                 </select>
+              {/if}
+              {#if leave}
+                <button class="leave" title={leaveTip(leave, c.title)} onclick={() => send(leave.edit)}>{compact ? LEAVE_COMPACT : LEAVE_TEAM}</button>
               {/if}
             </div>
             {#if c.teamId !== null || m.army !== null || m.myArmy !== null}
@@ -141,7 +148,8 @@
   .army.none { color: var(--dim); }
   .army select { flex: 1 1 auto; min-width: 0; color: var(--field-text); }
   .you-tag { color: var(--accent); flex: none; }
-  .move { flex: none; width: 2.4rem; min-height: 1.8rem; padding: 0 var(--space-1); font-size: .9rem; }
+  .move { flex: none; width: auto; min-height: 1.8rem; padding: 0 var(--space-1); font-size: .9rem; }
+  .leave { flex: none; min-height: 1.8rem; padding: 0 var(--space-2); font-size: .9rem; }
   .empty { color: var(--dim); }
   footer { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); padding: 0 var(--space-3) var(--space-3); }
   .join { min-width: 8rem; }

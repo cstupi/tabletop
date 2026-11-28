@@ -8,7 +8,7 @@ namespace Tabletop.Client.Panels;
 /// <summary>
 /// The team columns (spec 2026-11-07-lobby-and-setup-redesign-design.md, TeamColumns): one column per team, then Watching. The lobby's are
 /// wide, side by side and wrapping; setup's Teams tool stacks them compact, one a row at the tool panel's full width. A column's Join (setup: its band's +) adds
-/// a seat for my account; a row's ▸ menu and a row dragged onto another column move it (or leave a team I hold among several); each of my rows
+/// a seat for my account; a row's Move to menu and a row dragged onto another column move it, and my row's Leave team gives its team up; each of my rows
 /// holds its army picker.
 /// </summary>
 public partial class TeamColumnsPanel : MarginContainer
@@ -133,7 +133,7 @@ public partial class TeamColumnsPanel : MarginContainer
         return band;
     }
 
-    /// <summary>A player row: the name with its chips and ▸ menu, then the army line or my picker. Dragged onto another column, it moves.</summary>
+    /// <summary>A player row: the name with its chips, Move to menu and (mine) Leave team, then the army line or my picker. Dragged onto another column, it moves.</summary>
     Control Member(ColumnBox box, TeamColumn column, ColumnMember m)
     {
         var row = new MemberRowBox(box, column, m) { TooltipText = m.Moves.Count > 0 ? "Drag to another column to move" : "" };
@@ -141,19 +141,29 @@ public partial class TeamColumnsPanel : MarginContainer
         var lines = new VBoxContainer(); lines.AddThemeConstantOverride("separation", _compact ? 0 : Space.XS); row.AddChild(lines);
         var top = new HBoxContainer(); top.AddThemeConstantOverride("separation", Space.S); lines.AddChild(top);
         top.AddChild(Icon("player", column.Ordinal > 0 ? Ui.Team(column.Ordinal) : Ui.DimText, _compact ? 16 : 22));
-        // Names and armies wrap at spaces and hyphens, never mid-word; one long token ends in an ellipsis, the full text in the tooltip.
-        top.AddChild(new Label { Text = m.Name, SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.Word, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, CustomMinimumSize = new Vector2(NameMinWidth, 0),
+        // Names and armies wrap at spaces and hyphens, a long token mid-word. No overrun trim: Godot gives a wrapping label that trims a minimum
+        // height of 1 px, so in a row no taller than its icon it drew no line at all.
+        top.AddChild(new Label { Text = m.Name, SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(NameMinWidth, 0),
             TooltipText = m.Name, MouseFilter = MouseFilterEnum.Pass });
         var editing = Icon("editing", Ui.Accent, 16); editing.Visible = false; editing.TooltipText = "Editing the table"; editing.MouseFilter = MouseFilterEnum.Pass;
         top.AddChild(editing); _editing[m.ParticipantId] = editing;
         if (m.You && !_compact) top.AddChild(new Label { Text = TeamColumns.You, ThemeTypeVariation = Variation.Accent });   // compact: the lit row says it
-        if (m.Moves.Count > 0)
+        // My own row says Leave team as a button; the moves to other teams (and, for the creator, another player's every move) are a Move to menu.
+        var leave = m.You ? m.Moves.FirstOrDefault(x => x.TeamId is null) : null;
+        var moves = m.Moves.Where(x => x != leave).ToList();
+        if (moves.Count > 0)
         {
-            var menu = new MenuButton { Text = "▸", Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Move or leave", FocusMode = FocusModeEnum.None };
-            for (var i = 0; i < m.Moves.Count; i++) menu.GetPopup().AddItem(m.Moves[i].Text, i);
-            var moves = m.Moves;
+            var menu = new MenuButton { Text = TeamColumns.MoveMenu, Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = $"Move {m.Name} to another column", FocusMode = FocusModeEnum.None };
+            for (var i = 0; i < moves.Count; i++) menu.GetPopup().AddItem(moves[i].Text, i);
             menu.GetPopup().IdPressed += id => Guarded.Send(_s, moves[(int)id].Edit);
             top.AddChild(menu);
+        }
+        if (leave is not null)
+        {
+            var b = new Button { Text = _compact ? TeamColumns.LeaveCompact : TeamColumns.LeaveTeam, TooltipText = TeamColumns.LeaveTip(leave, column.Title), FocusMode = FocusModeEnum.None,
+                SizeFlagsVertical = SizeFlags.ShrinkCenter };
+            b.Pressed += () => Guarded.Send(_s, leave.Edit);
+            top.AddChild(b);
         }
         // Watching rows name an army only when they have one, or on my row with its picker.
         if (column.TeamId is null && m.Army is null && m.MyArmy is null) return row;
@@ -171,7 +181,7 @@ public partial class TeamColumnsPanel : MarginContainer
         }
         else
             army.AddChild(new Label { Text = m.Army ?? TeamColumns.NoArmy, ThemeTypeVariation = warn ? Variation.Warning : m.Army is null ? Variation.Dim : "",
-                SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.Word, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, CustomMinimumSize = new Vector2(NameMinWidth, 0), TooltipText = m.Army ?? "",
+                SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(NameMinWidth, 0), TooltipText = m.Army ?? "",
                 MouseFilter = MouseFilterEnum.Pass });
         return row;
     }

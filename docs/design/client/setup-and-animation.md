@@ -12,7 +12,7 @@ the whole draft, and every lobby edit with a `GameInfoMessage`. The client has n
 The lobby and setup send seven lobby edits (spec `2026-11-07-lobby-and-setup-redesign-design.md`). `TeamColumnsPanel`, over
 `TeamColumns`, draws a column per team and one for Watching: a column's Join (setup's compact columns: the band's +) is
 `PickTeam(team)`, taking a team for my teamless row, else adding a seat for my account (self-play), never moving one; Watch
-`PickTeam(null)`; a row's ▸ menu and a row dragged onto a column send `PickTeam(target, participant)`, offered to the creator for any
+`PickTeam(null)`; a row's Move to… menu (on my own row, Leave team for the give-up move) and a row dragged onto a column send `PickTeam(target, participant)`, offered to the creator for any
 row and to a player for their own, never onto a team the server would refuse, and my row's Leave Team N `LeaveTeam(team)` while I
 hold several; the creator's + Add team is
 `CreateTeam`; my row's picker is `PickArmy` (one per team held). `LobbyPanel` is Game settings: `SetConfiguration` pre-filled with
