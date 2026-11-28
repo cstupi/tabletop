@@ -105,7 +105,9 @@ describe('DecisionCard', () => {
       { teamId: TEAM1, ordinal: 1, team: 'Team 1', doing: 'activating', mine: true },
       { teamId: TEAM2, ordinal: 2, team: 'Team 2', doing: 'removing casualties', mine: false },
     ]);
-    expect(doing('charge_target')).toBe('charge target');
+    const n = new Names(s.game, p);
+    expect(doing(askOf({ kind: 'options', choices: [] }, { question: 'strike_back', prompt: 'Strike back?', teams: [TEAM2] }), p, n)).toBe('Strike back?');
+    expect(doing(askOf({ kind: 'options', choices: [] }, { question: 'charge_target', prompt: '', teams: [TEAM2] }), p, n)).toBe('Charge target');
   });
 
   it('key caps and words', () => {
