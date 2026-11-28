@@ -147,6 +147,9 @@ export function quietOf(p: Projection, game: GameInfo, n: Names, mine: readonly 
   return [...out.filter((b) => b.mine), ...out.filter((b) => !b.mine)];
 }
 
+/** The waiting band's and header's lead (DecisionCard.WaitingFor): "Waiting for Team 2". */
+export const waitingFor = (team: string): string => `Waiting for ${team}`;
+
 /** What a team is doing while its Ask is open (DecisionCard.Doing), as the waiting band and the header's waiting line say it: the scheduler's
  * and the common steps' words, else the title that team's own card shows ("Strike back?", "Consolidation", "Advance"). */
 export function doing(ask: Ask, p: Projection, n: Names): string {

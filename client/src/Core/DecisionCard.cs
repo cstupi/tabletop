@@ -149,6 +149,9 @@ public static class DecisionCard
             .OrderByDescending(b => b.Mine).ToList();
     }
 
+    /// <summary>The waiting band's and header's lead: "Waiting for Team 2".</summary>
+    public static string WaitingFor(string team) => $"Waiting for {team}";
+
     /// <summary>What a team is doing while its Ask is open, as the waiting band and the header's waiting line say it: the scheduler's and the
     /// common steps' words (activating, deploying, removing casualties…), else the title that team's own card shows, so a charged unit's
     /// "Strike back?", a melee's "Consolidation" or "Close in" and a unit's own "Advance" read as the decision it is.</summary>
