@@ -79,10 +79,10 @@ public class AssetTests : IClassFixture<ManagementFactory>
         var created = await c.PostJson<CreateAssetResponse>("/v1/assets", req);
         using (var http = _f.Blobs.Client()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(stl) { Headers = { ContentType = new("model/gltf-binary") } });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null)).StatusCode);
-        var dense = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(TestGlb.Build((300_003, null, true)), "dense"));
-        using (var http = _f.Blobs.Client()) await http.PutAsync(dense!.UploadUrl, new ByteArrayContent(TestGlb.Build((300_003, null, true))) { Headers = { ContentType = new("model/gltf-binary") } });
+        var dense = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(TestGlb.Build((750_003, null, true)), "dense"));
+        using (var http = _f.Blobs.Client()) await http.PutAsync(dense!.UploadUrl, new ByteArrayContent(TestGlb.Build((750_003, null, true))) { Headers = { ContentType = new("model/gltf-binary") } });
         var confirmed = await c.PostJson<ConfirmResponse>($"/v1/assets/{dense.Asset.Id}/confirm", new { });
-        Assert.Equal(100_001, confirmed!.Triangles); Assert.Contains("100,000", confirmed.Warning); Assert.True(confirmed.Asset.Uploaded);
+        Assert.Equal(250_001, confirmed!.Triangles); Assert.Contains("250,000", confirmed.Warning); Assert.True(confirmed.Asset.Uploaded);
         Assert.Equal(HttpStatusCode.UnsupportedMediaType, (await c.PostAsJsonAsync("/v1/assets", Mini(stl) with { ContentType = "model/stl" }, ContentJson.Options)).StatusCode);
     }
 

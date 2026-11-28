@@ -406,9 +406,11 @@ dropped GLB behave differently from a converted one.
 
 #### 6.4 Decimation
 
-`BUDGETS = { miniature: 15_000, terrain: 50_000 }` are the spec's numbers. A table holds around
-a hundred miniatures and they are small on screen, while terrain is larger and fewer. A
-print-ready 32 mm mini is routinely 500k–2M triangles, so this is a 50–100× reduction.
+`BUDGETS = { miniature: 50_000, terrain: 150_000 }` are the spec's numbers. A table holds around
+a hundred miniatures and terrain is larger and fewer; the client generates levels of detail at load
+(`MeshLoader.Template`), so the frame draws what the Quality's LOD threshold allows and the budget costs
+download and load time rather than frame time. A
+print-ready 32 mm mini is routinely 500k–2M triangles, so this is a 10–40× reduction.
 
 `meshoptimizer` is the simplifier (mesh conversion → *Deliberately not decided*). It is picked
 because it embeds its WebAssembly in the JS module, so it loads under Node and inside a Worker
@@ -677,7 +679,7 @@ finished bytes.
   blob. Dedup is per account, not global (asset library spec), so deleting an asset never has
   to check whether another account still points at the bytes.
 - `confirm`'s `warning` is passed through **untouched**. It is the server's words, fired above
-  100,000 triangles, and never a refusal. The converter's budgets sit far below that threshold,
+  250,000 triangles, and never a refusal. The converter's budgets sit below that threshold,
   so the warning only fires for a file that skipped the converter.
 - `UploadError(stage, cause)` wraps everything, so the UI can say "failed while sending the
   bytes" rather than "TypeError".
@@ -979,7 +981,7 @@ button, closed by a choice, Escape or a click elsewhere). Icons stay paths on th
 | Conversion in the browser, not an offline tool | A command-line tool promises a non-technical user and hands them a terminal; a desktop app is a second install and a second codebase | A `tools/mesh-prep/` command line | mesh conversion → Conversion runs in the browser |
 | Converter proposes, user confirms | Fields that were always identity would hold nothing to confirm, and a dropped GLB would behave differently from a converted one | The tool writes scale and orientation; or the user writes both unaided | mesh conversion → What it writes; geometry values → Asset scale and orientation |
 | The **browser** computes the bounding-box volume, from the **confirmed** values | Volumes are written at upload (geometry values) and only the browser holds the mesh; the user may have corrected the proposal in the preview | Server-side computation (needs the mesh); using `ConversionResult.volume` | whole-design review → Gaps filled; mesh conversion → What it does not do |
-| Budgets 15,000 / 50,000; warn above 100,000 | A table holds ~100 miniatures and they are small on screen; terrain is larger and fewer. The warning never blocks | A hard cap at upload; no guardrail at all | mesh conversion → Decimate, The threshold |
+| Budgets 50,000 / 150,000; warn above 250,000 | A table holds ~100 miniatures; terrain is larger and fewer. The client generates levels of detail, so the budget costs download and load time, not frame time. The warning never blocks | A hard cap at upload; no guardrail at all | mesh conversion → Decimate, The threshold |
 | Never remove supports | Not reliably possible | Automatic support removal | mesh conversion → Warn about pre-supported files |
 | GLB only | A `.gltf` with external buffers is several files with relative references: breaks presigned single-object upload and the header read | glTF with external `.bin` | management API → GLB only |
 | Presets are UI over a shape | Otherwise the geometry library looks up a table to answer "how big is this", and the per-slot base exists so users can base their own way | A base-size enumeration: a preset dropdown as the stored value | geometry values → Bases |
@@ -1363,7 +1365,7 @@ across page visits: every write is followed by a refetch, so a stale list cannot
 | A mixed or unsupported drop | `classifyFiles` rejects locally with the reason, before any parse; `.gltf` gets management's own explanation |
 | Mesh over budget | Decimation ladder widens the error until it fits; before/after counts are shown |
 | Pre-supported file | Warned in words, asks for the unsupported file, never modifies the mesh, never blocks |
-| Over 100,000 triangles | Management's `confirm` warning is shown verbatim; the upload has already succeeded |
+| Over 250,000 triangles | Management's `confirm` warning is shown verbatim; the upload has already succeeded |
 | Duplicate bytes | `uploadUrl` absent → the `PUT` is skipped and the outcome says the bytes were already in the library |
 | A stage of the upload fails | `UploadError(stage, cause)` names the stage; the dialog returns to *preview* with everything intact, so Confirm can be pressed again |
 | Army Forge down, or a non-Grimdark list | `502` / `422` mapped to sentences; a re-import leaves the old army in place |

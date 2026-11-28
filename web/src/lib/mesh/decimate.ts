@@ -3,7 +3,7 @@ import { MeshoptSimplifier } from 'meshoptimizer';
 import type { IndexedMesh } from './types';
 import { triangleCount } from './types';
 
-export const BUDGETS = { miniature: 15_000, terrain: 50_000 } as const;
+export const BUDGETS = { miniature: 50_000, terrain: 150_000 } as const;
 const ERRORS = [0.005, 0.01, 0.02, 0.05, 0.1, 0.25, 0.5];
 
 export async function decimate(mesh: IndexedMesh, budgetTriangles: number): Promise<IndexedMesh> {

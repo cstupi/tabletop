@@ -52,3 +52,5 @@ Thumbs.db
 
 # Session handoff, local only. Never committed.
 /docs/handoff.md
+
+.claude/settings.local.json*

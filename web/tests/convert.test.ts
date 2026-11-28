@@ -20,15 +20,15 @@ describe('convert', () => {
     expect(d.bounds.min[2]).toBeCloseTo(0, 4);       // standing on z = 0
   });
   it('decimates a dense terrain piece to its budget and flags supports on the supported one', async () => {
-    const dense = await convert({ kind: 'terrain', files: [file('tests/fixtures/dense-binary.stl')] });
+    const dense = await convert({ kind: 'terrain', budget: 20_000, files: [file('tests/fixtures/dense-binary.stl')] });
     expect(dense.trianglesBefore).toBe(47_800);   // 48,000 in the file; convert measures after the weld, which drops the north-pole fan
-    expect(dense.trianglesAfter).toBeLessThanOrEqual(BUDGETS.terrain);
+    expect(dense.trianglesAfter).toBeLessThanOrEqual(20_000);
     expect(dense.volume.top).toBeCloseTo(40 / 25.4, 3);
     const supported = await convert({ kind: 'miniature', files: [file('tests/fixtures/supported-binary.stl')] });
     expect(supported.supports.suspected).toBe(true);
   });
   it('converts an over-budget miniature: decimated indices stay inside the vertex buffer', async () => {
-    const r = await convert({ kind: 'miniature', files: [file('tests/fixtures/dense-binary.stl')] });
+    const r = await convert({ kind: 'miniature', budget: 15_000, files: [file('tests/fixtures/dense-binary.stl')] });
     expect(r.trianglesAfter).toBeLessThanOrEqual(15_000);
     expect((await describeGlb(r.glb)).triangles).toBe(r.trianglesAfter);
   });

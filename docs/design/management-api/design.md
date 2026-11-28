@@ -561,7 +561,7 @@ once (`AssetQuota`, `AssetQuotaExceeded` → `422`). An account holds at most 20
 | size ≠ `asset.ByteSize` or over the cap | staging deleted, `422` |
 | SHA-256 ≠ the declared hash | `422` |
 | a GLB or texture check fails | `422` with fixed text; the detail is logged |
-| triangles > 100,000 | `200` with `Warning` set |
+| triangles > 250,000 | `200` with `Warning` set |
 | the blob row was swept meanwhile | content object deleted, `409` |
 | otherwise | `200`, `blob.uploaded = true` |
 
@@ -576,7 +576,7 @@ JSON read checks the value's kind, every range check is overflow-safe, and any p
   4–252 and a multiple of 4;
 - every accessor ≤ 3,000,000 elements, Σ count × element size ≤ 128 MiB, each inside its bufferView, sparse
   indices and values bounded; every attribute and morph target of a primitive has POSITION's count;
-- vertices (Σ POSITION counts) ≤ 500,000 and triangles ≤ 1,000,000, refused; above 100,000 triangles
+- vertices (Σ POSITION counts) ≤ 500,000 and triangles ≤ 1,000,000, refused; above 250,000 triangles
   warns (mesh conversion → *The threshold*). Triangles convert by `mode`: 4 → `count/3`, 5 and 6 →
   `count - 2`, points and lines → 0, meshes counted once each, not per node;
 - at most 8 images, each through a bufferView with no `uri`, `mimeType` png, jpeg or webp matching the
@@ -1154,7 +1154,7 @@ writes `builtin/`.
 | **The client has its own login screen. Both it and the web app call the same two methods** | there is no social login and no magic link, so nothing needs a browser page to redirect to, and email plus password or one-time code costs the client the same two management calls the web app makes | loopback and device code, both designed to carry a browser session into the client; an embedded webview to catch an auth redirect | client shell → *No social login*; web app → *Login is the web app's* |
 | **The account id rides in a custom claim set per session with `session_custom_claims`, not in `external_id`** | Stytch's JWT names the user by its own `sub` and does not carry `external_id`, so our id has to ride in a custom claim. Stytch keeps session custom claims on the session, so one stamp per new session carries every refresh | reading `external_id` from the token, which the JWT does not carry; a `SESSION` custom claim template rendering `{{ user.external_id }}`, which is dashboard configuration outside the repo and fails silently when absent | management API → *Authentication*; the plan's ruling 1; plan Task 5 |
 | **GLB only**, narrowed from "glTF/GLB" | a `.gltf` with external buffers is several files with relative references: single-object presigned upload breaks, the header read becomes pointless, and serving it to another player's client can fail | accepting `.gltf` with sidecar buffers | management API → *GLB only*; `architecture.md` → *GLB only* |
-| **The triangle check warns and never blocks**, above 100,000 | the guardrail exists because nothing stops an undecimated Blender export landing on every client. Refusing an upload is not this product's shape | a hard limit; server-side decimation, which would mean a job queue, a worker and an async upload state | mesh conversion → *The threshold*; asset library → *Still open* |
+| **The triangle check warns and never blocks**, above 250,000 | the guardrail exists because nothing stops an undecimated Blender export landing on every client. Refusing an upload is not this product's shape | a hard limit; server-side decimation, which would mean a job queue, a worker and an async upload state | mesh conversion → *The threshold*; asset library → *Still open* |
 | **`enforcement` is `silent \| warn \| strict`**, not a boolean | action sequences and the scheduler both carry a refusing mode, which a boolean cannot express | `warns boolean`, on the reading that a blocking mode contradicts the product. This module only stores and validates the column | whole-design review ruling 1 |
 | **A participant has no team until they pick one, and picking is not joining** | nothing said what team `join` assigned. `POST /v1/games/{id}/join` inserts the row and sets no team, at any status; taking a team is a game-server lobby edit before play. A team-less participant is never addressed by an Ask, which is what a spectator is | presence's "joins a third team"; and a `join` that assigns a team, which conflates the two operations | whole-design review ruling 5; game flow → *Teams are frozen at the flip, and a team is a slot* |
 | **A development-only route mints a real Stytch session for a named account.** `POST /v1/dev/sessions`, gated on `IHostEnvironment.IsDevelopment()` | the simulator's socket driver has to hold a session token per team, and hand-pasting four of them is not acceptable. Management holds the project secret and already creates users and authenticates sessions, so the mint costs four Stytch calls and no new machinery. Minting a real token keeps the socket driver on the production verification path, which is the only reason that driver exists | a hand-pasted `TABLETOP_SIM_JWT`; a second signing key or a local trust anchor for either verifier, which would put a bypass in the auth path; a feature flag, which a deployment could set by accident | simulation design → *How a socket run gets its session JWTs* |
@@ -1718,7 +1718,7 @@ live service; `--settings tests/e2e.runsettings` runs the `Category=E2E` tests a
 | --- | --- |
 | `ClientVersion.Decide` | five cases: missing, equal, above, below, malformed |
 | `Keyset.Parse` / `Page<T>.Of` | default 50, cap 200, non-positive throws, `Next` only on a full page |
-| `GlbHeader` | magic and version, the JSON chunk length, triangle count per `mode` (4, 5, 6, lines), summing over primitives, the 100,000 boundary. `TestGlb.Build` synthesises a structurally valid GLB with an empty binary chunk |
+| `GlbHeader` | magic and version, the JSON chunk length, triangle count per `mode` (4, 5, 6, lines), summing over primitives, the 250,000 boundary. `TestGlb.Build` synthesises a structurally valid GLB with an empty binary chunk |
 | `ArmyForgeImport` | against the **real** saved export (`Fixtures/army-forge-c2-6YsWRH3py.json`): parse, combined merge, stats and bases, catalog-driven property level, the weapon cursor over a hand-written five-model list, range on ranged weapons and absent on melee, `ListId` from a share link and a bare id, an `aof` list importing as `grimdark-future` and `aofs` refused, the height scaled from the base. Two hand-written lists cover the join: a hero merged into a squad (six slots, the host's unit stats, the hero's own slot stats, rules, base and weapon on slot six) and the resolution rules (a hero naming an absorbed `combined` partner joins the merged unit, a name nothing answers and a name whose entry itself joins each stay their own unit) |
 
 ### Endpoint tests over the fakes, no Docker
@@ -1883,7 +1883,7 @@ JWKS endpoint takes no credentials, which an unauthenticated `curl` shows. Army 
 `access-control-allow-origin: *`) and saved as the fixture.
 
 **Rulebook.** No page of Grimdark Future is read by this module. It stores content and enforces no
-rule, in either edition. The one number from the rules side is the triangle warning threshold, 100,000, and that is a
+rule, in either edition. The one number from the rules side is the triangle warning threshold, 250,000, and that is a
 product decision from mesh conversion rather than a rulebook figure. Pages 6, 16, 17–18, 19 and 49
 of Grimdark Future v3.5.1 are read by the setup phase (a 3.6.0 page is cited `3.6.0 p.N`; none is read here), whose rows this module stores as layouts but
 never interprets.
