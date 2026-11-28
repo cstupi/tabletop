@@ -136,7 +136,9 @@ public class DecisionCardTests
         var (p, _) = Two(new AskOpened(theirs), new AskOpened(mine));
         Assert.Equal([new QuietBand(Samples.Team1, 1, "Team 1", "activating", true), new QuietBand(Samples.Team2, 2, "Team 2", "removing casualties", false)],
             DecisionCard.Quiet(p, Game, [Samples.Team1]));
-        Assert.Equal("charge target", DecisionCard.Doing("charge_target"));
+        var n = new Names(Game, p);
+        Assert.Equal("Strike back?", DecisionCard.Doing(AskOf("strike_back", new Options([]), "Strike back?", Samples.Team2), p, n));
+        Assert.Equal("Charge target", DecisionCard.Doing(AskOf("charge_target", new Options([]), "", Samples.Team2), p, n));
     }
 
     [Fact]

@@ -132,30 +132,36 @@ export function barOf(readouts: readonly RulerReadout[], allowance: number, mini
   };
 }
 
-/** One band per team an open Ask waits on, in Ask order, each team and question once; my teams' first. */
+/** One band per team an open Ask waits on, in Ask order, each team and what it does once; my teams' first. */
 export function quietOf(p: Projection, game: GameInfo, n: Names, mine: readonly string[]): QuietBand[] {
   const seen = new Set<string>();
   const out: QuietBand[] = [];
   for (const a of [...p.openAsks.values()].sort((x, y) => (x.ask.id < y.ask.id ? -1 : x.ask.id > y.ask.id ? 1 : 0)))
     for (const t of a.ask.teams) {
-      if (a.answers.has(t) || seen.has(`${t}|${a.ask.question}`)) continue;
-      seen.add(`${t}|${a.ask.question}`);
-      out.push({ teamId: t, ordinal: game.teams.find((x) => x.id === t)?.ordinal ?? 0, team: n.team(t), doing: doing(a.ask.question), mine: mine.includes(t) });
+      if (a.answers.has(t)) continue;
+      const what = doing(a.ask, p, n);
+      if (seen.has(`${t}|${what}`)) continue;
+      seen.add(`${t}|${what}`);
+      out.push({ teamId: t, ordinal: game.teams.find((x) => x.id === t)?.ordinal ?? 0, team: n.team(t), doing: what, mine: mine.includes(t) });
     }
   return [...out.filter((b) => b.mine), ...out.filter((b) => !b.mine)];
 }
 
-/** What a team is doing while its Ask is open, as the waiting band says it. */
-export function doing(question: string): string {
+/** What a team is doing while its Ask is open (DecisionCard.Doing), as the waiting band and the header's waiting line say it: the scheduler's
+ * and the common steps' words, else the title that team's own card shows ("Strike back?", "Consolidation", "Advance"). */
+export function doing(ask: Ask, p: Projection, n: Names): string {
+  return (ask.legal.kind === 'move_region' ? null : known(ask.question)) ?? (headOf(ask, p, n).title || words(ask.question.replaceAll('_', ' ')));
+}
+
+function known(question: string): string | null {
   if (ACTIVATIONS.has(question)) return 'activating';
   if (DEPLOYS.has(question)) return 'deploying';
   switch (question) {
-    case 'move': return 'moving';
     case 'declare_targets': return 'declaring targets';
     case 'remove_casualties': return 'removing casualties';
     case 'spend_tokens': return 'spending tokens';
     case 'end_round': return 'ending the round';
     case 'cast': return 'casting';
-    default: return question.replaceAll('_', ' ');
+    default: return null;
   }
 }
