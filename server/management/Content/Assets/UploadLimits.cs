@@ -11,7 +11,7 @@ public static class UploadLimits
     public const long Vertices = 500_000;
     public const long Triangles = 1_000_000;
     /// <summary>Above this, confirm succeeds with a warning.</summary>
-    public const long WarnTriangles = 100_000;
+    public const long WarnTriangles = 250_000;
     /// <summary>Elements in any one accessor: the index count of a mesh at the triangle limit.</summary>
     public const long AccessorElements = 3 * Triangles;
     /// <summary>Count × element size summed over every accessor: what a loader allocates, bufferView or not.</summary>

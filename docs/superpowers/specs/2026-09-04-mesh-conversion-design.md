@@ -47,8 +47,9 @@ Each behaviour is from the sketch, kept:
 - **Merge** several files into one mesh, positioned as they come. Kits ship as parts already
   placed relative to each other — body, arms, heads, weapon options — and no fitting is
   attempted.
-- **Decimate** to the budget for the chosen kind: **15,000 triangles for a miniature, 50,000
-  for terrain.** A table holds around a hundred miniatures and they are small on screen; terrain
+- **Decimate** to the budget for the chosen kind: **50,000 triangles for a miniature, 150,000
+  for terrain.** A table holds around a hundred miniatures and the client draws them through levels
+  of detail (graphics settings → Mesh LOD threshold); terrain
   is larger and fewer. Quality is the simplifier's own error metric, and the preview is the
   user's check.
 - **Recompute smooth normals** with an angle threshold. STL carries only per-face normals, and
@@ -77,7 +78,7 @@ confirmed value. A GLB dropped straight in is read by the glTF standard (metres,
 
 ## The threshold
 
-**The upload warning fires above 100,000 triangles.** Closing the asset library's open item. It
+**The upload warning fires above 250,000 triangles.** Closing the asset library's open item. It
 still never blocks, per the management API. The converter's budgets sit well below it, so the
 warning fires only for a file that skipped the converter — a dense export straight from Blender —
 or a piece the user deliberately kept dense.

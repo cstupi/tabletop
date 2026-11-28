@@ -40,11 +40,11 @@ public class GlbHeaderTests
     }
 
     [Fact]
-    public async Task Sums_over_primitives_and_only_warns_above_100k()
+    public async Task Sums_over_primitives_and_only_warns_above_250k()
     {
-        var c = await Check(TestGlb.Build((300_003, null, true), (3, null, true)));
+        var c = await Check(TestGlb.Build((750_003, null, true), (3, null, true)));
         Assert.Null(c.Rejection);
-        Assert.Equal(100_002, c.Triangles);
+        Assert.Equal(250_002, c.Triangles);
         Assert.True(c.Triangles > UploadLimits.WarnTriangles);
     }
 
