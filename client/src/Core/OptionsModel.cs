@@ -212,7 +212,7 @@ public sealed class OptionsModel
         Choice("display", V, "Display", "A window, a borderless window over the whole screen, or exclusive fullscreen. Default windowed.",
             ["Windowed", "Borderless", "Fullscreen"], s => (int)s.Display, (s, v) => s with { Display = (DisplayMode)v }),
         new(ResolutionId, V, "Resolution", "The window's size, centred on the screen.", OptionKind.Choice, s => 0, (s, _) => s),
-        Choice("quality", V, "Quality preset", "Antialiasing, shadows, ambient occlusion and the default render scale together. Picking one resets Render scale.",
+        Choice("quality", V, "Quality preset", "Antialiasing, shadows, ambient occlusion, model detail and the default render scale together. Picking one resets Render scale.",
             Enum.GetNames<GraphicsQuality>(), s => (int)s.Quality, (s, v) => s with { Quality = (GraphicsQuality)v, RenderScale = null }),
         Slider("render-scale", V, "Render scale", "The table's 3D resolution as a share of the window's; below 100 % it is upscaled. The interface stays sharp.",
             GraphicsSettings.MinScale, GraphicsSettings.MaxScale, GraphicsSettings.ScaleStep, Percent, s => s.Graphics.RenderScalePercent,

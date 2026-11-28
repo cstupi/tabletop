@@ -150,6 +150,8 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     /// A path is a content hash or a built-in that ships in the build, so its template never goes stale.</summary>
     async Task<Node3D?> Template(string path, bool builtin)
     {
+        // Uploaded models only: the built-ins are ours and within budget, and their templates outlive a change of Quality.
+        var low = !builtin && Main.Instance.Session.Settings.Quality == GraphicsQuality.Low;
         var parsed = await Task.Run(() =>
         {
             // A cached blob may predate the server's checks or be hostile: Godot sees it only after GlbPreflight. A res:// file
@@ -166,6 +168,7 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
             // Levels of detail, which Godot's runtime glTF import leaves out: a printed miniature is tens of thousands of
             // triangles and a table of 150 of them few pixels each, in the camera's view and every shadow split.
             foreach (var mesh in state.GetMeshes()) mesh.Mesh?.GenerateLods(LodNormalMergeAngle, 0, []);
+            if (low) LowDetailMesh.Apply(state);
             return (doc, state);
         });
         if (parsed is not var (d, s)) return null;

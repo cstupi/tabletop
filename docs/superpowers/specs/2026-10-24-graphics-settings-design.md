@@ -27,10 +27,13 @@ The Settings dialog gains a **Graphics** group, kept in `ClientSettings` and app
   | Shadows | 2 splits, atlas 2048, max distance 120", hard | 4 splits, atlas 4096, 220", soft | 4 splits, atlas 8192, 220", soft |
   | SSAO | off | on | on |
   | Mesh LOD threshold | 4 px | 2 px | 1 px |
+  | Uploaded model detail | at most about 40,000 triangles | full | full |
   | Render scale | 75 % | 100 % | 100 % |
 
   Soft shadows are the key light's angular size (1°, contact-hardened); hard is 0°. The LOD threshold is the viewport's `mesh_lod_threshold`: how
-  many pixels of error a mesh's simplified level may show (meshes get their levels at load, `MeshLoader`). Each feature's measured cost is in
+  many pixels of error a mesh's simplified level may show (meshes get their levels at load, `MeshLoader`). On Low an uploaded model over 40,000
+  triangles loads with its first level within that as its base, the finer levels and their vertices freed (`LowDetail`, `LowDetailMesh`), so a
+  close-up draws it too; it applies to models loaded after the change, built-in terrain excepted. Each feature's measured cost is in
   [2026-10-25-performance-and-network.md](2026-10-25-performance-and-network.md) → The Godot client. Moving the Render scale slider keeps the Quality
   and overrides only its scale; picking a Quality resets the scale to that Quality's.
 - **First start.** With no Quality in `settings.json` the client picks one from the GPU the renderer runs on
