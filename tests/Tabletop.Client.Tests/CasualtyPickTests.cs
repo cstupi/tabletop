@@ -105,6 +105,19 @@ public class CasualtyPickTests
         Assert.Equal(new Dictionary<Guid, int> { [M2] = 1 }, one.Counts);     // another model still moves the pick
     }
 
+    /// <summary>p.15: one Ask for every wound on Tough models; a model takes wounds only once every picked one is full.</summary>
+    [Fact]
+    public void Tough_models_are_filled_one_at_a_time()
+    {
+        var c = new CasualtyPick(new Allocation([M1, M2, M3], 4), new Dictionary<Guid, int> { [M1] = 3, [M2] = 3, [M3] = 3 });
+        Assert.Equal((4, "Assign 4 wounds, one model at a time"), (c.Required, c.Title));
+        c.Add(M2); c.Add(M1);
+        Assert.Equal(new Dictionary<Guid, int> { [M2] = 1 }, c.Counts);            // M2 has room: M1 waits
+        c.Add(M2); c.Add(M2); c.Add(M1);
+        Assert.Equal(new Dictionary<Guid, int> { [M2] = 3, [M1] = 1 }, c.Counts);
+        Assert.Equal(new Dictionary<Guid, int> { [M2] = 3, [M1] = 1 }, Assert.IsType<Allocated>(c.Answer()).Counts);
+    }
+
     [Fact]
     public void Clear_puts_every_model_back()
     {

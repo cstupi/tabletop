@@ -61,9 +61,10 @@ public class GfDealWoundsTests
     }
 
     /// <summary>p.15: "continue to put wounds on the tough model with most wounds in the unit until it is killed, before starting to put them on
-    /// the next tough model". With none wounded the defender picks which one, and a spread answer puts every wound on the first model it names.</summary>
+    /// the next tough model". With none wounded the defender places every wound in one answer, read as an order: each model named is filled
+    /// until it dies before the next takes a wound.</summary>
     [Fact]
-    public void Among_unwounded_Tough_models_the_wounds_go_on_the_first_one_named_until_it_dies_and_the_defender_picks_the_next()
+    public void Among_unwounded_Tough_models_one_answer_places_every_wound_filling_each_model_in_turn()
     {
         var a = Unit("A", "4+", "4+", [], 1, []);
         var t = Unit("T", "4+", "4+", [], 3, [P("Tough", 3)]);
@@ -71,16 +72,26 @@ public class GfDealWoundsTests
         var sim = Start(a, t, 4, [1]);
         var legal = Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal);
         Assert.Equal([x, y, z], legal.Targets);
-        Assert.Equal(1, legal.MaxTargets);                                                                              // one Tough model at a time
-        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [y] = 1, [x] = 1, [z] = 2 }));             // spread: out of set, warned, read as its first model
+        Assert.Equal((4, (int?)null), (legal.Amount, legal.MaxTargets));                                              // one Ask for all four wounds
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [y] = 3, [z] = 1 }));
         Assert.IsType<OnShelf>(sim.Model(y).Location);                                                                // three wounds killed y
-        Assert.Equal((0, 0), (sim.Model(x).Wounds, sim.Model(z).Wounds));
-        var next = Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal);                                         // the fourth: neither left is wounded, so the defender picks
-        Assert.Equal(1, next.Amount);
-        Assert.Equal([x, z], next.Targets);
-        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [z] = 1 }));
-        Assert.Equal((2, 0, 1), (sim.Alive(t.Id), sim.Model(x).Wounds, sim.Model(z).Wounds));
+        Assert.Equal((0, 1), (sim.Model(x).Wounds, sim.Model(z).Wounds));                                             // the fourth on z
+        Assert.Null(sim.AskForOrNull(Samples.Team2));                                                                 // nothing asked again
         Assert.Equal(4, sim.Unit(t.Id).WoundsThisActivation);
+        Assert.Empty(sim.State.Projection.Stack);
+    }
+
+    /// <summary>A spread that would leave two Tough models wounded is read in the order it names them: the first is filled until it dies, the rest go on.</summary>
+    [Fact]
+    public void A_spread_over_Tough_models_is_filled_in_the_order_named()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, []);
+        var t = Unit("T", "4+", "4+", [], 3, [P("Tough", 3)]);
+        var (x, y, z) = (t.Models[0].Id, t.Models[1].Id, t.Models[2].Id);
+        var sim = Start(a, t, 4, [1]);
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [z] = 2, [x] = 2 }));
+        Assert.IsType<OnShelf>(sim.Model(z).Location);
+        Assert.Equal((1, 0), (sim.Model(x).Wounds, sim.Model(y).Wounds));
         Assert.Empty(sim.State.Projection.Stack);
     }
 

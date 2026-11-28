@@ -73,7 +73,7 @@ public static class HeaderView
     public static WaitLine? Wait(Projection p, GameInfo game, Names n, IReadOnlyCollection<Guid> mine)
     {
         var waits = p.OpenAsks.Values.OrderBy(a => a.Ask.Id)
-            .SelectMany(a => a.Ask.Teams.Where(t => !a.Answers.ContainsKey(t)).Select(t => (Team: t, What: a.Ask.Question.Replace('_', ' ')))).Distinct().ToList();
+            .SelectMany(a => a.Ask.Teams.Where(t => !a.Answers.ContainsKey(t)).Select(t => (Team: t, What: DecisionCard.Doing(a.Ask, p, n)))).Distinct().ToList();
         if (waits.Count == 0) return null;
         int Ordinal(Guid t) => game.Teams.FirstOrDefault(x => x.Id == t)?.Ordinal ?? 0;
         if (waits.FirstOrDefault(w => mine.Contains(w.Team)) is { Team: var my } && mine.Contains(my))

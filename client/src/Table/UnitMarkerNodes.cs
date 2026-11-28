@@ -35,7 +35,7 @@ public partial class UnitMarkerNodes : Control
         if (_s.Projection is not { } p) { Clear(); return; }
         var seen = new HashSet<Guid>();
         Guid[] focus = [.. new[] { _input.Selected?.PieceId, _hovered }.OfType<Guid>()];
-        foreach (var m in UnitMarkers.Of(p, c => Ui.Icon(c) is not null, focus))
+        foreach (var m in UnitMarkers.Of(p, c => Ui.Icon(c) is not null, focus, _s.InCover))
         {
             seen.Add(m.UnitId);
             var at = WorldFrame.ToGodot(m.Anchor) + Vector3.Up * 0.6f;

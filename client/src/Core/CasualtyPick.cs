@@ -5,7 +5,8 @@ namespace Tabletop.Client.Core;
 /// <summary>
 /// The remove-casualties pick (in-game UX spec → Casualties). A click adds one wound to an offered model up to its wounds left, and on a
 /// model that can take no more puts it back; a right-click takes one away; Clear empties the pick; Auto fills the rest in the Ask's order. Required is the lesser of the amount and what the models it may
-/// use can take, so a pick whose wounds outnumber the models still completes. Under the Ask's MaxTargets of one, a click on another model
+/// use can take, so a pick whose wounds outnumber the models still completes. A model takes wounds only once every picked model is full (p.15:
+/// a Tough model is filled until it is killed before the next). Under the Ask's MaxTargets of one, a click on another model
 /// moves the pick there. The answer is Allocated, summing to the amount, any surplus on the last model counted for the server to carry over (p.8).
 /// </summary>
 public sealed class CasualtyPick
@@ -46,7 +47,7 @@ public sealed class CasualtyPick
     public bool OneEach => _legal.Targets.All(m => Capacity(m) <= 1);
 
     public string Title => OneEach ? $"Remove {Required} {(Required == 1 ? "model" : "models")}"
-        : $"Assign {_legal.Amount} {(_legal.Amount == 1 ? "wound" : "wounds")}" + (_legal.MaxTargets == 1 ? " to one model" : "");
+        : $"Assign {_legal.Amount} {(_legal.Amount == 1 ? "wound" : "wounds")}" + (_legal.MaxTargets == 1 ? " to one model" : _legal.Targets.Distinct().Count(m => Capacity(m) > 1) > 1 ? ", one model at a time" : "");
 
     public string Status => $"{Chosen} of {Required} chosen";
 
@@ -62,6 +63,8 @@ public sealed class CasualtyPick
             _counts.Clear();                                                // one model at a time: the click moves the pick
         }
         if (Chosen >= Required || _counts.GetValueOrDefault(modelId) >= Capacity(modelId)) return;
+        // p.15: a Tough model takes wounds until it is killed before the next takes any, so a new model waits for every picked one to be full.
+        if (!_counts.ContainsKey(modelId) && _counts.Any(kv => kv.Value < Capacity(kv.Key))) return;
         _counts[modelId] = _counts.GetValueOrDefault(modelId) + 1;
     }
 
